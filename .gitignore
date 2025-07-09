@@ -1,0 +1,7 @@
+__pycache__
+database
+venv
+/assets
+logs
+tmp
+.python-version

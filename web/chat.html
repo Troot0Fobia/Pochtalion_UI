@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles/chat.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="scripts/chat.js"></script>
+</head>
+<body>
+    <div class="chat-window" id="chat-window">
+        <div class="chat-history" id="chat-history"></div>
+        <div class="input-line">
+            <label for="file-input" class="attach-icon">📎</label>
+            <input type="file" id="file-input" style="display: none;" onchange="attachMedia(this)">
+
+            <div class="attached-file" id="attached-file" style="display: none;">
+                <span id="file-name"></span>
+                <button id="remove-file" onclick="removeFile()">✖</button>
+            </div>
+
+            <input class="input-field" id="input-field" type="text" placeholder="Enter your message">
+            <button class="send-button" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script src="scripts/settings.js"></script>
+    <link rel="stylesheet" href="styles/settings.css">
+</head>
+<body>
+    <div class="settings" id="settings">
+        <input type="radio" id="tabchatting" name="settings-tabs" checked="checked">
+        <label for="tabchatting" class="tab-label">Chatting</label>
+        <div class="tab">
+            Some blocks for chatting (In development...)
+        </div>
+        <input type="radio" id="tabmailing" name="settings-tabs">
+        <label for="tabmailing" class="tab-label">Mailing</label>
+        <div class="tab">
+            <div class="control-panel">
+                <div class="column links">
+                    <label for="mailing-usernames-field">Paste usernames for mailing</label>
+                    <textarea name="mailing-usernames" id="mailing-data-field"></textarea>
+                </div>
+                <div class="column">
+                    <div class="select-mailing-type">
+                        <span id="mailing-database">Mailing from database</span>
+                        <label class="type-switch">
+                            <input type="checkbox" id="mailing-database-or-usernames">
+                            <span class="slider"></span>
+                        </label>
+                        <span id="mailing-usernames">Mailing from usernames</span>
+                    </div>
+                    <div class="timing-settings">
+                        <label for="delay-between-mailing">Delay between sending messages</label>
+                        <input type="number" value="0" id="delay-between-mailing-messages">
+                    </div>
+                    <div class="choose-accounts">
+                        <label for="choose-button">Choose accounts for work <span id="mailing-account-count">0</span></label>
+                        <input type="button" value="Choose" onclick="loadChooseSessions()">
+                    </div>
+                </div>
+            </div>
+            <div class="action-buttons">
+                <input type="button" value="Start mailing" class="start-button" id="start-mailing-button" onclick="startMailing()">
+                <input type="button" value="Stop mailing" class="stop-button" id="stop-mailing-button" onclick="stopMailing()" disabled>
+            </div>
+            <div class="update-container">
+                <div class="status-container">
+                    Status: <span id="mailing-status">sleep</span>
+                </div>
+                <div class="total-count-container">
+                    Total mailed count: <span id="total-mailed-count">0/0</span>
+                </div>
+                <!-- <div class="current-chat-container">
+                    Current mailing chat: <span id="current-chat"></span>
+                </div> -->
+                <div class="time-container">
+                    Time: <span id="mailing-time">--:--:--/--:--:--</span>
+                </div>
+            </div>
+        </div>
+        <input type="radio" id="tabparsing" name="settings-tabs" onclick="initParsing()">
+        <label for="tabparsing" class="tab-label">Parsing</label>
+        <div class="tab">
+            <div class="control-panel">
+                <div class="column links">
+                    <label for="parse-link">Paste links for parsing</label>
+                    <textarea name="parse-links" id="parse-links"></textarea>
+                </div>
+                <div class="column">
+                    <div class="select-parse-type">
+                        <span id="parse-group">Parse group</span>
+                        <label class="type-switch">
+                            <input type="checkbox" id="parse-group-or-channel">
+                            <span class="slider"></span>
+                        </label>
+                        <span id="parse-channel">Parse channel</span>
+                    </div>
+                    <div class="parse-group-settings">
+                        <span id="parse-group-participants">Parse participants</span>
+                        <label class="type-switch">
+                            <input type="checkbox" id="parse-messages-or-participants">
+                            <span class="slider"></span>
+                        </label>
+                        <span id="parse-group-messages">Parse messages</span>
+                        <div id="messages-parse-settings">
+                            <label for="messages-parse-count">Count of messages</label>
+                            <input type="number" name="messages-parse-count" id="messages-parse-count">
+                        </div>
+                    </div>
+                    <div class="parse-channel-settings">
+                        <div id="posts-parse-settings">
+                            <label for="posts-parse-count">Count of posts</label>
+                            <input type="number" name="posts-parse-count" id="posts-parse-count">
+                        </div>
+                    </div>
+                    <div class="choose-accounts">
+                        <label for="choose-button">Choose accounts for work <span id="parse-account-count">0</span></label>
+                        <input type="button" value="Choose" onclick="loadChooseSessions()">
+                    </div>
+                </div>
+            </div>
+            <div class="action-buttons">
+                <input type="button" value="Start parsing" class="start-button" id="start-parsing-button" onclick="startParsing()">
+                <input type="button" value="Stop parsing" class="stop-button" id="stop-parsing-button" onclick="stopParsing()" disabled>
+                <input type="button" value="Save csv" id="save-results-to-computer" onclick="exportCSV()" disabled>
+                <input type="button" value="Add to DB" id="add-results-to-database" onclick="saveToDB()" disabled>
+            </div>
+            <div class="update-container">
+                <div class="status-container">
+                    Status: <span id="parsing-status">sleep</span>
+                </div>
+                <div class="total-count-container">
+                    Total parsed count: <span id="total-parsed-count">0</span>
+                </div>
+                <div class="current-chat-container">
+                    Current parsing chat: <span id="current-chat"></span>
+                </div>
+                <div class="time-container">
+                    Elapsed time: <span id="parsing-elapsed-time">--:--:--</span>
+                </div>
+            </div>
+        </div>
+        <input type="radio" id="tabsmm" name="settings-tabs" onclick="loadSMM()">
+        <label for="tabsmm" class="tab-label">SMM messages</label>
+        <div class="tab">
+            <div class="smm-block" id="smm-block">
+                <div id="image-preview-overlay" onclick="this.style.display = 'none'">
+                    <img id="image-preview-fullscreen" src="" alt="preview">
+                </div>
+                <div class="row">
+                    <div class="left-smm-side">
+                        <textarea class="smm-text" placeholder="Write some message" id="newMessage"></textarea>
+                        <label>
+                            <img class="image-preview" src="assets/images/add_image.png" alt="add image" id="newPhoto">
+                            <input type="file" accept=".jpg,.jpeg,.png" onchange="uploadImage(this)">
+                        </label>
+                        <!-- <img class="image-preview" src="add_image.png" alt="add image" onclick="openImage(this)"> -->
+                    </div>
+                </div>
+                <button id="add-smm-message" onclick="addSMMMessage()"><img class="icons" src="assets/icons/add.png" alt="">Add message</button>
+                <hr>
+                <div class="smm-message-list" id="smm-message-list">
+                    <!-- <div class="row">
+                        <div class="left-smm-side">
+                            <textarea class="smm-text" disabled>New message for sending</textarea>
+                            <label>
+                                <img class="image-preview" src="profile.png" alt="add image" onclick="openImage(this)">
+                                <input type="file" accept=".jpg,.jpeg,.png" onchange="loadImage(this)" disabled>
+                            </label>
+                        </div>
+                        <div class="buttons">
+                            <div class="btn edit-btn"><img class="icons" src="edit.png" alt="edit" onclick="editMessage(this)"></div>
+                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteMessage(this)"></div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="left-smm-side">
+                            <textarea class="smm-text" disabled>New message for sending</textarea>
+                            <label>
+                                <img class="image-preview" src="add_image.png" alt="add image" onclick="openImage(this)">
+                                <input type="file" accept=".jpg,.jpeg,.png" disabled>
+                            </label>
+                        </div>
+                        <div class="buttons">
+                            <div class="btn edit-btn"><img class="icons" src="edit.png" alt="edit" onclick="editMessage(this)"></div>
+                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteMessage(this)"></div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="left-smm-side">
+                            <textarea class="smm-text" disabled>New message for sending</textarea>
+                            <label>
+                                <img class="image-preview" src="add_image.png" alt="add image" onclick="openImage(this)">
+                                <input type="file" accept=".jpg,.jpeg,.png" disabled>
+                            </label>
+                        </div>
+                        <div class="buttons">
+                            <div class="btn edit-btn"><img class="icons" src="edit.png" alt="edit" onclick="editMessage(this)"></div>
+                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteMessage(this)"></div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="left-smm-side">
+                            <textarea class="smm-text" disabled>New message for sending</textarea>
+                            <label>
+                                <img class="image-preview" src="add_image.png" alt="add image" onclick="openImage(this)">
+                                <input type="file" accept=".jpg,.jpeg,.png" disabled>
+                            </label>
+                        </div>
+                        <div class="buttons">
+                            <div class="btn edit-btn"><img class="icons" src="edit.png" alt="edit" onclick="editMessage(this)"></div>
+                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteMessage(this)"></div>
+                        </div>
+                    </div> -->
+                </div>
+            </div>
+        </div>
+        <input type="radio" id="tabcommon" name="settings-tabs" onclick="loadSettingsSessions()">
+        <label for="tabcommon" class="tab-label">Common</label>
+        <div class="tab">
+            <div class="sessions">
+                <div class="sessions-header">
+                    <h1>Sessions</h1>
+                    <div class="btn" id="start-all-sessions-btn">Start all sessions</div>
+                    <div class="btn" id="stop-all-sessions-btn">Stop all sessions</div>
+                </div>
+                <div class="sessions-list" id="sessions-list">
+                    <!-- <div class="row">
+                        <div class="session-info">
+                            <input type="checkbox" checked>
+                            Some information about session
+                        </div>
+                        <div class="buttons">
+                            <div class="btn start-session-btn"><img src="start.png" alt="start session" class="icons" onclick="startSession(this)"></div>
+                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteSession(this)"></div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="session-info">
+                            <input type="checkbox">
+                            Some information about session
+                        </div>
+                        <div class="buttons">
+                            <div class="btn start-session-btn"><img src="start.png" alt="start session" class="icons" onclick="startSession(this)"></div>
+                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteSession(this)"></div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="session-info">
+                            <input type="checkbox">
+                            Some information about session
+                        </div>
+                        <div class="buttons">
+                            <div class="btn start-session-btn"><img src="start.png" alt="start session" class="icons" onclick="startSession(this)"></div>
+                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteSession(this)"></div>
+                        </div>
+                    </div> -->
+                </div>
+                <div class="add-session-btn">
+                    <label style="cursor: pointer;">
+                        Add session
+                        <input type="file" id="add-session" accept=".session" style="display: none;" onchange="addSessions(this)">
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="session-modal" class="modal hidden">
+    <div class="modal-content">
+        <span class="close-button" onclick="closeSessionModal()">&times;</span>
+        <h3>Select sessions to use</h3>
+        <div class="session-list" id="session-list"></div>
+        <input type="button" value="Confirm" onclick="confirmSelectedSessions()">
+    </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,259 @@
+import json
+import re
+import asyncio
+from pathlib import Path
+from telethon.tl import types
+from datetime import datetime
+
+PARSE_DELAY = 1
+UPDATE_DELAY = 1
+
+class Parser:
+    def __init__(self, main_window):
+        self.main_window = main_window
+        self.is_parse_channel = None
+        self.count_of_posts = None
+        self.is_parse_messages = None
+        self.count_of_messages = None
+        self.session_files = None
+        self._running = False
+        self.update_task = None
+
+
+    async def start(self, parser_data_str):
+        parser_data = json.loads(parser_data_str)
+        self.is_parse_channel = parser_data['is_parse_channel']
+        self.count_of_posts = parser_data['count_of_posts'].strip()
+        self.is_parse_messages = parser_data['is_parse_messages']
+        self.count_of_messages = parser_data['count_of_messages'].strip()
+        self.session_files = parser_data['selected_sessions']
+        self.saved_to_db = False
+        self.parse_usernames = []
+        self.existing_ids = {}
+        self.group_data = {}
+
+        for link in parser_data['parse_links'].splitlines():
+            matched = re.match(r'((?P<url>^https?:\/\/t\.me\/(?P<group_username>[a-zA-Z0-9_]{5,32}))($|\/(?P<post_id>\d+))|^@(?P<username>[a-z0-9_]{5,32}$))', link.strip())
+            if matched:
+                self.parse_usernames.append(matched.group('group_username') or matched.group('username'))
+
+        print(parser_data)
+        print(self.parse_usernames)
+        print(self.session_files)
+
+        if not self.parse_usernames or not self.session_files or \
+                self.is_parse_channel and not self.count_of_posts.isdigit() or \
+                not self.is_parse_channel and self.is_parse_messages and not self.count_of_messages.isdigit():
+            self.main_window.show_notification("Внимание", "Некорректные данные")
+            return
+
+        self.count_of_messages = int(self.count_of_messages or 0)
+        self.count_of_posts = int(self.count_of_posts or 0)
+        print("Parsing starting")
+        self._running = True
+        self.session_wrappers = []
+        self.group_id = None
+        await self.start_sessions()
+
+        print("Session wrappers")
+        print(self.session_wrappers)
+        sessions_count = len(self.session_wrappers)
+        index = 0
+        self.start_time = datetime.now()
+        self.update_task = asyncio.create_task(self.sendUpdate())
+
+        while self.parse_usernames:
+            if not self._running:
+                break
+
+            parse_username = self.parse_usernames.pop()
+            wrapper, _, session_id = self.session_wrappers[index % sessions_count]
+            client = wrapper.client
+            index += 1
+
+            group_entity = await client.get_entity(parse_username)
+            group_type = self._get_channel_type(group_entity)
+            self.group_id = group_entity.id
+            self.group_data[self.group_id] = (group_entity.title, group_entity.username, group_type)
+
+            await self.main_window.database.add_parse_source(self.group_id, group_entity.title, group_entity.username, group_type)
+            # await self.main_window.database.add_parse_source(self.group_id, self.group_data[self.group_id])
+
+            if group_type == "broadcast" and self.is_parse_channel:
+                async for message in client.iter_messages(group_entity, self.count_of_posts or None):
+                    if not message.post:
+                        continue
+                    async for comment in client.iter_messages(group_entity, reply_to=message.id):
+                        user_entity = await comment.get_sender()
+                        await self._handle_user(user_entity, message.id, session_id)
+                        await asyncio.sleep(PARSE_DELAY)
+                    await asyncio.sleep(PARSE_DELAY)
+            elif group_type in ("megagroup", "gigagroup", "chat") and not self.is_parse_channel:
+                if self.is_parse_messages:
+                    async for message in client.iter_messages(group_entity, self.count_of_messages or None):
+                        user_entity = await message.get_sender()
+                        await self._handle_user(user_entity, message.id, session_id)
+                        await asyncio.sleep(PARSE_DELAY)
+                else:
+                    async for user_entity in client.iter_participants(group_entity):
+                        await self._handle_user(user_entity, None, session_id)
+                        await asyncio.sleep(PARSE_DELAY)
+
+        await self.stop()
+
+
+    async def _handle_user(self, user_entity, message_id, session_id):
+        if isinstance(user_entity, types.User) and not user_entity.bot:
+            if not user_entity.id in self.existing_ids.keys():
+                self.existing_ids[user_entity.id] = (
+                    self.group_id,
+                    message_id,
+                    session_id,
+                    {
+                        "first_name": getattr(user_entity, 'first_name', None),
+                        "last_name": getattr(user_entity, 'last_name', None),
+                        "username": getattr(user_entity, 'username', None),
+                        "phone_number": getattr(user_entity, 'phone_number', None)
+                    }
+                )
+
+    async def start_sessions(self):
+        for session_id, session_file in self.session_files.items():
+            session_wrapper = self.main_window.session_manager.get_wrapper(session_file)
+            was_started = False
+            if not session_wrapper:
+                session_wrapper = await self.main_window.session_manager.start_sessions(session_id, session_file)
+                was_started = True
+            self.session_wrappers.append((session_wrapper, was_started, session_id))
+
+
+    async def finish_sessions(self):
+        for session_wrapper, was_started, _ in self.session_wrappers:
+            if was_started:
+                await self.main_window.session_manager.stop_session(session_wrapper.session_file)
+        self.session_wrappers = []
+
+    async def export_csv(self):
+        import csv
+        from PyQt6.QtWidgets import QFileDialog
+
+        filepath, _ = QFileDialog.getSaveFileName(
+            self.main_window,
+            "Сохранить CSV",
+            "parsed_users.csv",
+            "CSV Files (*.csv);;All Files (*)"
+        )
+        if filepath:
+            with open(Path(filepath), mode="w", newline='', encoding='utf-8') as file:
+                writer = csv.DictWriter(file, fieldnames=[
+                    "user_id", "username", "first_name", "last_name", "phone_number",
+                    "source_chat_id", "chat_title", "chat_username", "chat_type", "post_id"
+                ])
+                writer.writeheader()
+                for user_id, (group_id, post_id, _, user_data) in self.existing_ids.items():
+                    group_title, group_username, group_type = self.group_data[group_id]
+                    writer.writerow({
+                        "user_id": user_id,
+                        "username": user_data.get('username', None),
+                        "first_name": user_data.get('first_name', None),
+                        "last_name": user_data.get('last_name', None),
+                        "phone_number": user_data.get('phone_number', None),
+                        "source_chat_id": group_id,
+                        "chat_title": group_title,
+                        "chat_username": group_username,
+                        "chat_type": group_type,
+                        "post_id": post_id
+                    })
+        else:
+            self.main_window.show_notification("Отменено", "Сохранение отменено")
+
+
+    async def save_to_db(self):
+        if self.saved_to_db:
+            self.main_window.show_notification("Внимание", "Данные уже добавлены в базу данных")
+            return
+        
+        await self.start_sessions()
+        last_session_id = None
+        s_wrapper = None
+        for user_id, (group_id, post_id, session_id, user_data) in self.existing_ids.items():
+            if last_session_id != session_id:
+                s_wrapper = next((wrapper for wrapper, _, sid in self.session_wrappers if sid == session_id), None)
+                last_session_id = session_id
+            user_data['user_id'] = user_id
+            print('user_entity db')
+            print(user_data)
+            if s_wrapper:
+                await s_wrapper.process_new_user(
+                    user_data,
+                    last_message=None,
+                    user_status=4,
+                    source_chat_id=group_id,
+                    source_post_id=post_id
+                )
+        self.saved_to_db = True
+        await self.finish_sessions()
+
+
+    def _get_channel_type(self, entity) -> str:
+        if isinstance(entity, types.Channel):
+            if entity.broadcast:
+                return "broadcast"
+            if entity.megagroup:
+                return "megagroup"
+            if entity.gigagroup:
+                return "gigagroup"
+        elif isinstance(entity, types.Chat):
+            return "chat"
+        else:
+            return "unknown"
+
+
+    async def stop(self):
+        if not self._running or not self.session_wrappers:
+            return
+        
+        self._running = False
+        self.is_parse_channel = None
+        self.count_of_posts = None
+        self.is_parse_messages = None
+        self.count_of_messages = None
+        self.parse_usernames = []
+
+        if self.update_task:
+            self.update_task.cancel()
+            try:
+                await self.update_task
+            except asyncio.CancelledError:
+                pass
+        self.update_task = None
+        self.sendResultProgress()
+        await self.finish_sessions()
+
+
+    async def sendUpdate(self):
+        while self._running:
+            group_title, group_username, group_type = self.group_data.get(self.group_id, ("Unknown", "Unknown", "Unknown"))
+            total_seconds = (datetime.now() - self.start_time).total_seconds()
+            H = int(total_seconds // 3600)
+            M = int((total_seconds // 60) % 60)
+            S = int(total_seconds % 60)
+            elapsed_time = f"{H:02}:{M:02}:{S:02}"
+
+            self.main_window.settings_bridge.renderParsingProgressData.emit(json.dumps({
+                "status": "working",
+                "total_count": len(self.existing_ids),
+                "chat": f"{group_title} @{group_username}",
+                "elapsed_time": elapsed_time
+            }))
+
+            await asyncio.sleep(UPDATE_DELAY)
+
+
+    def sendResultProgress(self):
+        self.main_window.settings_bridge.finishParsing.emit()
+
+
+    @property
+    def running(self):
+        return self._running

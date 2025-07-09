@@ -1,0 +1,80 @@
+html, body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: rgb(5, 98, 221);
+}
+.main-part {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+}
+.dialogs {
+    /* display: flex;
+    flex-direction: column;
+    gap: 10px; */
+    min-width: 300px;
+    /* flex: 1; */
+    margin-bottom: 40px;
+}
+.dialog {
+    display: flex;
+    width: 100%;
+}
+.profile-photo {
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    padding: 5px;
+    margin: 5px;
+}
+.last-message-time {
+    text-align: right;
+}
+.right-side {
+    width: 100%;
+}
+.dialog:hover {
+    background-color: rgb(4, 126, 163);
+    cursor: pointer;
+}
+.dialog.active {
+    background-color: rgb(4, 126, 163);
+}
+.main-line {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px;
+    background-color: rgb(5, 98, 221);
+}
+.choose-session {
+    width: 30%;
+}
+.notifications,
+.settings {
+    width: 30px;
+    height: 30px;
+    margin: 0 10px;
+}
+.icons {
+    display: inline-flex;
+}
+#context-menu {
+    position: absolute;
+    display: none;
+    background-color: white;
+    border: 1px solid #ccc;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    padding: 5px;
+}
+#delete-dialog {
+    cursor: pointer;
+}
