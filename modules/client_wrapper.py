@@ -40,18 +40,16 @@ class ClientWrapper:
 
     async def _fetch_dialogs(self):
         async for dialog in self._client.iter_dialogs():
-            # print(dialog)
             if not dialog.is_user:
                 continue
 
             user = dialog.entity
-            await self.process_new_user(user, dialog.message, user_status=2 if self.is_new else 0)
+            await self.process_new_user(user, dialog.message, user_status=2 if self.is_new else 0, is_read=dialog.message.out)
             
             last_id = await self.database.get_last_sync_message_id(self._session_id, user.id)
             messages = []
             current_group_id = None
             async for message in self._client.iter_messages(dialog, min_id=last_id, reverse=True):
-                # print(message)
                 if message.grouped_id:
                     if current_group_id == message.grouped_id:
                         messages.append(message)
@@ -71,7 +69,7 @@ class ClientWrapper:
                 await self._process_new_messages(messages, user.id)
 
 
-    async def process_new_user(self, user_entity: types.PeerUser | dict, last_message, user_status: int = None, source_chat_id: int = None, source_post_id: int = None):
+    async def process_new_user(self, user_entity: types.PeerUser | dict, last_message, user_status: int = None, source_chat_id: int = None, source_post_id: int = None, is_read: bool = True):
         user_id = None
         first_name = None
         last_name = None
@@ -95,7 +93,8 @@ class ClientWrapper:
             phone_number = getattr(user_entity, 'phone_number', None)
             user_peer = user_entity
         
-        if not await self.database.check_user_presense(user_id):
+        # Change this method for handle existing user to new session for copying profile photo
+        if not (PROFILE_PHOTOS / self._session_file / f"{user_id}.jpg").exists():
             photos = await self._client.get_profile_photos(user_peer, limit=1)
             profile_photo_id = None
             profile_photo_path = None
@@ -104,8 +103,9 @@ class ClientWrapper:
                 print(photos)
                 profile_photo_id = photos[0].id
                 profile_photo = f"{user_id}.jpg"
-                await self._client.download_media(photos[0], str(PROFILE_PHOTOS / str(self._session_file) / profile_photo))
+                await self._client.download_media(photos[0], str(PROFILE_PHOTOS / self._session_file / profile_photo))
                 ### CHECK IF METHOD WILL SAVE FILE WITHOUT EXTENSION WITH ITSELF EXT
+        if not await self.database.check_user_presense(user_id):
             await self.database.add_new_user(
                 user_id,
                 username,
@@ -125,12 +125,16 @@ class ClientWrapper:
                 "first_name": first_name,
                 "last_name": last_name,
                 "profile_photo": profile_photo,
+                "is_read": is_read,
                 "last_message": last_message.message if last_message else "[New user]",
                 "created_at": last_message.date.astimezone(tzlocal.get_localzone()).strftime('%d.%m.%Y %H:%M:%S') if last_message else None
             }]))
 
+        if not is_read:
+            self.main_window.notification_manager.add_unread_dialog(user_id, self.session_id)
 
-    async def _process_new_messages(self, messages, user_id) -> list:
+
+    async def _process_new_messages(self, messages, user_id, from_event: bool = False) -> list:
         filenames = []
         mime_type = ['album'] if len(messages) > 1 else []
         render_messages = []
@@ -153,15 +157,20 @@ class ClientWrapper:
                 filenames.append(Path(filename).name)
                 print(Path(filename).name)
 
-            render_messages.append({
-                "message_id": messages[-1].id,
-                "text": messages[0].message,
-                "attachment": json.dumps(filenames) or None,
-                "attachment_type": json.dumps(mime_type) or None,
-                "chat_id": user_id,
-                "is_out": messages[0].out,
-                "created_at": messages[0].date.astimezone(tzlocal.get_localzone()).strftime('%d.%m.%Y %H:%M:%S')
-            })
+        render_messages.append({
+            "message_id": messages[-1].id,
+            "text": messages[0].message,
+            "attachment": json.dumps(filenames) or None,
+            "attachment_type": json.dumps(mime_type) or None,
+            "chat_id": user_id,
+            "is_out": messages[0].out,
+            "created_at": messages[0].date.astimezone(tzlocal.get_localzone()).strftime('%d.%m.%Y %H:%M:%S')
+        })
+
+        if from_event:
+            self.main_window.notification_manager.add_unread_dialog(user_id, self.session_id)
+            self.main_window.notification_manager.add_unread_message(user_id, self.session_id, messages[0].message or "[Attachment]")
+            self.main_window.sidebar_bridge.setUnreadDialog.emit(str(user_id))
 
         await self.database.add_new_message(
             message_id=messages[-1].id,
@@ -232,8 +241,8 @@ class ClientWrapper:
             return
 
         user_id = int(sender.id)
-        await self.process_new_user(sender, event.messages[0] if is_multiple else event.message, user_status=0)
-        render_messages = await self._process_new_messages(event.messages if is_multiple else [event.message], user_id)
+        await self.process_new_user(sender, event.messages[0] if is_multiple else event.message, user_status=0, is_read=False)
+        render_messages = await self._process_new_messages(event.messages if is_multiple else [event.message], user_id, from_event=True)
 
         if render_messages and self.main_window.current_chat == user_id:
             self.main_window.chat_bridge.renderNewMessage(json.dumps(render_messages), f"{user_id}_{self._session_file}")

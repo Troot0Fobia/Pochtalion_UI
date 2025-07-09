@@ -135,7 +135,7 @@ class Mailer:
                 pass
                 # Change user status
 
-            await asyncio.sleep(self.delay_between_messages if self.delay_between_messages else random.randint(3, 9))
+            await asyncio.sleep(self.delay_between_messages or random.randint(3, 9))
         # else:
         #     while self.mail_data:
         #         if not self._running or not self.session_wrappers:
@@ -220,7 +220,7 @@ class Mailer:
     async def stop(self):
         if not self._running:
             return
-
+        print("stop mailing")
         self._running = False
         if self.update_task:
             self.update_task.cancel()

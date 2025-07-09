@@ -38,6 +38,7 @@ class Pochtalion_UI(QMainWindow):
         self.database = await Database.create()
         self.session_manager = SessionsManager(29572409, 'b882aac92b82a94c7dc21ccf80b42e4e', self.database, self)
         self.notification_manager = NotificationManager(self, self.database)
+        await self.notification_manager.start()
 
         ### Chat init ###
         self.chat_bridge = chat_bridge.ChatBridge(self, self.database)
@@ -79,7 +80,15 @@ class Pochtalion_UI(QMainWindow):
             lambda _: asyncio.create_task(self.loadSidebar())
         )
         
-
+        # self.notification_manager.add_unread_message(1, 123, "Text")
+        # self.notification_manager.add_unread_message(2, 123, "MEssage")
+        # self.notification_manager.add_unread_message(1, 123, "For")
+        # self.notification_manager.add_unread_message(2, 121, "Test")
+        # self.notification_manager.add_unread_message(1, 121, "Some test message")
+        # self.notification_manager.add_unread_message(1, 123, "For event")
+        # self.notification_manager.add_unread_message(1, 122, "Notification attached")
+        # self.notification_manager.add_unread_message(1, 122, "[Attachment]")
+        # self.notification_manager.add_unread_message(4237, 121, "[Attachment]")
         return self
 
 
@@ -92,6 +101,9 @@ class Pochtalion_UI(QMainWindow):
 
             dialogs = await self.database.get_users_from_session(sessions[0]['session_id'])
             if dialogs:
+                unread_dialogs = self.notification_manager.get_unread_dialogs(sessions[0]['session_id'])
+                for dialog in dialogs:
+                    dialog['is_read'] = dialog['user_id'] not in unread_dialogs
                 self.sidebar_bridge.renderDialogs.emit(json.dumps(dialogs))
 
 
@@ -103,25 +115,21 @@ class Pochtalion_UI(QMainWindow):
         self.stack.setCurrentWidget(self.chat_window)
 
 
-    async def startSession(self, session_str):
-        session = json.loads(session_str)
-        await self.session_manager.start_session(session['session_id'], session['session_name'])
+    # async def startSession(self, session_str):
+    #     session = json.loads(session_str)
+    #     await self.session_manager.start_session(session['session_id'], session['session_name'])
 
 
-    async def stopSession(self, session_file):
-        await self.session_manager.stop_session(session_file)
+    # async def stopSession(self, session_file):
+    #     await self.session_manager.stop_session(session_file)
 
-    
-    def cleanup(self):
-        print("cleanup resources")
-        for task in asyncio.all_tasks():
-            task.cancel()
 
     @asyncClose
     async def closeEvent(self, event):
         print("closing application")
         await self.parser.stop()
         await self.mailer.stop()
+        await self.notification_manager.stop()
         await self.database.closeConnetion()
         await self.session_manager.close_sessions()
         self.chat_window.deleteLater()

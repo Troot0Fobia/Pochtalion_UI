@@ -71,6 +71,7 @@ class Database:
             CREATE TABLE IF NOT EXISTS user_sessions (
                 user_id INTEGER,
                 session_id INTEGER,
+                is_read INTEGER DEFAULT 0,
                 FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
                 FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
                 PRIMARY KEY (user_id, session_id)
@@ -92,6 +93,17 @@ class Database:
                 FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
             )
         """)
+
+        # await db.execute("""
+        #     CREATE TABLE IF NOT EXISTS unread_dialogs (
+        #         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        #         user_id INTEGER NOT NULL,
+        #         session_id INTEGER NOT NULL,
+        #         is_read INTEGER DEFAULT 0,
+        #         FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+        #         FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        #     )
+        # """)
 
         await db.execute("""
             CREATE TRIGGER IF NOT EXISTS delete_user_if_no_sessions
@@ -700,7 +712,38 @@ class Database:
                 await self._db.commit()
                 return inserted
 
+
+    async def get_unread_dialogs(self) -> dict:
+        async with self._lock:
+            async with self._db.execute("""
+                SELECT user_id, session_id
+                FROM user_sessions
+                WHERE is_read = 0
+            """) as cursor:
+                return {(user_id, session_id): False async for (user_id, session_id) in cursor}
+
     
+    async def write_unread_dialogs(self, dialogs: dict):
+        async with self._lock:
+            for (user_id, session_id), was_read in dialogs.items():
+                await self._db.execute("""
+                    UPDATE user_sessions
+                    SET is_read = ?
+                    WHERE user_id = ? AND session_id = ?
+                """, (int(was_read), user_id, session_id))
+            await self._db.commit()
+
+
+    # async def write_unread_dialogs(self, user_id, session_id):
+    #     async with self._lock:
+    #         await self._db.execute("""
+    #             UPDATE user_sessions
+    #             SET is_read = 1
+    #             WHERE user_id != ? AND session_id != ?
+    #         """, (user_id, session_id))
+    #         await self._db.commit()
+
+
     async def delete_user_from_session(self, user_id: int, session_id: int) -> str:
         profile_photo = None
         async with self._lock:

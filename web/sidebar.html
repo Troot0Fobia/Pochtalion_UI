@@ -12,7 +12,12 @@
         <div class="main-line">
             <select class="choose-session" name="sessions" id="choose-session" onchange="changeSession()"></select>
             <div class="icons">
-                <img src="assets/icons/notifications.png" alt="notifications" class="notifications" id="notifications" onclick="openNotifications()">
+                <div id="notification-container">
+                    <img src="assets/icons/notifications.png" alt="notifications" class="notifications" id="notifications" onclick="openNotifications()">
+                    <div id="notification-popup" hidden>
+                        <ul id="notification-list"></ul>
+                    </div>
+                </div>
                 <img src="assets/icons/settings.png" alt="settings" class="settings" id="settings" onclick="openSettings()">
             </div>
         </div>

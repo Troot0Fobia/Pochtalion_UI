@@ -21,8 +21,6 @@ class SessionsManager:
 
 
     async def stop_session(self, session_file: str) -> bool:
-        print("stop session")
-        print(self.sessions)
         if session_file in self.sessions:
             await self.sessions[session_file].stop()
             del self.sessions[session_file]
@@ -31,11 +29,9 @@ class SessionsManager:
 
 
     async def close_sessions(self):
-        print("sessions in manager")
-        print(self.sessions)
-        for session_file, session in self.sessions.items():
+        for session in self.sessions.values():
             await session.stop()
-            del self.sessions[session_file]
+        self.sessions.clear()
 
 
     def get_active_sessions(self) -> list:
@@ -57,6 +53,6 @@ class SessionsManager:
     async def deleteDialog(self, session_file: str, dialog_id: int):
         session = self.sessions.get(session_file)
         if not session:
-            self.main_window.show_warning("Внимание", f"Сессия {session_file} не запущена")
+            self.main_window.show_notification("Внимание", f"Сессия {session_file} не запущена")
             return
         await session.deleteDialog(dialog_id)

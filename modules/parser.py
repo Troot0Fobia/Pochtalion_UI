@@ -212,7 +212,7 @@ class Parser:
     async def stop(self):
         if not self._running or not self.session_wrappers:
             return
-        
+        print("stop parsing")
         self._running = False
         self.is_parse_channel = None
         self.count_of_posts = None

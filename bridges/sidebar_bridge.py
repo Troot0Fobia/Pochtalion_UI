@@ -10,6 +10,8 @@ class SidebarBridge(BaseBridge):
     renderDialogs = pyqtSignal(str)
     renderSelectSessions = pyqtSignal(str)
     deleteSessionFromSelect = pyqtSignal(str)
+    renderMessageNotifications = pyqtSignal(str)
+    setUnreadDialog = pyqtSignal(str)
 
     def __init__(self, main_window: QMainWindow, database):
         super().__init__(main_window, database)
@@ -18,19 +20,18 @@ class SidebarBridge(BaseBridge):
 
     @pyqtSlot()
     def openSettings(self):
-        # self.main_window.show_warning("Ошибка", "Файл не найден!")
         self.main_window.openSettings()
 
 
     @asyncSlot(str)
     async def selectDialog(self, dialog_id):
         self.main_window.openChatWindow()
-        self.main_window.current_chat = int(dialog_id)
-        # print(f"Current dialog: {dialog_id}")
-        # print(f"Active session: {self.main_window.active_session}")
-        messages = await self.database.get_messages_from_user(int(dialog_id), int(self.main_window.active_session['session_id']))
-        # print(messages)
-        # print(json.dumps(messages))
+        user_id = int(dialog_id)
+        session_id = int(self.main_window.active_session['session_id'])
+        self.main_window.current_chat = user_id
+        self.main_window.notification_manager.delete_unread_messages(user_id, session_id)
+        self.main_window.notification_manager.delete_unread_dialog(user_id, session_id)
+        messages = await self.database.get_messages_from_user(user_id, session_id)
         self.chat_bridge.renderMessages.emit(json.dumps(messages), f"{dialog_id}_{self.main_window.active_session['session_file']}", 0)
 
 
@@ -38,8 +39,12 @@ class SidebarBridge(BaseBridge):
     async def changeSession(self, session_str):
         session = json.loads(session_str)
         self.main_window.active_session = session
-        users = await self.database.get_users_from_session(int(session['session_id']))
-        self.renderDialogs.emit(json.dumps(users))
+        dialogs = await self.database.get_users_from_session(int(session['session_id']))
+        if dialogs:
+            unread_dialogs = self.main_window.notification_manager.get_unread_dialogs(int(session['session_id']))
+            for dialog in dialogs:
+                dialog['is_read'] = dialog['user_id'] not in unread_dialogs
+            self.renderDialogs.emit(json.dumps(dialogs))
 
 
     @asyncSlot(str)
@@ -50,3 +55,10 @@ class SidebarBridge(BaseBridge):
             int(dialog_id_str)
         )
         print(dialog_id_str)
+
+
+    @pyqtSlot()
+    def fetchNotifications(self):
+        message_notifications = self.main_window.notification_manager.get_unread_messages()
+        print(json.dumps(message_notifications))
+        self.renderMessageNotifications.emit(json.dumps(message_notifications))

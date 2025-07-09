@@ -75,18 +75,12 @@ class SettingsBridge(BaseBridge):
     async def addNewSMMMessage(self, newSMMMessage_str):
         newSMMMessage = json.loads(newSMMMessage_str)
         filename = None
-        # print(newSMMMessage)
         if newSMMMessage['photo']:
-            # ext = puremagic.from_string(newSMMMessage['filename'])
-            # _, ext = os.path.splitext(newSMMMessage['filename'])
             filename = f"{uuid.uuid4().hex}{puremagic.ext_from_filename(newSMMMessage['filename'])}"
-            # filepath = SMM_IMAGES / filename
-            # os.path.join('assets', 'smm_images', f"{uuid.uuid4().hex}{ext}")
             with open(str( SMM_IMAGES / filename), 'wb') as f:
                 f.write(base64.b64decode(newSMMMessage['photo']))
 
         smm_id = await self.database.add_smm_message(newSMMMessage['text'], filename)
-        # new_SMM = [{"id": smm_id, "text": newSMMMessage['text'], "photo": filename}]
         self.renderSMMMessages.emit(json.dumps([{"id": smm_id, "text": newSMMMessage['text'], "photo": filename}]))
 
 
@@ -103,11 +97,7 @@ class SettingsBridge(BaseBridge):
         editedSMM = json.loads(editedSMM_str)
         filename = None
         if editedSMM['photo']:
-            # ext = puremagic.from_string(editedSMM['filename'])
-            # _, ext = os.path.splitext(editedSMM['filename'])
             filename = f"{uuid.uuid4().hex}{puremagic.ext_from_filename(editedSMM['filename'])}"
-            # filepath = SMM_IMAGES / filename
-            # filepath = os.path.join('assets', 'smm_images', f"{uuid.uuid4().hex}{ext}")
             with open(str(SMM_IMAGES / filename), 'wb') as f:
                 f.write(base64.b64decode(editedSMM['photo']))
 
@@ -128,12 +118,13 @@ class SettingsBridge(BaseBridge):
 
     @asyncSlot(str)
     async def startSession(self, session_str):
-        await self.main_window.startSession(session_str)
+        session = json.loads(session_str)
+        await self.main_window.session_manager.start_session(session['session_id'], session['session_name'])
 
     
     @asyncSlot(str)
     async def stopSession(self, session_file):
-        await self.main_window.stopSession(session_file)
+        await self.main_window.session_manager.stop_session(session_file)
 
 
     @asyncSlot(str)
@@ -141,7 +132,6 @@ class SettingsBridge(BaseBridge):
         if self.main_window.mailer.running:
             return
         self.parsing_task = asyncio.create_task(self.main_window.parser.start(parse_data_str))
-        # await self.main_window.parser.start(parse_data_str)
 
     @asyncSlot()
     async def stopParsing(self):
