@@ -51,9 +51,6 @@
                 <div class="total-count-container">
                     Total mailed count: <span id="total-mailed-count">0/0</span>
                 </div>
-                <!-- <div class="current-chat-container">
-                    Current mailing chat: <span id="current-chat"></span>
-                </div> -->
                 <div class="time-container">
                     Time: <span id="mailing-time">--:--:--/--:--:--</span>
                 </div>
@@ -135,65 +132,11 @@
                             <img class="image-preview" src="assets/images/add_image.png" alt="add image" id="newPhoto">
                             <input type="file" accept=".jpg,.jpeg,.png" onchange="uploadImage(this)">
                         </label>
-                        <!-- <img class="image-preview" src="add_image.png" alt="add image" onclick="openImage(this)"> -->
                     </div>
                 </div>
                 <button id="add-smm-message" onclick="addSMMMessage()"><img class="icons" src="assets/icons/add.png" alt="">Add message</button>
                 <hr>
-                <div class="smm-message-list" id="smm-message-list">
-                    <!-- <div class="row">
-                        <div class="left-smm-side">
-                            <textarea class="smm-text" disabled>New message for sending</textarea>
-                            <label>
-                                <img class="image-preview" src="profile.png" alt="add image" onclick="openImage(this)">
-                                <input type="file" accept=".jpg,.jpeg,.png" onchange="loadImage(this)" disabled>
-                            </label>
-                        </div>
-                        <div class="buttons">
-                            <div class="btn edit-btn"><img class="icons" src="edit.png" alt="edit" onclick="editMessage(this)"></div>
-                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteMessage(this)"></div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="left-smm-side">
-                            <textarea class="smm-text" disabled>New message for sending</textarea>
-                            <label>
-                                <img class="image-preview" src="add_image.png" alt="add image" onclick="openImage(this)">
-                                <input type="file" accept=".jpg,.jpeg,.png" disabled>
-                            </label>
-                        </div>
-                        <div class="buttons">
-                            <div class="btn edit-btn"><img class="icons" src="edit.png" alt="edit" onclick="editMessage(this)"></div>
-                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteMessage(this)"></div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="left-smm-side">
-                            <textarea class="smm-text" disabled>New message for sending</textarea>
-                            <label>
-                                <img class="image-preview" src="add_image.png" alt="add image" onclick="openImage(this)">
-                                <input type="file" accept=".jpg,.jpeg,.png" disabled>
-                            </label>
-                        </div>
-                        <div class="buttons">
-                            <div class="btn edit-btn"><img class="icons" src="edit.png" alt="edit" onclick="editMessage(this)"></div>
-                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteMessage(this)"></div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="left-smm-side">
-                            <textarea class="smm-text" disabled>New message for sending</textarea>
-                            <label>
-                                <img class="image-preview" src="add_image.png" alt="add image" onclick="openImage(this)">
-                                <input type="file" accept=".jpg,.jpeg,.png" disabled>
-                            </label>
-                        </div>
-                        <div class="buttons">
-                            <div class="btn edit-btn"><img class="icons" src="edit.png" alt="edit" onclick="editMessage(this)"></div>
-                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteMessage(this)"></div>
-                        </div>
-                    </div> -->
-                </div>
+                <div class="smm-message-list" id="smm-message-list"></div>
             </div>
         </div>
         <input type="radio" id="tabcommon" name="settings-tabs" onclick="loadSettingsSessions()">
@@ -205,38 +148,7 @@
                     <div class="btn" id="start-all-sessions-btn">Start all sessions</div>
                     <div class="btn" id="stop-all-sessions-btn">Stop all sessions</div>
                 </div>
-                <div class="sessions-list" id="sessions-list">
-                    <!-- <div class="row">
-                        <div class="session-info">
-                            <input type="checkbox" checked>
-                            Some information about session
-                        </div>
-                        <div class="buttons">
-                            <div class="btn start-session-btn"><img src="start.png" alt="start session" class="icons" onclick="startSession(this)"></div>
-                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteSession(this)"></div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="session-info">
-                            <input type="checkbox">
-                            Some information about session
-                        </div>
-                        <div class="buttons">
-                            <div class="btn start-session-btn"><img src="start.png" alt="start session" class="icons" onclick="startSession(this)"></div>
-                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteSession(this)"></div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="session-info">
-                            <input type="checkbox">
-                            Some information about session
-                        </div>
-                        <div class="buttons">
-                            <div class="btn start-session-btn"><img src="start.png" alt="start session" class="icons" onclick="startSession(this)"></div>
-                            <div class="btn delete-btn"><img class="icons" src="delete.png" alt="delete" onclick="deleteSession(this)"></div>
-                        </div>
-                    </div> -->
-                </div>
+                <div class="sessions-list" id="sessions-list"></div>
                 <div class="add-session-btn">
                     <label style="cursor: pointer;">
                         Add session

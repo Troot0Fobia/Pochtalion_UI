@@ -46,12 +46,6 @@ html, body {
     background: #616161;
 }
 
-
-/* #tab-parsing + .tab {
-    display: flex;
-    flex-direction: column;
-} */
-
 .control-panel {
     display: flex;
     flex-direction: row;
@@ -99,6 +93,20 @@ html, body {
     background-color: white;
     -webkit-transition: .4s;
     transition: .4s;
+}
+
+.loader {
+    border: 16px solid #f3f3f3; /* Light grey */
+    border-top: 16px solid #3498db; /* Blue */
+    border-radius: 50%;
+    width: auto;
+    height: auto;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 .type-switch input:checked + .slider::before {
@@ -238,47 +246,6 @@ input[type="button"]:hover {
     color: aliceblue;
 }
 
-
-/* .smm-block {
-    width: 100%;
-}
-
-.smm-block .row {
-    width: 100%;
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-}
-
-.smm-action {
-    width: 28px;
-    height: 28px;
-    padding: 10px;
-}
-
-.smm-block textarea {
-    height: fit-content;
-}
-
-#smm-edit {
-    background-color: blue;
-}
-
-#smm-delete {
-    background-color: red;
-}
-
-#smm-add {
-    background-color: green;
-}
-
-.smm-block .right-smm-side {
-    display: flex;
-    flex-direction: row;
-}
- */
-
-
 .smm-block,
 .smm-message-list {
     display: flex;
@@ -410,6 +377,12 @@ input[type="button"]:hover {
     gap: 20px;
 }
 
+.session-info {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+}
+
 #start-all-sessions-btn {
     background-color: green;
     padding: 10px 20px;
@@ -462,83 +435,3 @@ input[type="button"]:hover {
   cursor: pointer;
   font-size: 18px;
 }
-/* 
-.message-form,
-.message-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px;
-    background: #ddd;
-    margin-bottom: 10px;
-}
-
-.message-form textarea,
-.message-row textarea {
-    width: 300px;
-    height: 40px;
-    resize: vertical;
-    padding: 5px;
-}
-
-.message-row img.preview {
-    width: 50px;
-    height: 50px;
-    object-fit: cover;
-    cursor: pointer;
-}
-
-.message-row img.preview.fullscreen {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: auto;
-    height: auto;
-    max-width: 90vw;
-    max-height: 90vh;
-    z-index: 999;
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
-}
-
-.fullscreen-bg {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 998;
-}
-
-input[type="file"] {
-    display: none;
-}
-
-.buttons {
-    display: flex;
-    gap: 5px;
-}
-
-.btn {
-    cursor: pointer;
-    border: none;
-    padding: 5px 10px;
-    color: white;
-    font-size: 16px;
-}
-
-.edit-btn { background: blue; }
-.delete-btn { background: red; }
-.save-btn { background: green; }
-.cancel-btn { background: red; }
-
-.disabled {
-    opacity: 0.5;
-    pointer-events: none;
-}
-
-.add-button {
-    margin: 10px 0;
-    background: #ccc;
-    padding: 5px 10px;
-    cursor: pointer;
-    display: inline-block;
-} */

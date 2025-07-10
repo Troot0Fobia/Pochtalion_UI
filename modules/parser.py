@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 from telethon.tl import types
 from datetime import datetime
+from core.logger import setup_logger
 
 PARSE_DELAY = 1
 UPDATE_DELAY = 1
@@ -18,9 +19,13 @@ class Parser:
         self.session_files = None
         self._running = False
         self.update_task = None
+        self.logger = setup_logger("Pochtalion.Parser", "parser.log")
+        self.logger.info("Parser initialized")
 
 
     async def start(self, parser_data_str):
+        self.logger.info("Start parsing")
+        self.logger.debug(f"Start parsing for data: {parser_data_str}")
         parser_data = json.loads(parser_data_str)
         self.is_parse_channel = parser_data['is_parse_channel']
         self.count_of_posts = parser_data['count_of_posts'].strip()
@@ -37,26 +42,20 @@ class Parser:
             if matched:
                 self.parse_usernames.append(matched.group('group_username') or matched.group('username'))
 
-        print(parser_data)
-        print(self.parse_usernames)
-        print(self.session_files)
-
         if not self.parse_usernames or not self.session_files or \
                 self.is_parse_channel and not self.count_of_posts.isdigit() or \
                 not self.is_parse_channel and self.is_parse_messages and not self.count_of_messages.isdigit():
+            self.logger.warning("Incorrect data provided. Returning...")
             self.main_window.show_notification("Внимание", "Некорректные данные")
             return
 
         self.count_of_messages = int(self.count_of_messages or 0)
         self.count_of_posts = int(self.count_of_posts or 0)
-        print("Parsing starting")
         self._running = True
         self.session_wrappers = []
         self.group_id = None
         await self.start_sessions()
 
-        print("Session wrappers")
-        print(self.session_wrappers)
         sessions_count = len(self.session_wrappers)
         index = 0
         self.start_time = datetime.now()
@@ -76,8 +75,8 @@ class Parser:
             self.group_id = group_entity.id
             self.group_data[self.group_id] = (group_entity.title, group_entity.username, group_type)
 
-            await self.main_window.database.add_parse_source(self.group_id, group_entity.title, group_entity.username, group_type)
-            # await self.main_window.database.add_parse_source(self.group_id, self.group_data[self.group_id])
+            # await self.main_window.database.add_parse_source(self.group_id, group_entity.title, group_entity.username, group_type)
+            await self.main_window.database.add_parse_source(self.group_id, *self.group_data[self.group_id])
 
             if group_type == "broadcast" and self.is_parse_channel:
                 async for message in client.iter_messages(group_entity, self.count_of_posts or None):
@@ -104,6 +103,7 @@ class Parser:
 
     async def _handle_user(self, user_entity, message_id, session_id):
         if isinstance(user_entity, types.User) and not user_entity.bot:
+            self.logger.info("Received new user. Processing...")
             if not user_entity.id in self.existing_ids.keys():
                 self.existing_ids[user_entity.id] = (
                     self.group_id,
@@ -136,6 +136,7 @@ class Parser:
     async def export_csv(self):
         import csv
         from PyQt6.QtWidgets import QFileDialog
+        self.logger.info("Export result of parsing to csv file")
 
         filepath, _ = QFileDialog.getSaveFileName(
             self.main_window,
@@ -173,6 +174,7 @@ class Parser:
             self.main_window.show_notification("Внимание", "Данные уже добавлены в базу данных")
             return
         
+        self.logger.info("Save results of parsing to database")
         await self.start_sessions()
         last_session_id = None
         s_wrapper = None
@@ -181,8 +183,6 @@ class Parser:
                 s_wrapper = next((wrapper for wrapper, _, sid in self.session_wrappers if sid == session_id), None)
                 last_session_id = session_id
             user_data['user_id'] = user_id
-            print('user_entity db')
-            print(user_data)
             if s_wrapper:
                 await s_wrapper.process_new_user(
                     user_data,
@@ -212,7 +212,7 @@ class Parser:
     async def stop(self):
         if not self._running or not self.session_wrappers:
             return
-        print("stop parsing")
+        self.logger.info("Stop parsing")
         self._running = False
         self.is_parse_channel = None
         self.count_of_posts = None
@@ -227,7 +227,7 @@ class Parser:
             except asyncio.CancelledError:
                 pass
         self.update_task = None
-        self.sendResultProgress()
+        self.main_window.settings_bridge.finishParsing.emit()
         await self.finish_sessions()
 
 
@@ -248,10 +248,6 @@ class Parser:
             }))
 
             await asyncio.sleep(UPDATE_DELAY)
-
-
-    def sendResultProgress(self):
-        self.main_window.settings_bridge.finishParsing.emit()
 
 
     @property

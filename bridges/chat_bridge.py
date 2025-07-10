@@ -19,15 +19,22 @@ class ChatBridge(BaseBridge):
     
     @asyncSlot(str)
     async def sendMessage(self, message):
-        await self.main_window.session_manager.sendMessage(
-            self.main_window.active_session['session_file'],
-            self.main_window.current_chat,
-            message
-        )
+        try:
+            await self.main_window.session_manager.sendMessage(
+                self.main_window.active_session['session_file'],
+                self.main_window.current_chat,
+                message
+            )
+        except Exception as e:
+            self.logger.error(f"{self.__class__.__name__}\tError while sending message from session {self.main_window.active_session['session_file']}", exc_info=True)
+            self.main_window.show_notification("Ошибка", "Ошибка во время отправки сообщения")
 
 
     @asyncSlot(str)
     async def openVideoPlayer(self, video_path):
         from videoDialog import VideoDialog
-        dialog = VideoDialog(video_path, self.main_window)
-        dialog.show()
+        try:
+            dialog = VideoDialog(video_path, self.main_window)
+            dialog.show()
+        except Exception as e:
+            self.logger.error(f"{self.__class__.__name__}\tError while opening video player", exc_info=True)

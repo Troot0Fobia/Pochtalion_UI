@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from modules.client_wrapper import ClientWrapper
 from telethon.errors import PeerFloodError
+from core.logger import setup_logger
 
 UPDATE_DELAY = 1
 
@@ -19,6 +20,8 @@ class Mailer:
         self.is_mail_from_usernames = None
         self.mail_data = None
         self.delay_between_messages = None
+        self.logger = setup_logger("Pochtalion.Mailer", "mailer.log")
+        self.logger.info("Mailer initialized")
 
     @dataclass
     class SessionWrapperInfo:
@@ -28,6 +31,8 @@ class Mailer:
         sent_count: int = 0
         
     async def start(self, mail_data_str):
+        self.logger.info("Mailing starting. Processing info")
+        self.logger.debug(f"Mailing starting. Processing info: {mail_data_str}")
         mail_data = json.loads(mail_data_str)
         self.is_mail_from_usernames = mail_data['is_parse_usernames']
         self.delay_between_messages = mail_data['delay']
@@ -35,6 +40,12 @@ class Mailer:
         self.session_wrappers = []
         self.mail_data = []
         
+        self.smm_messages = await self.main_window.database.get_smm_messages()
+        if not self.smm_messages:
+            self.logger.info(f"User doesn't provide correct data, no mailing messages")
+            self.main_window.show_notification("Внимание", "Нет сообщений для рассылки")
+            return
+
         if self.is_mail_from_usernames:
             if not mail_data['mailing_data']:
                 self.main_window.show_notification("Внимание", "Некорректные данные")
@@ -47,17 +58,13 @@ class Mailer:
             self.mail_data = await self.main_window.database.get_users_for_sending()
 
         if not self.session_files or not self.delay_between_messages.isdigit():
+            self.logger.info(f"User doesn't provide correct data, session files or delay between messages")
             self.main_window.show_notification("Внимание", "Некорректные данные")
             return
 
         if not self.mail_data:
+            self.logger.info(f"User doesn't provide correct data, no data for mailing")
             self.main_window.show_notification("Внимание", "Нет пользователей для рассылки")
-            return
-
-        self.smm_messages = await self.main_window.database.get_smm_messages()
-
-        if not self.smm_messages:
-            self.main_window.show_notification("Внимание", "Нет сообщений для рассылки")
             return
 
         self.delay_between_messages = int(self.delay_between_messages or 0)
@@ -79,7 +86,7 @@ class Mailer:
                     await session_info.wrapper.client.get_entity([data['username'] for data in self.mail_data])
 
             self.mail_data = entities
-
+        self.logger.info("Entities received.")
 
         while self.mail_data:
             if not self._running or not self.session_wrappers:
@@ -109,10 +116,11 @@ class Mailer:
             else:
                 entity = await self.get_user_entity(self.mail_data.pop(), session_info.wrapper.client)
                 if entity is None:
+                    self.logger.info("No entity received from data")
                     continue
                 user_id = entitiy.user_id
 
-            
+            self.logger.debug(f"Received entity for mailing {user_id}")
             if smm_message['photo']:
                 with open(SMM_IMAGES / smm_message['photo'], 'rb') as file:
                     base64_file = base64.b64encode(file.read()).decode('utf-8')
@@ -126,54 +134,26 @@ class Mailer:
             try:
                 await session_info.wrapper.sendMessage(user_id, json.dumps(message))
             except PeerFloodError as e:
-                print(f"Catched Frool Error, stop mailing from this session {session_info.wrapper.session_file}: {e}")
+                self.logger.error(f"Catched Frool Error, stop mailing for this session {session_info.wrapper.session_file}: {e}", exc_info=True)
                 await self.finish_session(session_info.session_id)
+            except Exception as e:
+                self.logger.error(f"Unexpected error during message sending", exc_info=True)
+                continue
+
             session_info.sent_count += 1
 
             if not self.is_mail_from_usernames:
                 await self.main_window.database.set_user_to_sended(user_id)
-                pass
-                # Change user status
 
             await asyncio.sleep(self.delay_between_messages or random.randint(3, 9))
-        # else:
-        #     while self.mail_data:
-        #         if not self._running or not self.session_wrappers:
-        #             break
-                
-        #         session_info = self.session_wrappers[index % self.sessions_count]
-        #         index += 1
-        #         entity = await self.get_user_entity(self.mail_data.pop(), session_info.wrapper.client)
-        #         if entity is None:
-        #             continue
-                
-        #         smm_message = random.choice(self.smm_messages)
-        #         base64_file = None
-
-        #         if smm_message['photo']:
-        #             with open(SMM_IMAGES / smm_message['photo'], 'rb') as file:
-        #                 base64_file = base64.b64encode(file.read()).decode('utf-8')
-
-        #         message = {
-        #             "base64_file": base64_file,
-        #             "text": smm_message['text'],
-        #             "filename": smm_message['photo']
-        #         }
-        #         try:
-        #             await session_info.wrapper.sendMessage(entity.user_id, json.dumps(message))
-        #             session_info.sent_count += 1
-        #         except PeerFloodError as e:
-        #             print(f"Catched Frool Error, stop mailing from this session {session_info.wrapper.session_file}: {e}")
-        #             await self.finish_session(session_info.session_id)
-
-        #         await asyncio.sleep(self.delay_between_messages if self.delay_between_messages else random.randint(3, 9))
-
 
         await self.finish_sessions()
         await self.stop()
 
 
     async def get_user_entity(self, user_data, session_client):
+        self.logger.info(f"Trying get entity from user {user_data['user_id']}")
+        self.logger.debug(f"Trying get entity from user {user_data}")
         user_id = user_data['user_id']
         username = user_data['username']
         source_chat_id = user_data['source_chat_id']
@@ -189,7 +169,7 @@ class Mailer:
                 entity = await session_client.get_entity(username)
                 return await session_client.get_input_entity(entity)
             except Exception as e:
-                print(f"Error while receiving user entity from username: {e}")
+                self.logger.warning(f"Unexpected error while receiving user entity from username: {e}", exc_info=True)
 
         source_data = await self.main_window.database.get_parse_source(source_chat_id)
         chat_entity = await session_client.get_entity(source_data['chat_username'])
@@ -214,13 +194,14 @@ class Mailer:
         except ValueError:
             pass
 
+        self.logger.info("Entity was not received")
         return None
 
 
     async def stop(self):
         if not self._running:
             return
-        print("stop mailing")
+        self.logger.info("Stopping mailing")
         self._running = False
         if self.update_task:
             self.update_task.cancel()
@@ -229,7 +210,7 @@ class Mailer:
             except asyncio.CancelledError:
                 pass
         self.update_task = None
-        self.sendResultProgress()
+        self.main_window.settings_bridge.finishMailing.emit()
         await self.finish_sessions()
 
 
@@ -248,9 +229,7 @@ class Mailer:
         if session and session.was_started:
             await self.main_window.session_manager.stop_session(session.wrapper.session_file)
 
-        self.session_wrappers = [
-            s for s in self.session_wrappers if s.session_id != session_id
-        ]
+        self.session_wrappers = [s for s in self.session_wrappers if s.session_id != session_id]
         self.sessions_count = len(self.session_wrappers)
 
     async def finish_sessions(self):
@@ -261,12 +240,12 @@ class Mailer:
 
 
     async def sendUpdate(self):
-        print("send update")
         while self._running:
             total_processed_users = sum([s.sent_count for s in self.session_wrappers])
             total_seconds = (datetime.now() - self.start_time).total_seconds()
-            avg_time = total_seconds / max(total_processed_users, 1)
-            common_time = avg_time * self.total_users_count
+            common_time = total_seconds * (self.total_users_count / (total_processed_users + 0.001))
+            # avg_time = total_seconds / max(total_processed_users, 1)
+            # common_time = avg_time * self.total_users_count
             H1 = int(total_seconds // 3600)
             M1 = int((total_seconds // 60) % 60)
             S1 = int(total_seconds % 60)
@@ -282,10 +261,6 @@ class Mailer:
             }))
 
             await asyncio.sleep(UPDATE_DELAY)
-
-
-    def sendResultProgress(self):
-        self.main_window.settings_bridge.finishMailing.emit()
 
 
     @property

@@ -12,11 +12,7 @@ html, body {
     width: 100%;
 }
 .dialogs {
-    /* display: flex;
-    flex-direction: column;
-    gap: 10px; */
     min-width: 300px;
-    /* flex: 1; */
     margin-bottom: 40px;
 }
 .dialog {

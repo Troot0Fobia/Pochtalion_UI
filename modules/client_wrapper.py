@@ -14,9 +14,6 @@ class ClientWrapper:
     def __init__(self, session_id: int, session_file: str, api_id: int, api_hash: str, database: Database, main_window):
         self._session_id = session_id
         self._session_file = session_file
-        print(str(SESSIONS / session_file))
-        print(api_id)
-        print(api_hash)
         self._client = TelegramClient(str(SESSIONS / session_file), api_id, api_hash)
         self.database = database
         self.main_window = main_window
@@ -25,7 +22,7 @@ class ClientWrapper:
 
     async def start(self) -> None:
         if self._running:
-            self.main_window.show_warning("Внимание", f"Сессия {self._session_file} уже запущена")
+            self.main_window.show_notification("Внимание", f"Сессия {self._session_file} уже запущена")
             return
         
         await self._client.start()
@@ -35,7 +32,6 @@ class ClientWrapper:
         self.is_new = await self.database.update_session(self._session_id, self.session_user_id, me.phone)
         self._register_handlers()
         await self._fetch_dialogs()
-        print(f"Session {self._session_file} started")
 
 
     async def _fetch_dialogs(self):
@@ -93,18 +89,15 @@ class ClientWrapper:
             phone_number = getattr(user_entity, 'phone_number', None)
             user_peer = user_entity
         
-        # Change this method for handle existing user to new session for copying profile photo
         if not (PROFILE_PHOTOS / self._session_file / f"{user_id}.jpg").exists():
             photos = await self._client.get_profile_photos(user_peer, limit=1)
             profile_photo_id = None
             profile_photo_path = None
             if photos:
-                print("\n\nPhotos:")
-                print(photos)
                 profile_photo_id = photos[0].id
                 profile_photo = f"{user_id}.jpg"
                 await self._client.download_media(photos[0], str(PROFILE_PHOTOS / self._session_file / profile_photo))
-                ### CHECK IF METHOD WILL SAVE FILE WITHOUT EXTENSION WITH ITSELF EXT
+                ### TODO CHECK IF METHOD WILL SAVE FILE WITHOUT EXTENSION WITH ITSELF EXT
         if not await self.database.check_user_presense(user_id):
             await self.database.add_new_user(
                 user_id,
@@ -143,8 +136,6 @@ class ClientWrapper:
                 filename = None
                 media_dir = USERS_DATA / f"{user_id}_{self._session_file}"
                 media_dir.mkdir(parents=True, exist_ok=True)
-                print("\n\nMessage media:")
-                print(message.media)
                 if getattr(message.media, 'document', None):
                     document = message.media.document
                     filename = f"{message.id}_{next((attr.file_name for attr in document.attributes if isinstance(attr, types.DocumentAttributeFilename)), 'unnamed')}"
@@ -152,10 +143,8 @@ class ClientWrapper:
                 else:
                     filename = f"{message.id}.jpg"
                     mime_type.append("image/jpeg")
-                print(f"Filename: {filenames}")
                 filename = await message.download_media(file=str(media_dir / filename))
                 filenames.append(Path(filename).name)
-                print(Path(filename).name)
 
         render_messages.append({
             "message_id": messages[-1].id,
@@ -191,7 +180,6 @@ class ClientWrapper:
         async def newMessage(event: tl.custom.message.Message):
             if event.grouped_id:
                 return
-            # print(event)
             try:
                 await self._handle_event(event, is_multiple=False)
                 # chat = await event.get_chat()
@@ -208,7 +196,7 @@ class ClientWrapper:
                 #     self.main_window.chat_bridge.renderNewMessage(json.dumps(message), f"{user_id}_{self.session_file}")
 
             except Exception as e:
-                print(f"Error occured: {e}")
+                print(f"Error occured while handle single message event: {e}")
 
 
         @self._client.on(events.Album)
@@ -229,9 +217,8 @@ class ClientWrapper:
                 #     self.main_window.chat_bridge.renderNewMessage(json.dumps(render_messages), f"{user_id}_{self.session_file}")
 
             except Exception as e:
-                print(f"Error occured: {e}")
+                print(f"Error occured while handle multiple message event: {e}")
 
-            # print(event)
 
     async def _handle_event(self, event, is_multiple):
         chat = await event.get_chat()
@@ -250,8 +237,7 @@ class ClientWrapper:
 
     async def sendMessage(self, user_id, message_str):
         if not self._running:
-            print("Session not working")
-            self.main_window.show_warning("Внимание", f"Сессия {self._session_file} не запущена")
+            self.main_window.show_notification("Внимание", f"Сессия {self._session_file} не запущена")
             return
 
         message_data = json.loads(message_str)
@@ -307,7 +293,7 @@ class ClientWrapper:
 
     async def deleteDialog(self, dialog_id: int):
         if not self._running:
-            self.main_window.show_warning("Внимание", f"Сессия {self._session_file} не запущена")
+            self.main_window.show_notification("Внимание", f"Сессия {self._session_file} не запущена")
             return
 
         await self._client.delete_dialog(await self._client.get_input_entity(dialog_id), revoke=True)
@@ -317,17 +303,17 @@ class ClientWrapper:
         if profile_photo:
             (PROFILE_PHOTOS / self._session_file / profile_photo).unlink(missing_ok=True)
 
+        self.main_window.sidebar_bridge.removeDialog.emit()
+
         if self.main_window.current_chat == dialog_id:
             self.main_window.chat_bridge.clearChatWindow.emit()
 
 
     async def stop(self) -> None:
         if not self._running:
-            self.main_window.show_warning("Внимание", f"Сессия {self._session_file} не запущена")
             return
         await self._client.disconnect()
         self._running = False
-        print(f"Session {self._session_file} stopped")
 
 
     def is_running(self) -> bool:

@@ -2,6 +2,7 @@ let bridge = null;
 let temp_text = '';
 let temp_photo = '';
 let selected_sessions = null;
+let selectedSession = null;
 
 new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge = channel.objects.settingsBridge;
@@ -13,6 +14,7 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.renderMailingProgressData.connect(renderMailingProgressData);
     bridge.finishParsing.connect(finishParsing);
     bridge.finishMailing.connect(finishMailing);
+    bridge.sessionChangedState.connect(sessionChangedState);
 });
 
 
@@ -78,26 +80,40 @@ async function deleteSession(elem) {
 
 async function startSession(elem) {
     const session = elem.closest('.row');
+    selectedSession = session;
     const session_id = session.dataset.id;
     const session_name = session.querySelector('.session-name').innerText;
     await bridge.startSession(JSON.stringify({"session_id": session_id, "session_name": session_name}));
 
-    const buttons = elem.closest('.buttons');
-    buttons.innerHTML = `
-        <div class="btn stop-session-btn"><img src="assets/icons/stop.png" alt="stop session" class="icons" onclick="stopSession(this)"></div>
+    elem.closest('.buttons').innerHTML = `
+        <div class="btn" style="background-color: blue;"><div class="loader"></div></div>
         <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
     `;
+}
+
+function sessionChangedState(state) {
+    if (state === "started")
+        selectedSession.querySelector('.buttons').innerHTML = `
+            <div class="btn stop-session-btn"><img src="assets/icons/stop.png" alt="stop session" class="icons" onclick="stopSession(this)"></div>
+            <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
+        `;
+    else if (state === "stopped")
+        selectedSession.querySelector('.buttons').innerHTML = `
+            <div class="btn start-session-btn"><img src="assets/icons/start.png" alt="start session" class="icons" onclick="startSession(this)"></div>
+            <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
+        `;
+    selectedSession = null;
 }
 
 
 async function stopSession(elem) {
     const session = elem.closest('.row');
+    selectedSession = session;
     const session_name = session.querySelector('.session-name').innerText;
     await bridge.stopSession(session_name);
 
-    const buttons = elem.closest('.buttons');
-    buttons.innerHTML = `
-        <div class="btn start-session-btn"><img src="assets/icons/start.png" alt="start session" class="icons" onclick="startSession(this)"></div>
+    elem.closest('.buttons').innerHTML = `
+        <div class="btn" style="background-color: blue;"><div class="loader"></div></div>
         <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
     `;
 }
@@ -350,7 +366,7 @@ async function startParsing() {
         || is_parse_channel && !count_of_posts
         || !is_parse_channel && is_parse_messages && !count_of_messages) {
             await bridge.show_notification("Введите корректные данные");
-            // return;
+            return;
         }
 
     const parse_data = {
@@ -409,7 +425,7 @@ async function startMailing() {
 
     if (is_parse_usernames && !mailing_data) {
         await bridge.show_notification("Введите корректные данные");
-        // return;
+        return;
     }
 
     const mail_data = {

@@ -4,13 +4,11 @@ from qasync import asyncSlot
 
 from .base_bridge import BaseBridge
 import base64
-# from pathlib import Path
 import puremagic
 import shutil
 import json
 import uuid
 import asyncio
-# import os
 from core.paths import SMM_IMAGES, SESSIONS, USERS_DATA, PROFILE_PHOTOS
 
 
@@ -22,6 +20,7 @@ class SettingsBridge(BaseBridge):
     renderMailingProgressData = pyqtSignal(str)
     finishParsing = pyqtSignal()
     finishMailing = pyqtSignal()
+    sessionChangedState = pyqtSignal(str)
 
     def __init__(self, main_window: QMainWindow, database):
         super().__init__(main_window, database)
@@ -31,12 +30,10 @@ class SettingsBridge(BaseBridge):
     async def loadSettingsSessions(self):
         sessions = await self.database.get_sessions()
         active_sessions = self.main_window.session_manager.get_active_sessions()
-        print(active_sessions)
         for s in sessions:
             s['file_exists'] = (SESSIONS / s['session_file']).exists()
             s['is_running'] = s['session_file'] in active_sessions
 
-        print(sessions)
         self.renderSettingsSessions.emit(json.dumps(sessions))
 
 
@@ -58,11 +55,14 @@ class SettingsBridge(BaseBridge):
     async def deleteSession(self, session_id_str, session_name):
         session_id = int(session_id_str)
         user_ids = await self.database.delete_session(session_id)
-        (SESSIONS / session_name).unlink(missing_ok=True)
-        for user_id in user_ids:
-            shutil.rmtree(USERS_DATA / f"{user_id}_{session_name}", ignore_errors=True)
-        shutil.rmtree(PROFILE_PHOTOS / session_name, ignore_errors=True)
-        self.sidebar_bridge.deleteSessionFromSelect.emit(session_id_str)
+        try:
+            (SESSIONS / session_name).unlink(missing_ok=True)
+            for user_id in user_ids:
+                shutil.rmtree(USERS_DATA / f"{user_id}_{session_name}", ignore_errors=True)
+            shutil.rmtree(PROFILE_PHOTOS / session_name, ignore_errors=True)
+            self.sidebar_bridge.deleteSessionFromSelect.emit(session_id_str)
+        except Exception as e:
+            self.logger.error(f"{self.__class__.__name__}\tError while deleting session {session_name}", exc_info=True)
 
 
     @asyncSlot()
@@ -77,7 +77,7 @@ class SettingsBridge(BaseBridge):
         filename = None
         if newSMMMessage['photo']:
             filename = f"{uuid.uuid4().hex}{puremagic.ext_from_filename(newSMMMessage['filename'])}"
-            with open(str( SMM_IMAGES / filename), 'wb') as f:
+            with open(str(SMM_IMAGES / filename), 'wb') as f:
                 f.write(base64.b64decode(newSMMMessage['photo']))
 
         smm_id = await self.database.add_smm_message(newSMMMessage['text'], filename)
@@ -110,11 +110,10 @@ class SettingsBridge(BaseBridge):
     async def loadChooseSessions(self):
         sessions = await self.database.get_sessions()
         if not sessions:
-            self.main_window.show_warning("Внимание", "Нет загруженных сессий")
+            self.main_window.show_notification("Внимание", "Нет загруженных сессий")
             return
         self.renderChooseSessions.emit(json.dumps(sessions))
         
-
 
     @asyncSlot(str)
     async def startSession(self, session_str):
@@ -133,6 +132,7 @@ class SettingsBridge(BaseBridge):
             return
         self.parsing_task = asyncio.create_task(self.main_window.parser.start(parse_data_str))
 
+
     @asyncSlot()
     async def stopParsing(self):
         if self.parsing_task:
@@ -145,7 +145,7 @@ class SettingsBridge(BaseBridge):
     
     @asyncSlot(str)
     async def show_notification(self, message):
-        self.main_window.show_warning("Внимание", message)
+        self.main_window.show_notification("Внимание", message)
 
 
     @asyncSlot(str)

@@ -8,6 +8,7 @@ import json
 
 class SidebarBridge(BaseBridge):
     renderDialogs = pyqtSignal(str)
+    removeDialog = pyqtSignal()
     renderSelectSessions = pyqtSignal(str)
     deleteSessionFromSelect = pyqtSignal(str)
     renderMessageNotifications = pyqtSignal(str)
@@ -20,11 +21,13 @@ class SidebarBridge(BaseBridge):
 
     @pyqtSlot()
     def openSettings(self):
+        self.logger.info(f"{self.__class__.__name__}\tUser open settings window")
         self.main_window.openSettings()
 
 
     @asyncSlot(str)
     async def selectDialog(self, dialog_id):
+        self.logger.info(f"{self.__class__.__name__}\tUser changed dialog to {dialog_id}")
         self.main_window.openChatWindow()
         user_id = int(dialog_id)
         session_id = int(self.main_window.active_session['session_id'])
@@ -38,6 +41,7 @@ class SidebarBridge(BaseBridge):
     @asyncSlot(str)
     async def changeSession(self, session_str):
         session = json.loads(session_str)
+        self.logger.info(f"{self.__class__.__name__}\tUser changed session to {session['session_file']}")
         self.main_window.active_session = session
         dialogs = await self.database.get_users_from_session(int(session['session_id']))
         if dialogs:
@@ -49,16 +53,15 @@ class SidebarBridge(BaseBridge):
 
     @asyncSlot(str)
     async def deleteDialog(self, dialog_id_str):
-        print(self.main_window.active_session)
+        self.logger.info(f"{self.__class__.__name__}\tDeleting dialog {dialog_id_str}")
         await self.main_window.session_manager.deleteDialog(
             self.main_window.active_session['session_file'],
             int(dialog_id_str)
         )
-        print(dialog_id_str)
 
 
     @pyqtSlot()
     def fetchNotifications(self):
+        self.logger.info(f"{self.__class__.__name__}\tUser fetch message notifications")
         message_notifications = self.main_window.notification_manager.get_unread_messages()
-        print(json.dumps(message_notifications))
         self.renderMessageNotifications.emit(json.dumps(message_notifications))

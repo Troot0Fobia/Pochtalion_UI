@@ -7,6 +7,7 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
 
     bridge.renderSelectSessions.connect(renderSelectSessions);
     bridge.renderDialogs.connect(renderDialogs);
+    bridge.removeDialog.connect(removeDialog);
     bridge.deleteSessionFromSelect.connect(deleteSessionFromSelect);
     bridge.renderMessageNotifications.connect(renderMessageNotifications);
     bridge.setUnreadDialog.connect(setUnreadDialog);
@@ -125,6 +126,12 @@ async function deleteDialog() {
 
     await bridge.deleteDialog(String(currentDialogId));
     document.getElementById('context-menu').style.display = 'none';
+    // currentDialogDiv.remove();
+    // currentDialogDiv = null;
+    // currentDialogId = null;
+}
+
+function removeDialog() {
     currentDialogDiv.remove();
     currentDialogDiv = null;
     currentDialogId = null;
@@ -169,11 +176,6 @@ function renderMessageNotifications(notifications_str) {
                 notification_list.appendChild(li);
             })
         }
-        // notifications.forEach(notification => {
-        //     const li = document.createElement('li');
-        //     li.textContent = `User ${notification.user_id} from session ${notification.session_id} wrote message ${notification.message_id}`;
-        //     notification_list.prepend(li);
-        // });
     }
     notification_popup.hidden = false;
 }

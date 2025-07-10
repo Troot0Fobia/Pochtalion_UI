@@ -1,7 +1,5 @@
 import json
-import pathlib
 import asyncio
-import os
 
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QSplitter, QStackedWidget, QApplication
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -15,6 +13,7 @@ from core.paths import WEB
 from modules.parser import Parser
 from modules.mailer import Mailer
 from core.notification_manager import NotificationManager
+from core.logger import setup_logger
 
 
 class Pochtalion_UI(QMainWindow):
@@ -24,17 +23,20 @@ class Pochtalion_UI(QMainWindow):
         self.setMinimumSize(QSize(600, 800))
         self.current_chat = None
         self.active_session = None
+        self.database = None
 
         self.sidebar_window = QWebEngineView()
         self.chat_window = QWebEngineView()
         self.settings_window = QWebEngineView()
         self.parser = Parser(self)
         self.mailer = Mailer(self)
+        self.logger = setup_logger("Pochtalion.UI", "UI.log")
+        self.logger.info("Main UI initialized")
 
-        self.database = None
         
     @asyncSlot()
     async def init_async(self):
+        self.logger.info("Starting main application")
         self.database = await Database.create()
         self.session_manager = SessionsManager(29572409, 'b882aac92b82a94c7dc21ccf80b42e4e', self.database, self)
         self.notification_manager = NotificationManager(self, self.database)
@@ -79,23 +81,13 @@ class Pochtalion_UI(QMainWindow):
         self.sidebar_window.loadFinished.connect(
             lambda _: asyncio.create_task(self.loadSidebar())
         )
-        
-        # self.notification_manager.add_unread_message(1, 123, "Text")
-        # self.notification_manager.add_unread_message(2, 123, "MEssage")
-        # self.notification_manager.add_unread_message(1, 123, "For")
-        # self.notification_manager.add_unread_message(2, 121, "Test")
-        # self.notification_manager.add_unread_message(1, 121, "Some test message")
-        # self.notification_manager.add_unread_message(1, 123, "For event")
-        # self.notification_manager.add_unread_message(1, 122, "Notification attached")
-        # self.notification_manager.add_unread_message(1, 122, "[Attachment]")
-        # self.notification_manager.add_unread_message(4237, 121, "[Attachment]")
+
         return self
 
 
     async def loadSidebar(self):
         sessions = await self.database.get_sessions()
         if sessions:
-            # print(sessions)
             self.active_session = sessions[0]
             self.sidebar_bridge.renderSelectSessions.emit(json.dumps(sessions))
 
@@ -115,18 +107,9 @@ class Pochtalion_UI(QMainWindow):
         self.stack.setCurrentWidget(self.chat_window)
 
 
-    # async def startSession(self, session_str):
-    #     session = json.loads(session_str)
-    #     await self.session_manager.start_session(session['session_id'], session['session_name'])
-
-
-    # async def stopSession(self, session_file):
-    #     await self.session_manager.stop_session(session_file)
-
-
     @asyncClose
     async def closeEvent(self, event):
-        print("closing application")
+        self.logger.info("Closing application")
         await self.parser.stop()
         await self.mailer.stop()
         await self.notification_manager.stop()
