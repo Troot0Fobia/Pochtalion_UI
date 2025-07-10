@@ -1,14 +1,16 @@
-
 html, body {
     height: 100%;
     width: 100%;
     margin: 0;
     padding: 0;
+    background-color: #27284A;
+    color: #ffffff;
+    font-family: Arial, Helvetica, sans-serif;
 }
 .settings {
     display: flex;
     flex-wrap: wrap;
-    background: #ccc;
+    /* background: #ccc; */
 }
 
 .settings input[type="radio"][name="settings-tabs"] {
@@ -38,12 +40,12 @@ html, body {
 
 .settings input[type="radio"][name="settings-tabs"]:checked + label + .tab {
     display: flex;
-    background: #616161;
+    /* background: #132D71; */
 }
 
 .settings input[type="radio"][name="settings-tabs"]:checked + label {
     display: block;
-    background: #616161;
+    background: #2639A6;
 }
 
 .control-panel {
@@ -222,7 +224,7 @@ input[type="button"]:hover {
     background-color: green;
 }
 
-.start-button:hover {
+.start-button:not([disabled]):hover {
     background-color: rgb(0, 175, 0);
 }
 
@@ -230,12 +232,31 @@ input[type="button"]:hover {
     background-color: rgb(189, 0, 0);
 }
 
-.stop-button:hover {
+.stop-button:disabled {
+    background-color: rgb(129, 0, 0);
+}
+
+.stop-button:not([disabled]):hover {
     background-color: rgb(255, 40, 40);
+}
+
+#save-results-to-computer,
+#add-results-to-database {
+    background-color: rgba(239, 239, 239, 0.745);
+}
+
+#save-results-to-computer:disabled,
+#add-results-to-database:disabled {
+    background-color: rgba(143, 143, 143, 0.745);
 }
 
 #mailing-usernames {
     color: rgba(165, 165, 165, 0.637);
+}
+
+.select-parse-type {
+    display: flex;
+    align-items: center;
 }
 
 .select-mailing-type:has(input[type="checkbox"]:checked) #mailing-database {
@@ -265,18 +286,21 @@ input[type="button"]:hover {
 
 .row {
     display: flex;
+    border-radius: 10px;
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
     padding: 10px;
-    background-color: #ccc;
+    background-color: #EDEBE5;
+    color: black;
 }
 
 #add-smm-message {
     display: flex;
+    border-radius: 10px;
     align-items: center;
     justify-content: center;
-    background-color: green;
+    background-color: #007bff;
 }
 
 .left-smm-side {
@@ -303,10 +327,15 @@ input[type="button"]:hover {
     margin-right: 30px;
 }
 
+.button {
+    color: white;
+}
+
 .btn {
     padding: 5px;
     cursor: pointer;
     border-radius: 5px;
+    color: white;
 }
 
 .edit-btn {
@@ -363,14 +392,18 @@ input[type="button"]:hover {
     flex-direction: column;
     gap: 10px;
 }
-
 .add-session-btn {
     width: fit-content;
     margin-top: 30px;
-    padding: 10px;
-    background-color: gray;
+    background-color: #007bff;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 16px;
+    cursor: pointer;
 }
-
+.add-session:hover {
+    background-color: #0056b3;
+}
 .sessions-header {
     display: flex;
     align-items: center;

@@ -9,6 +9,7 @@ from datetime import datetime
 from modules.client_wrapper import ClientWrapper
 from telethon.errors import PeerFloodError
 from core.logger import setup_logger
+from telethon.types import InputPeerUser
 
 UPDATE_DELAY = 1
 
@@ -114,11 +115,11 @@ class Mailer:
                     user_status=5
                 )
             else:
-                entity = await self.get_user_entity(self.mail_data.pop(), session_info.wrapper.client)
+                entity = await self.get_user_entity(self.mail_data.pop(), session_info.wrapper.client, session_info.wrapper.session_id)
                 if entity is None:
                     self.logger.info("No entity received from data")
                     continue
-                user_id = entitiy.user_id
+                user_id = entity.user_id
 
             self.logger.debug(f"Received entity for mailing {user_id}")
             if smm_message['photo']:
@@ -151,7 +152,7 @@ class Mailer:
         await self.stop()
 
 
-    async def get_user_entity(self, user_data, session_client):
+    async def get_user_entity(self, user_data, session_client, session_id):
         self.logger.info(f"Trying get entity from user {user_data['user_id']}")
         self.logger.debug(f"Trying get entity from user {user_data}")
         user_id = user_data['user_id']
@@ -174,19 +175,24 @@ class Mailer:
         source_data = await self.main_window.database.get_parse_source(source_chat_id)
         chat_entity = await session_client.get_entity(source_data['chat_username'])
 
+        self.logger.info(f"Received chat entity {getattr(chat_entity, 'id', 0)}")
         if source_data['chat_type'] == "broadcast" and source_post_id is not None:
             async for comment in session_client.iter_messages(chat_entity, reply_to=source_post_id):
+                print(comment)
                 sender = await comment.get_input_sender() # InputPeerUser
-                await self.main_window.database.add_user_to_session(sender.user_id, session_client.session_id)
+                if isinstance(sender, InputPeerUser):
+                    self.logger.info(f"Received user entity with id: {sender.user_id}")
+                    if sender.user_id == user_id:
+                        await self.main_window.database.add_user_to_session(sender.user_id, session_id)
         elif source_data['chat_type'] in ("megagroup", "gigagroup", "chat"):
             if source_post_id is not None:
                 message = await session_client.get_messages(chat_entity, ids=source_post_id)
                 sender = await message.get_input_sender()
-                await self.main_window.database.add_user_to_session(sender.user_id, session_client.session_id)
+                await self.main_window.database.add_user_to_session(sender.user_id, session_id)
             else:
                 async for user_entity in session_client.iter_participants(chat_entity):
                     if user_entity.id == user_id:
-                        await self.main_window.database.add_user_to_session(user_entity.id, session_client.session_id)
+                        await self.main_window.database.add_user_to_session(user_entity.id, session_id)
                         break
                      
         try:

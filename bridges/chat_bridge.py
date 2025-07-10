@@ -32,7 +32,7 @@ class ChatBridge(BaseBridge):
 
     @asyncSlot(str)
     async def openVideoPlayer(self, video_path):
-        from videoDialog import VideoDialog
+        from ui.video_player import VideoDialog
         try:
             dialog = VideoDialog(video_path, self.main_window)
             dialog.show()

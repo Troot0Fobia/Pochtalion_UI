@@ -13,3 +13,10 @@ __version__ = "0.0.1"
 #    ||+------ user wait for mail - 0 or we answered for user - 1
 #    |+------- work with existing dialog - 1, event adding - 0
 #    +-------- user wrote himself - 0 we add user - 1
+
+# Colors in UI:
+# #27284A
+# #2639A6
+# #132D71
+# #CDC8B7
+# #EDEBE5

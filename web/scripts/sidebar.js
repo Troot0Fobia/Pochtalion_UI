@@ -126,10 +126,8 @@ async function deleteDialog() {
 
     await bridge.deleteDialog(String(currentDialogId));
     document.getElementById('context-menu').style.display = 'none';
-    // currentDialogDiv.remove();
-    // currentDialogDiv = null;
-    // currentDialogId = null;
 }
+
 
 function removeDialog() {
     currentDialogDiv.remove();
@@ -166,7 +164,7 @@ function renderMessageNotifications(notifications_str) {
             const header = document.createElement('li');
             header.textContent = `Session ${session_id}`;
             header.style.fontWeight = 'bold';
-            header.style.borsderBottom = '1px solid #0562dd';
+            header.style.borderBottom = '1px solid #0562dd';
             header.style.marginTop = '10px';
             notification_list.appendChild(header);
 

@@ -36,7 +36,7 @@ function renderSettingsSessions(sessions_json) {
         row.innerHTML = `
             <div class="session-info">
                 <input type="checkbox" ${session.is_active ? 'checked' : ''}>
-                Session file: <span class="session-name">${session.session_file}</span><span class="session-phone">${session.phone_number}</span>
+                Session file: <span class="session-name">${session.session_file}</span> Phone number: <span class="session-phone">${session.phone_number}</span>
             </div>
             <div class="buttons">
                 ${session.is_running
@@ -92,6 +92,8 @@ async function startSession(elem) {
 }
 
 function sessionChangedState(state) {
+    // TODO remake for cycle
+    if (!selectedSession) return;
     if (state === "started")
         selectedSession.querySelector('.buttons').innerHTML = `
             <div class="btn stop-session-btn"><img src="assets/icons/stop.png" alt="stop session" class="icons" onclick="stopSession(this)"></div>

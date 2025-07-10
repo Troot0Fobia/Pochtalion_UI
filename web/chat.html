@@ -19,8 +19,8 @@
                 <button id="remove-file" onclick="removeFile()">✖</button>
             </div>
 
-            <input class="input-field" id="input-field" type="text" placeholder="Enter your message">
-            <button class="send-button" onclick="sendMessage()">Send</button>
+            <textarea class="input-field" id="input-field" type="text" placeholder="Введите сообщение" oninput="changeSize(this)"></textarea>
+            <div class="send-button" onclick="sendMessage()">Отправить</div>
         </div>
     </div>
 </body>

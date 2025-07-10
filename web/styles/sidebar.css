@@ -3,7 +3,10 @@ html, body {
     width: 100%;
     margin: 0;
     padding: 0;
-    background-color: rgb(5, 98, 221);
+    background-color: #27284A;
+    color: #d0d0d0;
+    font-family: Arial, Helvetica, sans-serif;
+    scrollbar-width: thin;
 }
 .main-part {
     display: flex;
@@ -13,7 +16,9 @@ html, body {
 }
 .dialogs {
     min-width: 300px;
-    margin-bottom: 40px;
+    padding-top: 5px;
+    padding-right: 5px;
+    padding-bottom: 45px;
 }
 .dialog {
     display: flex;
@@ -28,16 +33,17 @@ html, body {
 }
 .last-message-time {
     text-align: right;
+    font-size: 12px;
 }
 .right-side {
     width: 100%;
 }
 .dialog:hover {
-    background-color: rgb(4, 126, 163);
+    background-color:#2639A6;
     cursor: pointer;
 }
 .dialog.active {
-    background-color: rgb(4, 126, 163);
+    background-color: #2639A6;
 }
 .message-line {
     display: flex;
@@ -46,11 +52,11 @@ html, body {
     justify-content: space-between;
 }
 .unread-dialog {
-    width: 30px;
-    height: 30px;
+    width: 25px;
+    height: 25px;
     border-radius: 50%;
-    background-color: blue;
-    padding: 3px;
+    background-color: #EDEBE5;
+    padding: 5px;
 }
 
 .main-line {
@@ -62,10 +68,13 @@ html, body {
     align-items: center;
     justify-content: space-between;
     padding: 5px;
-    background-color: #0562dd;
+    background-color: #27284A;
+}
+.main-line img {
+    cursor: pointer;
 }
 .choose-session {
-    width: 30%;
+    width: auto;
 }
 .notifications,
 .settings {

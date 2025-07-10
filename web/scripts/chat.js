@@ -7,6 +7,11 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.clearChatWindow.connect(clearChatWindow);
 });
 
+function changeSize(elem) {
+    elem.style.height = 'auto';
+    elem.style.height = elem.scrollHeight + 'px';
+}
+
 
 function renderMessages(messages_raw, user_session, is_old) {
     let chat_window_div = document.getElementById('chat-window');
@@ -35,8 +40,7 @@ function renderMessages(messages_raw, user_session, is_old) {
         } else if (attachments.length === 1 && mime_types.length === 1)
             attachment_html = renderAttachment(mime_types[0], attachments[0], user_session);
 
-        message_div.innerHTML = `
-            ${attachment_html}
+        message_div.innerHTML = `${attachment_html}
             <div class="text">${message.text}</div>
             <div class="time">${message.created_at}</div>
         `;

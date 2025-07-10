@@ -31,7 +31,11 @@ class ClientWrapper:
         self.session_user_id = me.id
         self.is_new = await self.database.update_session(self._session_id, self.session_user_id, me.phone)
         self._register_handlers()
-        await self._fetch_dialogs()
+        # await self._fetch_dialogs()
+
+    # def tryEnterPhone(self):
+    #     print("\n\n\nNumber is needed\n\n\n")
+    #     return '+0000000000'
 
 
     async def _fetch_dialogs(self):
@@ -143,8 +147,17 @@ class ClientWrapper:
                 else:
                     filename = f"{message.id}.jpg"
                     mime_type.append("image/jpeg")
-                filename = await message.download_media(file=str(media_dir / filename))
-                filenames.append(Path(filename).name)
+                new_filename = None
+                try:
+                    new_filename = await message.download_media(file=str(media_dir / filename))
+                except:
+                    continue
+                print("\n\n\nFilename:")
+                print(filename)
+                if new_filename:
+                    filenames.append(Path(new_filename).name)
+                else:
+                    filenames.append(filename)
 
         render_messages.append({
             "message_id": messages[-1].id,

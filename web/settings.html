@@ -41,8 +41,8 @@
                 </div>
             </div>
             <div class="action-buttons">
-                <input type="button" value="Start mailing" class="start-button" id="start-mailing-button" onclick="startMailing()">
-                <input type="button" value="Stop mailing" class="stop-button" id="stop-mailing-button" onclick="stopMailing()" disabled>
+                <input type="button" value="Start mailing" class="button start-button" id="start-mailing-button" onclick="startMailing()">
+                <input type="button" value="Stop mailing" class="button stop-button" id="stop-mailing-button" onclick="stopMailing()" disabled>
             </div>
             <div class="update-container">
                 <div class="status-container">
@@ -98,10 +98,10 @@
                 </div>
             </div>
             <div class="action-buttons">
-                <input type="button" value="Start parsing" class="start-button" id="start-parsing-button" onclick="startParsing()">
-                <input type="button" value="Stop parsing" class="stop-button" id="stop-parsing-button" onclick="stopParsing()" disabled>
-                <input type="button" value="Save csv" id="save-results-to-computer" onclick="exportCSV()" disabled>
-                <input type="button" value="Add to DB" id="add-results-to-database" onclick="saveToDB()" disabled>
+                <input type="button" value="Start parsing" class="button start-button" id="start-parsing-button" onclick="startParsing()">
+                <input type="button" value="Stop parsing" class="button stop-button" id="stop-parsing-button" onclick="stopParsing()" disabled>
+                <input type="button" value="Save csv" class="button" id="save-results-to-computer" onclick="exportCSV()" disabled>
+                <input type="button" value="Add to DB" class="button" id="add-results-to-database" onclick="saveToDB()" disabled>
             </div>
             <div class="update-container">
                 <div class="status-container">
@@ -134,7 +134,7 @@
                         </label>
                     </div>
                 </div>
-                <button id="add-smm-message" onclick="addSMMMessage()"><img class="icons" src="assets/icons/add.png" alt="">Add message</button>
+                <div id="add-smm-message" onclick="addSMMMessage()"><img class="icons" src="assets/icons/add.png" alt="">Add message</div>
                 <hr>
                 <div class="smm-message-list" id="smm-message-list"></div>
             </div>
