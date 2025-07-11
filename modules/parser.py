@@ -42,6 +42,7 @@ class Parser:
             if matched:
                 self.parse_usernames.append(matched.group('group_username') or matched.group('username'))
 
+        self.logger.debug(f"Received links {self.parse_usernames}")
         if not self.parse_usernames or not self.session_files or \
                 self.is_parse_channel and not self.count_of_posts.isdigit() or \
                 not self.is_parse_channel and self.is_parse_messages and not self.count_of_messages.isdigit():
@@ -49,6 +50,7 @@ class Parser:
             self.main_window.show_notification("Внимание", "Некорректные данные")
             return
 
+        self.logger.debug(f"All data correct. Starting...")
         self.count_of_messages = int(self.count_of_messages or 0)
         self.count_of_posts = int(self.count_of_posts or 0)
         self._running = True
@@ -56,7 +58,9 @@ class Parser:
         self.group_id = None
         await self.start_sessions()
 
+
         sessions_count = len(self.session_wrappers)
+        self.logger.debug(f"Sessions started {sessions_count}")
         index = 0
         self.start_time = datetime.now()
         self.update_task = asyncio.create_task(self.sendUpdate())
@@ -74,18 +78,27 @@ class Parser:
             group_type = self._get_channel_type(group_entity)
             self.group_id = group_entity.id
             self.group_data[self.group_id] = (group_entity.title, group_entity.username, group_type)
-
-            # await self.main_window.database.add_parse_source(self.group_id, group_entity.title, group_entity.username, group_type)
             await self.main_window.database.add_parse_source(self.group_id, *self.group_data[self.group_id])
 
             if group_type == "broadcast" and self.is_parse_channel:
                 async for message in client.iter_messages(group_entity, self.count_of_posts or None):
                     if not message.post:
                         continue
-                    async for comment in client.iter_messages(group_entity, reply_to=message.id):
-                        user_entity = await comment.get_sender()
-                        await self._handle_user(user_entity, message.id, session_id)
-                        await asyncio.sleep(PARSE_DELAY)
+                    # self.logger.debug(f"Received channel post: {message}")
+                    # self.logger.debug(f"Message id: {message.id}")
+                    try:
+                        async for comment in client.iter_messages(group_entity, reply_to=message.id):
+                            user_entity = await comment.get_sender()
+                            await self._handle_user(user_entity, message.id, session_id)
+                            await asyncio.sleep(PARSE_DELAY)
+                    except:
+                        # this throw unknown shit like
+                        # telethon.errors.rpcerrorlist.MsgIdInvalidError: The message ID used in the peer was invalid (caused by GetRepliesRequest)
+                        # but message matches for channel's post
+                        # https://github.com/LonamiWebs/Telethon/issues/3841
+                        # https://github.com/LonamiWebs/Telethon/issues/3837
+                        # https://stackoverflow.com/questions/72396273/how-to-use-getrepliesrequest-call-in-telethon
+                        pass
                     await asyncio.sleep(PARSE_DELAY)
             elif group_type in ("megagroup", "gigagroup", "chat") and not self.is_parse_channel:
                 if self.is_parse_messages:
@@ -103,7 +116,7 @@ class Parser:
 
     async def _handle_user(self, user_entity, message_id, session_id):
         if isinstance(user_entity, types.User) and not user_entity.bot:
-            self.logger.info("Received new user. Processing...")
+            self.logger.debug(f"Received new user with id {user_entity.id}. Processing...")
             if not user_entity.id in self.existing_ids.keys():
                 self.existing_ids[user_entity.id] = (
                     self.group_id,
@@ -118,11 +131,13 @@ class Parser:
                 )
 
     async def start_sessions(self):
+        self.logger.debug(f"Starting sessions: {self.session_files}")
         for session_id, session_file in self.session_files.items():
             session_wrapper = self.main_window.session_manager.get_wrapper(session_file)
             was_started = False
             if not session_wrapper:
-                session_wrapper = await self.main_window.session_manager.start_sessions(session_id, session_file)
+                self.logger.debug(f"Session {session_file} was not started. Starting...")
+                session_wrapper = await self.main_window.session_manager.start_session(session_id, session_file, is_module=True)
                 was_started = True
             self.session_wrappers.append((session_wrapper, was_started, session_id))
 
@@ -178,6 +193,10 @@ class Parser:
         await self.start_sessions()
         last_session_id = None
         s_wrapper = None
+        self.start_time = datetime.now()
+        self.saving = True
+        self.saved_count = 0
+        self.update_task = asyncio.create_task(self.sendUpdateSaveToDB())
         for user_id, (group_id, post_id, session_id, user_data) in self.existing_ids.items():
             if last_session_id != session_id:
                 s_wrapper = next((wrapper for wrapper, _, sid in self.session_wrappers if sid == session_id), None)
@@ -188,10 +207,20 @@ class Parser:
                     user_data,
                     last_message=None,
                     user_status=4,
+                    sended=False,
                     source_chat_id=group_id,
                     source_post_id=post_id
                 )
+                self.saved_count += 1
         self.saved_to_db = True
+        self.saving = False
+        if self.update_task:
+            self.update_task.cancel()
+            try:
+                await self.update_task
+            except asyncio.CancelledError:
+                pass
+        self.update_task = None
         await self.finish_sessions()
 
 
@@ -241,8 +270,28 @@ class Parser:
             elapsed_time = f"{H:02}:{M:02}:{S:02}"
 
             self.main_window.settings_bridge.renderParsingProgressData.emit(json.dumps({
-                "status": "working",
+                "status": "парсинг",
                 "total_count": len(self.existing_ids),
+                "chat": f"{group_title} @{group_username}",
+                "elapsed_time": elapsed_time
+            }))
+
+            await asyncio.sleep(UPDATE_DELAY)
+
+
+    async def sendUpdateSaveToDB(self):
+        parsed_count = len(self.existing_ids)
+        while self.saving:
+            group_title, group_username, group_type = self.group_data.get(self.group_id, ("Unknown", "Unknown", "Unknown"))
+            total_seconds = (datetime.now() - self.start_time).total_seconds()
+            H = int(total_seconds // 3600)
+            M = int((total_seconds // 60) % 60)
+            S = int(total_seconds % 60)
+            elapsed_time = f"{H:02}:{M:02}:{S:02}"
+
+            self.main_window.settings_bridge.renderParsingProgressData.emit(json.dumps({
+                "status": "сохранение",
+                "total_count": f"{self.saved_count}/{parsed_count}",
                 "chat": f"{group_title} @{group_username}",
                 "elapsed_time": elapsed_time
             }))

@@ -4,7 +4,7 @@ import asyncio
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QSplitter, QStackedWidget, QApplication
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebChannel import QWebChannel
-from PyQt6.QtCore import QUrl, QSize, Qt
+from PyQt6.QtCore import QUrl, QSize, Qt, QMargins
 from core.database import Database
 from bridges import chat_bridge, settings_bridge, sidebar_bridge
 from modules.sessions_manager import SessionsManager
@@ -76,6 +76,8 @@ class Pochtalion_UI(QMainWindow):
         self.main_widget = QWidget()
         self.main_layout = QVBoxLayout(self.main_widget)
         self.main_layout.addWidget(self.splitter)
+        self.main_layout.setContentsMargins(QMargins(0, 0, 0, 0))
+        self.main_layout.setSpacing(0)
         self.setCentralWidget(self.main_widget)
 
         self.sidebar_window.loadFinished.connect(

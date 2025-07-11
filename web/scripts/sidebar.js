@@ -157,12 +157,12 @@ function renderMessageNotifications(notifications_str) {
 
     if (!Object.keys(notifications).length) {
         const li = document.createElement('li');
-        li.textContent = "No notifications";
+        li.textContent = "Нет уведомлений";
         notification_list.appendChild(li);
     } else {
         for (const [session_id, messages] of Object.entries(notifications)) {
             const header = document.createElement('li');
-            header.textContent = `Session ${session_id}`;
+            header.textContent = `Сессия ${session_id}`;
             header.style.fontWeight = 'bold';
             header.style.borderBottom = '1px solid #0562dd';
             header.style.marginTop = '10px';
@@ -170,7 +170,7 @@ function renderMessageNotifications(notifications_str) {
 
             messages.forEach(({user_id, message_text}) => {
                 const li = document.createElement('li');
-                li.textContent = `User ${user_id}. Message: ${message_text}`;
+                li.textContent = `Пользователь ${user_id}. Сообщение: ${message_text}`;
                 notification_list.appendChild(li);
             })
         }

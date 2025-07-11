@@ -33,10 +33,10 @@ function renderSettingsSessions(sessions_json) {
         const row = document.createElement('div');
         row.className = 'row';
         row.dataset.id = session.session_id;
+        // <input type="checkbox" ${session.is_active ? 'checked' : ''}>
         row.innerHTML = `
             <div class="session-info">
-                <input type="checkbox" ${session.is_active ? 'checked' : ''}>
-                Session file: <span class="session-name">${session.session_file}</span> Phone number: <span class="session-phone">${session.phone_number}</span>
+                Сессия: <span class="session-name">${session.session_file}</span> Номер телефона: <span class="session-phone">${session.phone_number}</span>
             </div>
             <div class="buttons">
                 ${session.is_running

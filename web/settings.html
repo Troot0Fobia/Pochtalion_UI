@@ -9,117 +9,117 @@
 <body>
     <div class="settings" id="settings">
         <input type="radio" id="tabchatting" name="settings-tabs" checked="checked">
-        <label for="tabchatting" class="tab-label">Chatting</label>
+        <label for="tabchatting" class="tab-label">Общение</label>
         <div class="tab">
-            Some blocks for chatting (In development...)
+            Some blocks for chatting (В разработке...)
         </div>
         <input type="radio" id="tabmailing" name="settings-tabs">
-        <label for="tabmailing" class="tab-label">Mailing</label>
+        <label for="tabmailing" class="tab-label">Рассылка</label>
         <div class="tab">
             <div class="control-panel">
                 <div class="column links">
-                    <label for="mailing-usernames-field">Paste usernames for mailing</label>
+                    <label for="mailing-usernames-field">Usernames для рассылки</label>
                     <textarea name="mailing-usernames" id="mailing-data-field"></textarea>
                 </div>
                 <div class="column">
                     <div class="select-mailing-type">
-                        <span id="mailing-database">Mailing from database</span>
+                        <span id="mailing-database">Рассылки из базы данных</span>
                         <label class="type-switch">
                             <input type="checkbox" id="mailing-database-or-usernames">
                             <span class="slider"></span>
                         </label>
-                        <span id="mailing-usernames">Mailing from usernames</span>
+                        <span id="mailing-usernames">Рассылка по usernames</span>
                     </div>
                     <div class="timing-settings">
-                        <label for="delay-between-mailing">Delay between sending messages</label>
+                        <label for="delay-between-mailing">Задержка между сообщениями</label>
                         <input type="number" value="0" id="delay-between-mailing-messages">
                     </div>
                     <div class="choose-accounts">
-                        <label for="choose-button">Choose accounts for work <span id="mailing-account-count">0</span></label>
+                        <label for="choose-button">Выберите аккаунты для работы <span id="mailing-account-count">0</span></label>
                         <input type="button" value="Choose" onclick="loadChooseSessions()">
                     </div>
                 </div>
             </div>
             <div class="action-buttons">
-                <input type="button" value="Start mailing" class="button start-button" id="start-mailing-button" onclick="startMailing()">
-                <input type="button" value="Stop mailing" class="button stop-button" id="stop-mailing-button" onclick="stopMailing()" disabled>
+                <input type="button" value="Начать рассылку" class="button start-button" id="start-mailing-button" onclick="startMailing()">
+                <input type="button" value="Остановить рассылку" class="button stop-button" id="stop-mailing-button" onclick="stopMailing()" disabled>
             </div>
             <div class="update-container">
                 <div class="status-container">
-                    Status: <span id="mailing-status">sleep</span>
+                    Статус: <span id="mailing-status">сон</span>
                 </div>
                 <div class="total-count-container">
-                    Total mailed count: <span id="total-mailed-count">0/0</span>
+                    Всего отправлено: <span id="total-mailed-count">0/0</span>
                 </div>
                 <div class="time-container">
-                    Time: <span id="mailing-time">--:--:--/--:--:--</span>
+                    Время: <span id="mailing-time">--:--:--/--:--:--</span>
                 </div>
             </div>
         </div>
         <input type="radio" id="tabparsing" name="settings-tabs" onclick="initParsing()">
-        <label for="tabparsing" class="tab-label">Parsing</label>
+        <label for="tabparsing" class="tab-label">Парсинг</label>
         <div class="tab">
             <div class="control-panel">
                 <div class="column links">
-                    <label for="parse-link">Paste links for parsing</label>
+                    <label for="parse-link">Ссылки для парсинга</label>
                     <textarea name="parse-links" id="parse-links"></textarea>
                 </div>
                 <div class="column">
                     <div class="select-parse-type">
-                        <span id="parse-group">Parse group</span>
+                        <span id="parse-group">Парсить группу</span>
                         <label class="type-switch">
                             <input type="checkbox" id="parse-group-or-channel">
                             <span class="slider"></span>
                         </label>
-                        <span id="parse-channel">Parse channel</span>
+                        <span id="parse-channel">Парсить канал</span>
                     </div>
                     <div class="parse-group-settings">
-                        <span id="parse-group-participants">Parse participants</span>
+                        <span id="parse-group-participants">Парсить открытых участников</span>
                         <label class="type-switch">
                             <input type="checkbox" id="parse-messages-or-participants">
                             <span class="slider"></span>
                         </label>
-                        <span id="parse-group-messages">Parse messages</span>
+                        <span id="parse-group-messages">Парсить сообщения</span>
                         <div id="messages-parse-settings">
-                            <label for="messages-parse-count">Count of messages</label>
+                            <label for="messages-parse-count">Количество сообщений</label>
                             <input type="number" name="messages-parse-count" id="messages-parse-count">
                         </div>
                     </div>
                     <div class="parse-channel-settings">
                         <div id="posts-parse-settings">
-                            <label for="posts-parse-count">Count of posts</label>
+                            <label for="posts-parse-count">Количетсво постов</label>
                             <input type="number" name="posts-parse-count" id="posts-parse-count">
                         </div>
                     </div>
                     <div class="choose-accounts">
-                        <label for="choose-button">Choose accounts for work <span id="parse-account-count">0</span></label>
+                        <label for="choose-button">Выберите аккаунты для работы <span id="parse-account-count">0</span></label>
                         <input type="button" value="Choose" onclick="loadChooseSessions()">
                     </div>
                 </div>
             </div>
             <div class="action-buttons">
-                <input type="button" value="Start parsing" class="button start-button" id="start-parsing-button" onclick="startParsing()">
-                <input type="button" value="Stop parsing" class="button stop-button" id="stop-parsing-button" onclick="stopParsing()" disabled>
-                <input type="button" value="Save csv" class="button" id="save-results-to-computer" onclick="exportCSV()" disabled>
-                <input type="button" value="Add to DB" class="button" id="add-results-to-database" onclick="saveToDB()" disabled>
+                <input type="button" value="Начать парсинг" class="button start-button" id="start-parsing-button" onclick="startParsing()">
+                <input type="button" value="Остановить парсинг" class="button stop-button" id="stop-parsing-button" onclick="stopParsing()" disabled>
+                <input type="button" value="Экспорт csv" class="button" id="save-results-to-computer" onclick="exportCSV()" disabled>
+                <input type="button" value="Добавить в БД" class="button" id="add-results-to-database" onclick="saveToDB()" disabled>
             </div>
             <div class="update-container">
                 <div class="status-container">
-                    Status: <span id="parsing-status">sleep</span>
+                    Статус: <span id="parsing-status">сон</span>
                 </div>
                 <div class="total-count-container">
-                    Total parsed count: <span id="total-parsed-count">0</span>
+                    Количество обработанных: <span id="total-parsed-count">0</span>
                 </div>
                 <div class="current-chat-container">
-                    Current parsing chat: <span id="current-chat"></span>
+                    Текущий чат: <span id="current-chat"></span>
                 </div>
                 <div class="time-container">
-                    Elapsed time: <span id="parsing-elapsed-time">--:--:--</span>
+                    Время: <span id="parsing-elapsed-time">--:--:--</span>
                 </div>
             </div>
         </div>
         <input type="radio" id="tabsmm" name="settings-tabs" onclick="loadSMM()">
-        <label for="tabsmm" class="tab-label">SMM messages</label>
+        <label for="tabsmm" class="tab-label">Сообщения для рассылки</label>
         <div class="tab">
             <div class="smm-block" id="smm-block">
                 <div id="image-preview-overlay" onclick="this.style.display = 'none'">
@@ -140,18 +140,18 @@
             </div>
         </div>
         <input type="radio" id="tabcommon" name="settings-tabs" onclick="loadSettingsSessions()">
-        <label for="tabcommon" class="tab-label">Common</label>
+        <label for="tabcommon" class="tab-label">Общее</label>
         <div class="tab">
             <div class="sessions">
                 <div class="sessions-header">
-                    <h1>Sessions</h1>
-                    <div class="btn" id="start-all-sessions-btn">Start all sessions</div>
-                    <div class="btn" id="stop-all-sessions-btn">Stop all sessions</div>
+                    <h1>Сессии</h1>
+                    <!-- <div class="btn" id="start-all-sessions-btn">Запустить все сессии</div>
+                    <div class="btn" id="stop-all-sessions-btn">Остановить все сессии</div> -->
                 </div>
                 <div class="sessions-list" id="sessions-list"></div>
                 <div class="add-session-btn">
                     <label style="cursor: pointer;">
-                        Add session
+                        Добавить сессию
                         <input type="file" id="add-session" accept=".session" style="display: none;" onchange="addSessions(this)">
                     </label>
                 </div>
@@ -161,9 +161,9 @@
     <div id="session-modal" class="modal hidden">
     <div class="modal-content">
         <span class="close-button" onclick="closeSessionModal()">&times;</span>
-        <h3>Select sessions to use</h3>
+        <h3>Выберите сесии</h3>
         <div class="session-list" id="session-list"></div>
-        <input type="button" value="Confirm" onclick="confirmSelectedSessions()">
+        <input type="button" value="Подтвердить" onclick="confirmSelectedSessions()">
     </div>
     </div>
 </body>

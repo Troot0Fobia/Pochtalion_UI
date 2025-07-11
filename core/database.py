@@ -175,6 +175,9 @@ class Database:
 
         
     async def update_session(self, session_id: int, user_id: int, phone_number: str) -> bool:
+        print(session_id)
+        print(user_id)
+        print(phone_number)
         is_new = None
         async with self._lock:
             async with self._db.execute("""
@@ -349,14 +352,17 @@ class Database:
             async with self._db.execute("""
                 SELECT chat_title, chat_username, chat_type
                 FROM parse_source
-                WHERE chat_id = ?  
+                WHERE chat_id = ?
             """, (chat_id,)) as cursor:
                 row = await cursor.fetchone()
-                return {
-                    "chat_title": row["chat_title"],
-                    "chat_username": row["chat_username"],
-                    "chat_type": row["chat_type"]
-                }
+                if row:
+                    return {
+                        "chat_title": row["chat_title"],
+                        "chat_username": row["chat_username"],
+                        "chat_type": row["chat_type"]
+                    }
+                else:
+                    return None
     
 
     ### ======================== Methods for users ============================ ###
@@ -398,7 +404,7 @@ class Database:
     async def add_new_user(
         self, user_id: int, username: str, first_name: str, last_name: str,
         phone_number: str, profile_photo_id: int = None, profile_photo: str = None,
-        user_status: int = 0, sended: int = 0, source_chat_id: int = None, source_post_id: int = None
+        user_status: int = 0, sended: bool = False, source_chat_id: int = None, source_post_id: int = None
     ) -> None:
         async with self._lock:
             await self._db.execute("""
@@ -414,7 +420,7 @@ class Database:
                 profile_photo_id,
                 profile_photo,
                 user_status,
-                sended,
+                int(sended),
                 source_chat_id,
                 source_post_id,
                 datetime.now(tz=timezone('UTC')).isoformat()
@@ -500,6 +506,17 @@ class Database:
                         "source_post_id": source_post_id
                     })
         return users
+
+
+    async def get_user_data(self, user_id):
+        async with self._lock:
+            async with self._db.execute("""
+                SELECT first_name, last_name, profile_photo
+                FROM users
+                WHERE user_id = ?
+            """, (user_id, )) as cursor:
+                row = await cursor.fetchone()
+                return (row['first_name'], row['last_name'], row['profile_photo'])
 
 
     async def set_user_to_sended(self, user_id: int) -> None:

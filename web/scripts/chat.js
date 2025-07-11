@@ -62,7 +62,10 @@ function renderAttachment(mime_type, attachment, user_session) {
         return `<div class="video-placeholder" onclick="openVideoPlayer('${path}')">▶ Видео</div>`;
     else if (mime_type === 'application/pdf')
         return `<div>PDF: <a href="${path}" target="_blank">${attachment}</a></div>`;
-    else
+    else if (mime_type === 'contact') {
+        const attachment_raw = JSON.parse(attachment);
+        return `<div>Contact: ${attachment_raw.phone_number}, ${attachment_raw.first_name || ''} ${attachment_raw.last_name || ''}. User_id: ${attachment_raw.user_id || ''}</div>`;
+    } else
         return `<div>Файл: <a href="${path}" download>${attachment}</a></div>`;
 }
 

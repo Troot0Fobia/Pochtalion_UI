@@ -15,7 +15,7 @@ class VideoDialog(QDialog):
         self.setModal(False)        
         self.resize(800, 600)
 
-        self.video_path = Path(video_path).resolve()
+        self.video_path = Path(video_path.replace('../', '')).resolve()
         if not self.video_path.exists():
             raise FileNotFoundError(f"{self.video_path} not found")
 
@@ -92,7 +92,7 @@ class VideoDialog(QDialog):
         return f"{minutes:02}:{seconds:02}"
 
     def closeEvent(self, event):
-        if self.player:
-            self.player.stop()
-            self.player.deleteLater()
+        # if self.player:
+        #     # self.player.stop()
+        #     self.player.deleteLater()
         event.accept()

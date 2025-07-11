@@ -1,6 +1,7 @@
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QMainWindow
 from qasync import asyncSlot
+from telethon.errors import PeerFloodError, InputUserDeactivatedError, ForbiddenError
 
 from .base_bridge import BaseBridge
 
@@ -19,15 +20,29 @@ class ChatBridge(BaseBridge):
     
     @asyncSlot(str)
     async def sendMessage(self, message):
+        session_file = self.main_window.active_session['session_file']
+        error_message = f"Ошибка отправки сообщения для сессии {session_file} по причине: "
         try:
             await self.main_window.session_manager.sendMessage(
-                self.main_window.active_session['session_file'],
+                session_file,
                 self.main_window.current_chat,
                 message
             )
+            return
+        except PeerFloodError as e:
+            self.logger.error(f"{self.__class__.__name__}\tCatched Frool Error, session: {session_file}", exc_info=True)
+            error_message += "Получен флуд"
+        except InputUserDeactivatedError as e:
+            self.logger.error(f"{self.__class__.__name__}\tCatched User Deactivated Error, session: {session_file}", exc_info=True)
+            error_message += "Пользователь удален"
+        except ForbiddenError as e:
+            self.logger.error(f"{self.__class__.__name__}\tCatched Forbidden Error, session: {session_file}", exc_info=True)
+            error_message += "Пользователь ограничил доступ"
         except Exception as e:
-            self.logger.error(f"{self.__class__.__name__}\tError while sending message from session {self.main_window.active_session['session_file']}", exc_info=True)
-            self.main_window.show_notification("Ошибка", "Ошибка во время отправки сообщения")
+            self.logger.error(f"{self.__class__.__name__}\tUnexpected error while sending message, session: {session_file}", exc_info=True)
+            error_message += "Неизвестная ошибка"
+            
+        self.main_window.show_notification("Ошибка", error_message)
 
 
     @asyncSlot(str)

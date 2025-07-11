@@ -10,7 +10,7 @@ def setup_logger(name: str, filename: str) -> logging.Logger:
     formatter = logging.Formatter("[%(asctime)s] %(levelname)s - %(name)s - %(message)s")
 
     file_handler = RotatingFileHandler(
-        LOGS / filename, maxBytes=1_000_000, backupCount=3, encoding="utf-8"
+        LOGS / filename, maxBytes=1_000_000_000, backupCount=3, encoding="utf-8"
     )
     file_handler.setFormatter(formatter)
 

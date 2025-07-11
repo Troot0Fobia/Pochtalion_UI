@@ -130,6 +130,8 @@ class SettingsBridge(BaseBridge):
     async def startParsing(self, parse_data_str):
         if self.main_window.mailer.running:
             return
+        # await self.main_window.parser.start(parse_data_str)
+        
         self.parsing_task = asyncio.create_task(self.main_window.parser.start(parse_data_str))
 
 
