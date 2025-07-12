@@ -83,8 +83,8 @@ function renderSettingsSessions(sessions_json) {
 
 async function authorizeToSession() {
     const phone_number_input = document.getElementById('auth-phone-input').value.trim();
-    if (!/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/.test(phone_number_input))
-        await bridge.show_notification("Введите корректные данные");
+    // if (!/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/.test(phone_number_input))
+    //     await bridge.show_notification("Введите корректные данные");
 
     await bridge.saveSession('', '', phone_number_input);
 }

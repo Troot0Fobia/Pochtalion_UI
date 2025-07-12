@@ -197,10 +197,13 @@ class Parser:
         self.saved_count = 0
         self.update_task = asyncio.create_task(self.sendUpdateSaveToDB())
         for user_id, (group_id, post_id, session_id, user_data) in self.existing_ids.items():
-            self.logger.debug(f"Processing user to save in db {user_id}")
+            self.logger.debug(f"Processing user to save in db {user_id}, session_id {session_id}, session_wrappers {self.session_wrappers}")
             if last_session_id != session_id:
                 s_wrapper = next((wrapper for wrapper, _, sid in self.session_wrappers if sid == session_id), None)
+                self.logger.debug(f"Received new wrapper for saving {s_wrapper}")
                 last_session_id = session_id
+            else:
+                self.logger.debug(f"Does not received new wrapper, because previous is actual")
             user_data['user_id'] = user_id
             if s_wrapper:
                 await s_wrapper.process_new_user(
@@ -244,6 +247,7 @@ class Parser:
             return
         self.logger.info("Stop parsing")
         self._running = False
+        self.saving = False
         self.is_parse_channel = None
         self.count_of_posts = None
         self.is_parse_messages = None

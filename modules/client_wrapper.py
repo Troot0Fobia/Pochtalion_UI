@@ -143,7 +143,11 @@ class ClientWrapper:
             last_name = user_entity['last_name']
             username = user_entity['username']
             phone_number = user_entity['phone_number']
-            user_peer = await self.client.get_input_entity(user_id)
+            try:
+                user_peer = await self.client.get_input_entity(user_id)
+            except Exception as e:
+                self.logger.error(f"Error receiving user input entity {user_id} from session {self.session_id}", exc_info=True)
+                return
         elif isinstance(user_entity, types.User):
             user_id = user_entity.id
             first_name = getattr(user_entity, 'first_name', None)
