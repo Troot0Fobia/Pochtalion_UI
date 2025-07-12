@@ -20,3 +20,13 @@ __version__ = "0.0.1"
 # #132D71
 # #CDC8B7
 # #EDEBE5
+
+# Green buttons
+# #3CB371
+# #2E8B57
+# #1E6240
+
+# Red buttons
+# #E74C3C
+# #C0392B
+# #8E2A20

@@ -55,13 +55,6 @@ async function openSettingsTab(tab_name) {
     }
 }
 
-// =========================================================
-// function loadSettingsSessions() {
-//     document.getElementById('sessions-list').innerHTML = '';
-//     bridge.loadSettingsSessions();
-// }
-
-
 function renderSettingsSessions(sessions_json) {
     const sessions_list = document.getElementById('sessions-list');
     if (!sessions_list) return;
@@ -157,13 +150,6 @@ async function stopSession(elem) {
         <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
     `;
 }
-
-// ============================================================
-// async function loadSMM() {
-//     document.getElementById('smm-message-list').innerHTML = '';
-//     await bridge.loadSMM();
-// }
-
 
 async function renderSMMMessages(smm_messages_str) {
     const smm_list = document.getElementById('smm-message-list');
@@ -330,59 +316,43 @@ async function saveChanges(elem) {
     delete img_preview.dataset.base64;
     delete img_preview.dataset.filename;
 }
-// ======================================
-// function initParsing() {
-//     if (!document.getElementById('start-parsing-button').disabled) {
-//         selected_sessions = null;
-//         document.getElementById('parse-account-count').innerText = 0;
-//     }
-// }
-// ===============================================
-// function initMailing() {
-//     if (!document.getElementById('start-mailing-button').disabled) {
-//         selected_sessions = null;
-//         document.getElementById('mailing-account-count').innerText = 0;
-//     }
-// }
 
-function changeMailingType(elem) {
-    const select_block = elem.closest('.select-mailing-type');
-    if (elem.checked) {
+function changeMailingType(type) {
+    const select_block = document.querySelector('.select-mailing-type');
+    if (type === 'usernames') {
         select_block.querySelector('#mailing-database').classList.remove('active-type');
         select_block.querySelector('#mailing-usernames').classList.add('active-type');
-    } else {
+    } else if (type === 'db') {
         select_block.querySelector('#mailing-usernames').classList.remove('active-type');
         select_block.querySelector('#mailing-database').classList.add('active-type');
     }
 }
 
-function changeParsingType(elem) {
-    const select_block = elem.closest('.select-parse-type');
-    if (elem.checked) {
+function changeParsingType(type) {
+    const select_block = document.querySelector('.select-parse-type');
+    if (type === 'channel') {
         select_block.querySelector('#parse-group').classList.remove('active-type');
         select_block.querySelector('#parse-channel').classList.add('active-type');
         document.getElementById('parse-group-settings').style.display = 'none';
-        document.getElementById('parse-channel-settings').style.display = 'block';
-    } else {
+        document.getElementById('parse-channel-settings').style.display = 'flex';
+    } else if (type === 'group') {
         select_block.querySelector('#parse-channel').classList.remove('active-type');
         select_block.querySelector('#parse-group').classList.add('active-type');
         document.getElementById('parse-channel-settings').style.display = 'none';
-        document.getElementById('parse-group-settings').style.display = 'block';
+        document.getElementById('parse-group-settings').style.display = 'flex';
     }
 }
 
-function changeGroupParseSettings(elem) {
-    const select_block = elem.closest('.parse-group-settings');
-    if (elem.checked) {
+function changeGroupParseSettings(type) {
+    const select_block = document.querySelector('.parse-group-settings');
+    if (type === 'messages') {
         select_block.querySelector('#parse-group-participants').classList.remove('active-type');
         select_block.querySelector('#parse-group-messages').classList.add('active-type');
-        // document.getElementById('messages-parse-settings').style.display = 'none';
         document.getElementById('messages-parse-settings').style.display = 'flex';
-    } else {
+    } else if (type === 'participants') {
         select_block.querySelector('#parse-group-messages').classList.remove('active-type');
         select_block.querySelector('#parse-group-participants').classList.add('active-type');
         document.getElementById('messages-parse-settings').style.display = 'none';
-        // document.getElementById('parse-group-settings').style.display = 'block';
     }
 }
 
@@ -438,9 +408,9 @@ function confirmSelectedSessions() {
 
 async function startParsing() {
     const parse_links = document.getElementById('parse-links').value.trim();
-    const is_parse_channel = document.getElementById('parse-group-or-channel').checked;
+    const is_parse_channel = document.getElementById('parse-channel').classList.contains('active-type');
     const count_of_posts = document.getElementById('posts-parse-count').value;
-    const is_parse_messages = document.getElementById('parse-messages-or-participants').checked;
+    const is_parse_messages = document.getElementById('parse-group-messages').classList.contains('active-type');
     const count_of_messages = document.getElementById('messages-parse-count').value;
 
     if (!selected_sessions || selected_sessions.length === 0 || !parse_links
@@ -500,7 +470,7 @@ async function exportCSV() {
 }
 
 async function startMailing() {
-    const is_parse_usernames = document.getElementById('mailing-database-or-usernames').checked;
+    const is_parse_usernames = document.getElementById('mailing-usernames').classList.contains('active-type');
     const mailing_data = document.getElementById('mailing-data-field').value.trim();
     const delay = document.getElementById('delay-between-mailing-messages').value;
 

@@ -20,7 +20,6 @@ class Parser:
         self._running = False
         self.update_task = None
         self.logger = setup_logger("Pochtalion.Parser", "parser.log")
-        self.logger.info("Parser initialized")
 
 
     async def start(self, parser_data_str):

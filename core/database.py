@@ -537,4 +537,4 @@ class Database:
                 WHERE user_id = ?
             """, (user_id, )) as cursor:
                 row = await cursor.fetchone()
-                return row['profile_photo'] or None
+                return row['profile_photo'] if row else None

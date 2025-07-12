@@ -26,12 +26,9 @@
                 </div>
                 <div class="column">
                     <div class="select-mailing-type">
-                        <span class="active-type" id="mailing-database">Рассылки из базы данных</span>
-                        <label class="type-switch">
-                            <input type="checkbox" id="mailing-database-or-usernames" onclick="changeMailingType(this)">
-                            <span class="slider"></span>
-                        </label>
-                        <span id="mailing-usernames">Рассылка по usernames</span>
+                        <span class="active-type" id="mailing-database" onclick="changeMailingType('db')">Рассылки из базы данных</span>
+                        <div>/</div>
+                        <span id="mailing-usernames" onclick="changeMailingType('usernames')">Рассылка по usernames</span>
                     </div>
                     <div class="timing-settings">
                         <label for="delay-between-mailing">Задержка между сообщениями, сек</label>
@@ -40,7 +37,7 @@
                     </div>
                     <div class="choose-accounts">
                         <label for="choose-button">Выберите аккаунты для работы <span id="mailing-account-count">0</span></label>
-                        <input type="button" value="Выбрать" onclick="loadChooseSessions()">
+                        <input type="button" class="button choose-button" value="Выбрать" onclick="loadChooseSessions()">
                     </div>
                 </div>
             </div>
@@ -68,20 +65,16 @@
                 </div>
                 <div class="column">
                     <div class="select-parse-type">
-                        <span class="active-type" id="parse-group">Парсить группу</span>
-                        <label class="type-switch">
-                            <input type="checkbox" id="parse-group-or-channel" onclick="changeParsingType(this)">
-                            <span class="slider"></span>
-                        </label>
-                        <span id="parse-channel">Парсить канал</span>
+                        <span class="active-type" id="parse-group" onclick="changeParsingType('group')">Парсить группу</span>
+                        <div>/</div>
+                        <span id="parse-channel" onclick="changeParsingType('channel')">Парсить канал</span>
                     </div>
                     <div class="parse-group-settings" id="parse-group-settings">
-                        <span class="active-type" id="parse-group-participants">Парсить открытых участников</span>
-                        <label class="type-switch">
-                            <input type="checkbox" id="parse-messages-or-participants" onclick="changeGroupParseSettings(this)">
-                            <span class="slider"></span>
-                        </label>
-                        <span id="parse-group-messages">Парсить сообщения</span>
+                        <div class="channel-parse-type">
+                            <span class="active-type" id="parse-group-participants" onclick="changeGroupParseSettings('participants')">Парсить открытых участников</span>
+                            <div>/</div>
+                            <span id="parse-group-messages" onclick="changeGroupParseSettings('messages')">Парсить сообщения</span>
+                        </div>
                         <div id="messages-parse-settings">
                             <label for="messages-parse-count">Количество сообщений</label>
                             <input type="text" class="input-number" name="messages-parse-count" maxlength="3" placeholder="0" id="messages-parse-count"
@@ -97,7 +90,7 @@
                     </div>
                     <div class="choose-accounts">
                         <label for="choose-button">Выберите аккаунты для работы <span id="parse-account-count">0</span></label>
-                        <input type="button" value="Выбрать" onclick="loadChooseSessions()">
+                        <input type="button" class="button choose-button" value="Выбрать" onclick="loadChooseSessions()">
                     </div>
                 </div>
             </div>
@@ -145,8 +138,6 @@
             <div class="sessions">
                 <div class="sessions-header">
                     <h1>Сессии</h1>
-                    <!-- <div class="btn" id="start-all-sessions-btn">Запустить все сессии</div>
-                    <div class="btn" id="stop-all-sessions-btn">Остановить все сессии</div> -->
                 </div>
                 <div class="sessions-list" id="sessions-list"></div>
                 <div class="add-session-btn">
@@ -163,7 +154,7 @@
         <span class="close-button" onclick="closeSessionModal()">&times;</span>
         <h3>Выберите сесии</h3>
         <div class="session-list" id="session-list"></div>
-        <input type="button" value="Подтвердить" onclick="confirmSelectedSessions()">
+        <input type="button" class="button choose-button" value="Подтвердить" onclick="confirmSelectedSessions()">
     </div>
     </div>
 </body>

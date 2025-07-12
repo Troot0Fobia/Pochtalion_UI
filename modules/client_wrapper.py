@@ -151,13 +151,14 @@ class ClientWrapper:
             user_peer = user_entity
         
         profile_photo = await self.database.get_user_photo(user_id)
-        if not (PROFILE_PHOTOS / self._session_file / profile_photo).exists():
+        if not profile_photo or (profile_photo and not (PROFILE_PHOTOS / self._session_file / profile_photo).exists()):
             photos = await self._client.get_profile_photos(user_peer, limit=1)
-            profile_photo_path = None
             if photos:
                 profile_photo_id = photos[0].id
-                profile_photo = f"{user_id}.jpg"
+                profile_photo = str(user_id)
                 profile_photo = await self._client.download_media(photos[0], str(PROFILE_PHOTOS / self._session_file / profile_photo))
+                if profile_photo:
+                    profile_photo = Path(profile_photo).name
                 ### TODO CHECK IF METHOD WILL SAVE FILE WITHOUT EXTENSION WITH ITSELF EXT
         # if not await self.database.check_user_presense(user_id):
         if not isinstance(user_entity, types.InputPeerUser):
