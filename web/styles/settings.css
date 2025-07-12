@@ -110,17 +110,6 @@ html, body {
     align-items: center;
 
 }
-/* 
-.links textarea {
-    min-height: 100px;
-    resize: vertical;    
-} */
-/* 
-input[type="button"] {
-    padding: 10px;
-    cursor: pointer;
-} */
-
 .action-buttons {
     display: flex;
     flex-direction: row;
@@ -155,18 +144,10 @@ input::-webkit-inner-spin-button {
 .button:hover {
     cursor: pointer;
 }
-/* 
-input[type="button"] {
-    padding: 5px 20px;
-    border-radius: 10px;
-    border: none;
-} */
-/* 
-input[type="button"]:hover {
-    cursor: pointer;
-} */
 
-.start-button {
+.start-button,
+.accept-btn,
+.start-session-btn {
     background-color: #2E8B57;
 }
 
@@ -175,11 +156,16 @@ input[type="button"]:hover {
     background-color: #1E6240;
 }
 
-.start-button:not([disabled]):hover {
+.start-button:not([disabled]):hover,
+.accept-btn:hover,
+.start-session-btn:hover {
     background-color: #17b935;
 }
 
-.stop-button {
+.stop-button,
+.delete-btn,
+.cancel-btn,
+.stop-session-btn {
     background-color: #bd2918;
 }
 
@@ -188,7 +174,10 @@ input[type="button"]:hover {
     background-color: #8E2A20;
 }
 
-.stop-button:not([disabled]):hover {
+.stop-button:not([disabled]):hover,
+.delete-btn:hover,
+.cancel-btn:hover,
+.stop-session-btn:hover {
     background-color: #f2301b;
 }
 
@@ -196,7 +185,9 @@ input[type="button"]:hover {
 #add-results-to-database,
 .choose-button,
 #auth-button,
-.add-session-button {
+.add-session-button,
+.edit-btn,
+#add-smm-message {
     background-color: #0746a3;
 }
 
@@ -208,9 +199,11 @@ input[type="button"]:hover {
 
 #save-results-to-computer:not([disabled]):hover,
 #add-results-to-database:not([disabled]):hover,
-.choose-button,
-#auth-button
-.add-session-button {
+.choose-button:hover,
+#auth-button:hover,
+.add-session-button:hover,
+.edit-btn:hover,
+#add-smm-message:hover {
     background-color: #2373ec;
 }
 
@@ -261,10 +254,10 @@ textarea {
 
 #add-smm-message {
     display: flex;
+    width: auto;
     border-radius: 10px;
     align-items: center;
     justify-content: center;
-    background-color: #007bff;
 }
 
 .left-smm-side {
@@ -272,12 +265,6 @@ textarea {
     align-items: center;
     gap: 20px;
 }
-/* 
-.left-smm-side textarea {
-    padding: 10px;
-    min-width: 300px;
-    min-height: 80px;
-} */
 
 .image-preview {
     height: 100px;
@@ -309,30 +296,6 @@ textarea {
     cursor: pointer;
     border-radius: 5px;
     color: white;
-}
-
-.edit-btn {
-    background-color: blue;   
-}
-
-.delete-btn {
-    background-color: rgb(153, 0, 0);
-}
-
-.accept-btn {
-    background-color: green;
-}
-
-.cancel-btn {
-    background-color: red;
-}
-
-.edit-btn:hover {
-    background-color: rgb(67, 67, 255);
-}
-
-.delete-btn:hover {
-    background-color: rgb(255, 70, 70);
 }
 
 #image-preview-overlay {
@@ -372,21 +335,11 @@ textarea {
     flex-direction: column;
     gap: 10px;
 }
-/* .add-session-btn {
-    width: fit-content;
-    margin-top: 30px;
-    background-color: #007bff;
-    color: #fff;
-    padding: 8px 16px;
-    border-radius: 16px;
-    cursor: pointer;
-} */
 
 .sessions-header {
     display: flex;
     align-items: center;
     gap: 20px;
-    /* border-bottom: 2px solid white; */
 }
 
 .modal-content h3 {
@@ -397,14 +350,6 @@ textarea {
     display: flex;
     flex-direction: row;
     gap: 15px;
-}
-
-.start-session-btn {
-    background-color: green;
-}
-
-.stop-session-btn {
-    background-color: red;
 }
 
 .modal {
