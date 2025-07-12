@@ -30,21 +30,26 @@ class ClientWrapper:
         self.logger = logger
         self.auth_window = AuthWindow(main_window, session_file)
         self._running = False
+        self.is_new = True
 
 
-    async def start(self, is_module: bool = False) -> bool:
+    async def start(self, phone_number: str = None, is_module: bool = False) -> bool:
         if self._running:
             self.main_window.show_notification("Внимание", f"Сессия {self._session_file} уже запущена")
             return
         try:
             await self._client.start(
-                phone=self.phone_callback,
+                phone=phone_number or   self.phone_callback,
                 code_callback=self.code_callback,
                 password=self.password_callback,
                 max_attempts=1
             )
         except AuthCanceled:
             self.logger.warning(f"{self.session_file}\tUser cancelled authentication")
+            self.auth_window.close()
+            return False
+        except Exception as e:
+            self.logger.error(f"{self.session_file}\tUnexpected error", exc_info=True)
             self.auth_window.close()
             return False
 
@@ -176,16 +181,23 @@ class ClientWrapper:
                 source_post_id=source_post_id
             )
         if await self.database.add_user_to_session(user_id, self._session_id):
+            self.logger.debug(f"{self.session_file}\tActive session while processing new user {self.main_window.active_session} and current session id: {self.session_id}")
             if self.main_window.active_session['session_id'] == self.session_id:
                 if isinstance(user_entity, types.InputPeerUser):
                     first_name, last_name, profile_photo = await self.database.get_user_data(user_id)
+                if hasattr(last_message, 'message'):
+                    last_message = last_message.message
+                elif isinstance(last_message, str):
+                    pass
+                else:
+                    last_message = "[New user]"
                 self.main_window.sidebar_bridge.renderDialogs.emit(json.dumps([{
                     "user_id": user_id,
                     "first_name": first_name,
                     "last_name": last_name,
                     "profile_photo": profile_photo,
                     "is_read": is_read,
-                    "last_message": last_message.message or last_message if last_message else "[New user]",
+                    "last_message": last_message,
                     "created_at": last_message.date.astimezone(tzlocal.get_localzone()).strftime('%d.%m.%Y %H:%M:%S') if hasattr(last_message, 'date') else datetime.now().astimezone(tzlocal.get_localzone()).strftime('%d.%m.%Y %H:%M:%S')
                 }]))
 

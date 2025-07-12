@@ -122,14 +122,14 @@
                 </div>
                 <div class="row">
                     <div class="left-smm-side">
-                        <textarea class="smm-text" placeholder="Write some message" id="newMessage"></textarea>
+                        <textarea class="smm-text" placeholder="Напишите сообщение" id="newMessage"></textarea>
                         <label>
                             <img class="image-preview" src="assets/images/add_image.png" alt="add image" id="newPhoto">
                             <input type="file" accept=".jpg,.jpeg,.png" onchange="uploadImage(this)">
                         </label>
                     </div>
                 </div>
-                <div id="add-smm-message" onclick="addSMMMessage()"><img class="icons" src="assets/icons/add.png" alt="">Add message</div>
+                <div id="add-smm-message" onclick="addSMMMessage()"><img class="icons" src="assets/icons/add.png" alt="">Добавить сообщение</div>
                 <hr>
                 <div class="smm-message-list" id="smm-message-list"></div>
             </div>
@@ -138,9 +138,12 @@
             <div class="sessions">
                 <div class="sessions-header">
                     <h1>Сессии</h1>
+                    <input type="text" id="auth-phone-input" placeholder="Номер телефона"
+                        oninput="this.value = this.value.replace(/^[^+][^0-9\s]/g, '').slice(0, 16);">
+                    <input type="button" class="button auth-button" id="auth-button" onclick="authorizeToSession()" value="Авторизоваться">
                 </div>
                 <div class="sessions-list" id="sessions-list"></div>
-                <div class="add-session-btn">
+                <div class="button add-session-button">
                     <label style="cursor: pointer;">
                         Добавить сессию
                         <input type="file" id="add-session" accept=".session" style="display: none;" onchange="addSessions(this)">
@@ -153,7 +156,7 @@
     <div class="modal-content">
         <span class="close-button" onclick="closeSessionModal()">&times;</span>
         <h3>Выберите сесии</h3>
-        <div class="session-list" id="session-list"></div>
+        <div class="sessions-list" id="session-list"></div>
         <input type="button" class="button choose-button" value="Подтвердить" onclick="confirmSelectedSessions()">
     </div>
     </div>

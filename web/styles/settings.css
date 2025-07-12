@@ -110,11 +110,11 @@ html, body {
     align-items: center;
 
 }
-
+/* 
 .links textarea {
     min-height: 100px;
     resize: vertical;    
-}
+} */
 /* 
 input[type="button"] {
     padding: 10px;
@@ -144,15 +144,27 @@ input::-webkit-inner-spin-button {
     margin: 0;
 }
 
+.button {
+    padding: 5px 20px;
+    border-radius: 10px;
+    border: none;
+    color: white;
+    width: fit-content;
+}
+
+.button:hover {
+    cursor: pointer;
+}
+/* 
 input[type="button"] {
     padding: 5px 20px;
     border-radius: 10px;
     border: none;
-}
-
+} */
+/* 
 input[type="button"]:hover {
     cursor: pointer;
-}
+} */
 
 .start-button {
     background-color: #2E8B57;
@@ -182,7 +194,9 @@ input[type="button"]:hover {
 
 #save-results-to-computer,
 #add-results-to-database,
-.choose-button {
+.choose-button,
+#auth-button,
+.add-session-button {
     background-color: #0746a3;
 }
 
@@ -194,7 +208,9 @@ input[type="button"]:hover {
 
 #save-results-to-computer:not([disabled]):hover,
 #add-results-to-database:not([disabled]):hover,
-.choose-button {
+.choose-button,
+#auth-button
+.add-session-button {
     background-color: #2373ec;
 }
 
@@ -203,13 +219,16 @@ input[type="button"]:hover {
     align-items: center;
 }
 
-.column textarea {
+textarea {
     border: none;
     border-radius: 10px;
     background-color: #07001391;
     color: white;
     outline: none;
     padding: 10px;
+    min-height: 100px;
+    resize: vertical;
+    min-width: 300px;
 }
 
 .smm-block,
@@ -235,7 +254,7 @@ input[type="button"]:hover {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    padding: 10px;
+    padding: 5px 10px;
     background-color: #EDEBE5;
     color: black;
 }
@@ -253,12 +272,12 @@ input[type="button"]:hover {
     align-items: center;
     gap: 20px;
 }
-
+/* 
 .left-smm-side textarea {
     padding: 10px;
     min-width: 300px;
     min-height: 80px;
-}
+} */
 
 .image-preview {
     height: 100px;
@@ -272,8 +291,17 @@ input[type="button"]:hover {
     margin-right: 30px;
 }
 
-.button {
+#auth-phone-input {
+    border: none;
+    width: 170px;
+    outline: none;
+    border-radius: 16px;
+    text-align: right;
+    align-items: center;
+    padding: 3px 10px;
+    font-size: 14px;
     color: white;
+    background-color: #07001391;
 }
 
 .btn {
@@ -329,15 +357,22 @@ input[type="button"]:hover {
 }
 
 .sessions {
+    display: flex;
+    flex-direction: column;
     width: 100%;
+    gap: 20px;
 }
 
-.session-list {
+.sessions h1 {
+    margin: 0;
+}
+
+.sessions-list {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
-.add-session-btn {
+/* .add-session-btn {
     width: fit-content;
     margin-top: 30px;
     background-color: #007bff;
@@ -345,14 +380,13 @@ input[type="button"]:hover {
     padding: 8px 16px;
     border-radius: 16px;
     cursor: pointer;
-}
-.add-session:hover {
-    background-color: #0056b3;
-}
+} */
+
 .sessions-header {
     display: flex;
     align-items: center;
     gap: 20px;
+    /* border-bottom: 2px solid white; */
 }
 
 .modal-content h3 {
@@ -362,7 +396,7 @@ input[type="button"]:hover {
 .session-info {
     display: flex;
     flex-direction: row;
-    gap: 20px;
+    gap: 15px;
 }
 
 .start-session-btn {

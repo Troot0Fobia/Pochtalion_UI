@@ -13,13 +13,13 @@ class SessionsManager:
         self.logger.info("Session Manager initialized")
 
 
-    async def start_session(self, session_id: int, session_file: str, is_module: bool = False) -> ClientWrapper:
+    async def start_session(self, session_id: int, session_file: str, phone_number: str = None, is_module: bool = False) -> ClientWrapper:
         if session_file in self.sessions and self.sessions[session_file].is_running():
             return None
         self.logger.info(f"Starting session {session_file}")
         try:
             wrapper = ClientWrapper(session_id, session_file, self.api_id, self.api_hash, self.database, self.main_window, self.logger)
-            result = await wrapper.start(is_module)
+            result = await wrapper.start(phone_number, is_module)
             if not result:
                 self.main_window.settings_bridge.sessionChangedState.emit("stopped")
                 return None

@@ -141,11 +141,11 @@ class Parser:
             self.session_wrappers.append((session_wrapper, was_started, session_id))
 
 
-    async def finish_sessions(self):
-        for session_wrapper, was_started, _ in self.session_wrappers:
-            if was_started:
-                await self.main_window.session_manager.stop_session(session_wrapper.session_file)
-        self.session_wrappers = []
+    # async def finish_sessions(self):
+    #     for session_wrapper, was_started, _ in self.session_wrappers:
+    #         if was_started:
+    #             await self.main_window.session_manager.stop_session(session_wrapper.session_file)
+    #     self.session_wrappers = []
 
     async def export_csv(self):
         import csv
@@ -197,6 +197,7 @@ class Parser:
         self.saved_count = 0
         self.update_task = asyncio.create_task(self.sendUpdateSaveToDB())
         for user_id, (group_id, post_id, session_id, user_data) in self.existing_ids.items():
+            self.logger.debug(f"Processing user to save in db {user_id}")
             if last_session_id != session_id:
                 s_wrapper = next((wrapper for wrapper, _, sid in self.session_wrappers if sid == session_id), None)
                 last_session_id = session_id
@@ -220,7 +221,8 @@ class Parser:
             except asyncio.CancelledError:
                 pass
         self.update_task = None
-        await self.finish_sessions()
+        self.main_window.settings_bridge.finishParsing.emit()
+        # await self.finish_sessions()
 
 
     def _get_channel_type(self, entity) -> str:
@@ -256,7 +258,8 @@ class Parser:
                 pass
         self.update_task = None
         self.main_window.settings_bridge.finishParsing.emit()
-        await self.finish_sessions()
+        self.session_wrappers = []
+        # await self.finish_sessions()
 
 
     async def sendUpdate(self):

@@ -81,6 +81,13 @@ function renderSettingsSessions(sessions_json) {
     });
 }
 
+async function authorizeToSession() {
+    const phone_number_input = document.getElementById('auth-phone-input').value.trim();
+    if (!/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/.test(phone_number_input))
+        await bridge.show_notification("Введите корректные данные");
+
+    await bridge.saveSession('', '', phone_number_input);
+}
 
 async function addSessions(elem) {
     const sessions_list = document.getElementById('sessions-list');
@@ -453,7 +460,7 @@ function renderParsingProgressData(render_data_str) {
 }
 
 function finishParsing() {
-    document.getElementById('parsing-status').innerText = "finished";
+    document.getElementById('parsing-status').innerText = "завершено";
     document.getElementById('start-parsing-button').disabled = false;
     document.getElementById('stop-parsing-button').disabled = true;
     document.getElementById('save-results-to-computer').disabled = false;
@@ -506,7 +513,7 @@ function renderMailingProgressData(render_data_str) {
 }
 
 function finishMailing() {
-    document.getElementById('mailing-status').innerText = "finished";
+    document.getElementById('mailing-status').innerText = "завершено";
     document.getElementById('start-mailing-button').disabled = false;
     document.getElementById('stop-mailing-button').disabled = true;
 }

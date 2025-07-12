@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QMainWindow
 from qasync import asyncSlot
 
 from .base_bridge import BaseBridge
+import datetime
 import base64
 import puremagic
 import shutil
@@ -37,10 +38,14 @@ class SettingsBridge(BaseBridge):
         self.renderSettingsSessions.emit(json.dumps(sessions))
 
 
-    @asyncSlot(str, str)
-    async def saveSession(self, fileName, base64data):
-        with open(str(SESSIONS / fileName), 'wb') as f:
-            f.write(base64.b64decode(base64data))
+    @asyncSlot(str, str, str)
+    async def saveSession(self, fileName, base64data, phone_number):
+        if not fileName and not base64data:
+            fileName = f"{int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp())}_telethon.session"
+            open(SESSIONS / fileName, "a").close()
+        else:
+            with open(str(SESSIONS / fileName), 'wb') as f:
+                f.write(base64.b64decode(base64data))
 
         session_id = await self.database.add_new_session(fileName)
         session = {"session_id": session_id, "is_active": 1, "session_file": fileName, 'is_running': False}
@@ -49,6 +54,8 @@ class SettingsBridge(BaseBridge):
         json_session = json.dumps([session])
         self.renderSettingsSessions.emit(json_session)
         self.sidebar_bridge.renderSelectSessions.emit(json_session)
+        if phone_number:
+            await self.main_window.session_manager.start_session(session_id, fileName, phone_number)
 
 
     @asyncSlot(str, str)

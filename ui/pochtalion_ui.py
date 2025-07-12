@@ -20,7 +20,7 @@ class Pochtalion_UI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Pochtalion")
-        self.setMinimumSize(QSize(600, 800))
+        self.setMinimumSize(QSize(300, 400))
         self.current_chat = None
         self.active_session = None
         self.database = None

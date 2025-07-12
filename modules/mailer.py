@@ -274,7 +274,7 @@ class Mailer:
             time = f"{H1:02}:{M1:02}:{S1:02}/{H2:02}:{M2:02}:{S2:02}"
 
             self.main_window.settings_bridge.renderMailingProgressData.emit(json.dumps({
-                "status": "working",
+                "status": "рассылка",
                 "total_count": f"{total_processed_users}/{self.total_users_count}",
                 "time": time
             }))
