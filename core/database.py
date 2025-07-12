@@ -528,3 +528,13 @@ class Database:
             """, (user_id,))
             await self._db.commit()
 
+
+    async def get_user_photo(self, user_id: int):
+        async with self._lock:
+            async with self._db.execute("""
+                SELECT profile_photo
+                FROM users
+                WHERE user_id = ?
+            """, (user_id, )) as cursor:
+                row = await cursor.fetchone()
+                return row['profile_photo'] or None

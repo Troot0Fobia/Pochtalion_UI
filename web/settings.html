@@ -8,14 +8,21 @@
 </head>
 <body>
     <div class="settings" id="settings">
-        <input type="radio" id="tabchatting" name="settings-tabs" checked="checked">
-        <label for="tabchatting" class="tab-label">Общение</label>
-        <div class="tab">
+        <div class="tabs">
+            <div class="tab chatting-tab active-tab" id="chatting-tab" onclick="openSettingsTab('chatting')">Общение</div>
+            <div class="tab mailing-tab" id="mailing-tab" onclick="openSettingsTab('mailing')">Рассылка</div>
+            <div class="tab parsing-tab" id="parsing-tab" onclick="openSettingsTab('parsing')">Парсинг</div>
+            <div class="tab smm-tab" id="smm-tab" onclick="openSettingsTab('smm')">Сообщения для рассылки</div>
+            <div class="tab sessions-tab" id="sessions-tab" onclick="openSettingsTab('sessions')">Сессии</div>
+        </div>
+        <!-- <input type="radio" id="tabchatting" name="settings-tabs" checked="checked" onclick="openSettingsTab('chatting')"> -->
+        <!-- <label for="tabchatting" class="tab-label">Общение</label> -->
+        <div class="tab-block active-tab-block" id="chatting-tab-block">
             Some blocks for chatting (В разработке...)
         </div>
-        <input type="radio" id="tabmailing" name="settings-tabs">
-        <label for="tabmailing" class="tab-label">Рассылка</label>
-        <div class="tab">
+        <!-- <input type="radio" id="tabmailing" name="settings-tabs" onclick="openSettingsTab('mailing')"> -->
+        <!-- <label for="tabmailing" class="tab-label">Рассылка</label> -->
+        <div class="tab-block" id="mailing-tab-block">
             <div class="control-panel">
                 <div class="column links">
                     <label for="mailing-usernames-field">Usernames для рассылки</label>
@@ -56,9 +63,9 @@
                 </div>
             </div>
         </div>
-        <input type="radio" id="tabparsing" name="settings-tabs" onclick="initParsing()">
-        <label for="tabparsing" class="tab-label">Парсинг</label>
-        <div class="tab">
+        <!-- <input type="radio" id="tabparsing" name="settings-tabs" onclick="initParsing()">
+        <label for="tabparsing" class="tab-label">Парсинг</label> -->
+        <div class="tab-block" id="parsing-tab-block">
             <div class="control-panel">
                 <div class="column links">
                     <label for="parse-link">Ссылки для парсинга</label>
@@ -118,9 +125,9 @@
                 </div>
             </div>
         </div>
-        <input type="radio" id="tabsmm" name="settings-tabs" onclick="loadSMM()">
-        <label for="tabsmm" class="tab-label">Сообщения для рассылки</label>
-        <div class="tab">
+        <!-- <input type="radio" id="tabsmm" name="settings-tabs" onclick="loadSMM()">
+        <label for="tabsmm" class="tab-label">Сообщения для рассылки</label> -->
+        <div class="tab-block" id="smm-tab-block">
             <div class="smm-block" id="smm-block">
                 <div id="image-preview-overlay" onclick="this.style.display = 'none'">
                     <img id="image-preview-fullscreen" src="" alt="preview">
@@ -139,9 +146,9 @@
                 <div class="smm-message-list" id="smm-message-list"></div>
             </div>
         </div>
-        <input type="radio" id="tabcommon" name="settings-tabs" onclick="loadSettingsSessions()">
-        <label for="tabcommon" class="tab-label">Общее</label>
-        <div class="tab">
+        <!-- <input type="radio" id="tabcommon" name="settings-tabs" onclick="loadSettingsSessions()">
+        <label for="tabcommon" class="tab-label">Общее</label> -->
+        <div class="tab-block" id="sessions-tab-block">
             <div class="sessions">
                 <div class="sessions-header">
                     <h1>Сессии</h1>

@@ -9,26 +9,41 @@ html, body {
 }
 .settings {
     display: flex;
+    flex-direction: column;
     flex-wrap: wrap;
     /* background: #ccc; */
 }
-
+/* 
 .settings input[type="radio"][name="settings-tabs"] {
     display: none;
-}
+} */
 
-.settings label.tab-label {
+/* .settings label.tab-label {
     padding: 5px 25px;
     border-radius: 15px 15px 0 0;
+} */
+
+.tabs {
+    display: flex;
+    flex-direction: row;
 }
 
-.settings .tab {
-    width: 100%;
-    padding: 20px;
-    order: 1;
+.tab {
+    padding: 7px 25px;
+    gap: 30px;
+    border-radius: 15px 15px 0 0;
+    cursor: pointer;
+}
+
+.tab-block {
     display: none;
     flex-direction: column;
     gap: 30px;
+    padding: 20px;
+}
+
+.active-tab-block {
+    display: flex;
 }
 
 .column {
@@ -37,14 +52,18 @@ html, body {
     width: 50%;
     gap: 20px
 }
-
+/* 
 .settings input[type="radio"][name="settings-tabs"]:checked + label + .tab {
     display: flex;
-    /* background: #132D71; */
+    background: #132D71;
 }
 
 .settings input[type="radio"][name="settings-tabs"]:checked + label {
     display: block;
+    background: #2639A6;
+} */
+
+.active-tab {
     background: #2639A6;
 }
 

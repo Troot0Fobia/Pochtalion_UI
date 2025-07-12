@@ -18,10 +18,48 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
 });
 
 
-function loadSettingsSessions() {
-    document.getElementById('sessions-list').innerHTML = '';
-    bridge.loadSettingsSessions();
+async function openSettingsTab(tab_name) {
+    document.querySelectorAll('.tab').forEach(
+        elem => elem.classList.remove('active-tab')
+    );
+    document.querySelectorAll('.tab-block').forEach(
+        elem => elem.classList.remove('active-tab-block')
+    );
+    if (tab_name === 'chatting') {
+        document.getElementById('chatting-tab').classList.add('active-tab');
+        document.getElementById('chatting-tab-block').classList.add('active-tab-block');
+    } else if (tab_name === 'mailing') {
+        document.getElementById('mailing-tab').classList.add('active-tab');
+        document.getElementById('mailing-tab-block').classList.add('active-tab-block');
+        if (!document.getElementById('start-mailing-button').disabled) {
+            selected_sessions = null;
+            document.getElementById('mailing-account-count').innerText = 0;
+        }
+    } else if (tab_name === 'parsing') {
+        document.getElementById('parsing-tab').classList.add('active-tab');
+        document.getElementById('parsing-tab-block').classList.add('active-tab-block');
+        if (!document.getElementById('start-parsing-button').disabled) {
+            selected_sessions = null;
+            document.getElementById('parse-account-count').innerText = 0;
+        }
+    } else if (tab_name === 'smm') {
+        document.getElementById('smm-tab').classList.add('active-tab');
+        document.getElementById('smm-tab-block').classList.add('active-tab-block');
+        document.getElementById('smm-message-list').innerHTML = '';
+        await bridge.loadSMM();
+    } else if (tab_name === 'sessions') {
+        document.getElementById('sessions-tab').classList.add('active-tab');
+        document.getElementById('sessions-tab-block').classList.add('active-tab-block');
+        document.getElementById('sessions-list').innerHTML = '';
+        await bridge.loadSettingsSessions();
+    }
 }
+
+// =========================================================
+// function loadSettingsSessions() {
+//     document.getElementById('sessions-list').innerHTML = '';
+//     bridge.loadSettingsSessions();
+// }
 
 
 function renderSettingsSessions(sessions_json) {
@@ -120,11 +158,11 @@ async function stopSession(elem) {
     `;
 }
 
-
-async function loadSMM() {
-    document.getElementById('smm-message-list').innerHTML = '';
-    await bridge.loadSMM();
-}
+// ============================================================
+// async function loadSMM() {
+//     document.getElementById('smm-message-list').innerHTML = '';
+//     await bridge.loadSMM();
+// }
 
 
 async function renderSMMMessages(smm_messages_str) {
@@ -292,20 +330,20 @@ async function saveChanges(elem) {
     delete img_preview.dataset.base64;
     delete img_preview.dataset.filename;
 }
-
-function initParsing() {
-    if (!document.getElementById('start-parsing-button').disabled) {
-        selected_sessions = null;
-        document.getElementById('parse-account-count').innerText = 0;
-    }
-}
-
-function initMailing() {
-    if (!document.getElementById('start-mailing-button').disabled) {
-        selected_sessions = null;
-        document.getElementById('mailing-account-count').innerText = 0;
-    }
-}
+// ======================================
+// function initParsing() {
+//     if (!document.getElementById('start-parsing-button').disabled) {
+//         selected_sessions = null;
+//         document.getElementById('parse-account-count').innerText = 0;
+//     }
+// }
+// ===============================================
+// function initMailing() {
+//     if (!document.getElementById('start-mailing-button').disabled) {
+//         selected_sessions = null;
+//         document.getElementById('mailing-account-count').innerText = 0;
+//     }
+// }
 
 async function loadChooseSessions() {
     await bridge.loadChooseSessions();
