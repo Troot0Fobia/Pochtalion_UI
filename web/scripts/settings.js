@@ -345,6 +345,47 @@ async function saveChanges(elem) {
 //     }
 // }
 
+function changeMailingType(elem) {
+    const select_block = elem.closest('.select-mailing-type');
+    if (elem.checked) {
+        select_block.querySelector('#mailing-database').classList.remove('active-type');
+        select_block.querySelector('#mailing-usernames').classList.add('active-type');
+    } else {
+        select_block.querySelector('#mailing-usernames').classList.remove('active-type');
+        select_block.querySelector('#mailing-database').classList.add('active-type');
+    }
+}
+
+function changeParsingType(elem) {
+    const select_block = elem.closest('.select-parse-type');
+    if (elem.checked) {
+        select_block.querySelector('#parse-group').classList.remove('active-type');
+        select_block.querySelector('#parse-channel').classList.add('active-type');
+        document.getElementById('parse-group-settings').style.display = 'none';
+        document.getElementById('parse-channel-settings').style.display = 'block';
+    } else {
+        select_block.querySelector('#parse-channel').classList.remove('active-type');
+        select_block.querySelector('#parse-group').classList.add('active-type');
+        document.getElementById('parse-channel-settings').style.display = 'none';
+        document.getElementById('parse-group-settings').style.display = 'block';
+    }
+}
+
+function changeGroupParseSettings(elem) {
+    const select_block = elem.closest('.parse-group-settings');
+    if (elem.checked) {
+        select_block.querySelector('#parse-group-participants').classList.remove('active-type');
+        select_block.querySelector('#parse-group-messages').classList.add('active-type');
+        // document.getElementById('messages-parse-settings').style.display = 'none';
+        document.getElementById('messages-parse-settings').style.display = 'flex';
+    } else {
+        select_block.querySelector('#parse-group-messages').classList.remove('active-type');
+        select_block.querySelector('#parse-group-participants').classList.add('active-type');
+        document.getElementById('messages-parse-settings').style.display = 'none';
+        // document.getElementById('parse-group-settings').style.display = 'block';
+    }
+}
+
 async function loadChooseSessions() {
     await bridge.loadChooseSessions();
 }
