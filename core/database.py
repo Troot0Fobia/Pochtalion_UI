@@ -92,9 +92,9 @@ class Database:
             )
         """)
         # # TEMP
-        # await db.execute("""
-        #     DROP TRIGGER IF EXISTS delete_user_if_no_sessions
-        # """)
+        await db.execute("""
+            DROP TRIGGER IF EXISTS delete_user_if_no_sessions
+        """)
         await db.execute("""
             CREATE TRIGGER IF NOT EXISTS delete_user_if_no_sessions
             AFTER DELETE ON user_sessions
