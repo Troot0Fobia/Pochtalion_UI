@@ -326,7 +326,7 @@ textarea {
     gap: 20px;
 }
 
-.sessions h1 {
+h1 {
     margin: 0;
 }
 
@@ -389,4 +389,12 @@ textarea {
     top: 5px;
     cursor: pointer;
     font-size: 18px;
+}
+
+.settings-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 5px 0;
+    gap: 10px;
 }

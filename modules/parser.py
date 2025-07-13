@@ -31,7 +31,7 @@ class Parser:
         self.is_parse_messages = parser_data['is_parse_messages']
         self.count_of_messages = parser_data['count_of_messages'].strip()
         self.session_files = parser_data['selected_sessions']
-        self.saved_to_db = False
+        self.saved_to_db = self.parse_to_db = self.main_window.settings_manager.get_setting('force_parse_to_db')
         self.parse_usernames = []
         self.existing_ids = {}
         self.group_data = {}
@@ -56,7 +56,6 @@ class Parser:
         self.session_wrappers = []
         self.group_id = None
         await self.start_sessions()
-
 
         sessions_count = len(self.session_wrappers)
         self.logger.debug(f"Sessions started {sessions_count}")
@@ -89,7 +88,7 @@ class Parser:
                         async for comment in client.iter_messages(group_entity, reply_to=message.id):
                             user_entity = await comment.get_sender()
                             await client.get_input_entity(user_entity)
-                            await self._handle_user(user_entity, message.id, session_id)
+                            await self._handle_user(user_entity, message.id, session_id, wrapper)
                             await asyncio.sleep(PARSE_DELAY)
                     except:
                         # this throw unknown shit like
@@ -105,32 +104,44 @@ class Parser:
                     async for message in client.iter_messages(group_entity, self.count_of_messages or None):
                         user_entity = await message.get_sender()
                         await client.get_input_entity(user_entity)
-                        await self._handle_user(user_entity, message.id, session_id)
+                        await self._handle_user(user_entity, message.id, session_id, wrapper)
                         await asyncio.sleep(PARSE_DELAY)
                 else:
                     async for user_entity in client.iter_participants(group_entity):
                         await client.get_input_entity(user_entity)
-                        await self._handle_user(user_entity, None, session_id)
+                        await self._handle_user(user_entity, None, session_id, wrapper)
                         await asyncio.sleep(PARSE_DELAY)
 
         await self.stop()
 
 
-    async def _handle_user(self, user_entity, message_id, session_id):
+    async def _handle_user(self, user_entity, message_id, session_id, wrapper):
         if isinstance(user_entity, types.User) and not user_entity.bot and not user_entity.deleted:
             self.logger.debug(f"Received new user with id {user_entity.id}. Processing...")
             if not user_entity.id in self.existing_ids.keys():
+                user_data = {
+                    "first_name": getattr(user_entity, 'first_name', None),
+                    "last_name": getattr(user_entity, 'last_name', None),
+                    "username": getattr(user_entity, 'username', None),
+                    "phone_number": getattr(user_entity, 'phone_number', None)
+                }
                 self.existing_ids[user_entity.id] = (
                     self.group_id,
                     message_id,
                     session_id,
-                    {
-                        "first_name": getattr(user_entity, 'first_name', None),
-                        "last_name": getattr(user_entity, 'last_name', None),
-                        "username": getattr(user_entity, 'username', None),
-                        "phone_number": getattr(user_entity, 'phone_number', None)
-                    }
+                    user_data
                 )
+                if self.parse_to_db:
+                    user_data['user_id'] = user_entity.id
+                    await wrapper.process_new_user(
+                        user_data,
+                        last_message=None,
+                        user_status=4,
+                        sended=False,
+                        source_chat_id=self.group_id,
+                        source_post_id=message_id
+                    )
+
 
     async def start_sessions(self):
         self.logger.debug(f"Starting sessions: {self.session_files}")

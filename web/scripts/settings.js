@@ -14,6 +14,7 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.finishParsing.connect(finishParsing);
     bridge.finishMailing.connect(finishMailing);
     bridge.sessionChangedState.connect(sessionChangedState);
+    bridge.renderSettings.connect(renderSettings);
 });
 
 
@@ -51,6 +52,10 @@ async function openSettingsTab(tab_name) {
         document.getElementById('sessions-tab-block').classList.add('active-tab-block');
         document.getElementById('sessions-list').innerHTML = '';
         await bridge.loadSettingsSessions();
+    } else if (tab_name === 'common') {
+        document.getElementById('common-tab').classList.add('active-tab');
+        document.getElementById('common-tab-block').classList.add('active-tab-block');
+        bridge.loadSettings();
     }
 }
 
@@ -516,4 +521,23 @@ function finishMailing() {
     document.getElementById('mailing-status').innerText = "завершено";
     document.getElementById('start-mailing-button').disabled = false;
     document.getElementById('stop-mailing-button').disabled = true;
+}
+
+
+function renderSettings(settings_str) {
+    const settings = JSON.parse(settings_str);
+    const setting_elem = document.getElementById('force-parse-to-db');
+    setting_elem.checked = settings.force_parse_to_db;
+}
+
+
+function changeSettings(elem) {
+    const elem_type = elem.type;
+    const key = elem.name;
+    let value = null;
+    if (elem_type === 'checkbox') {
+        value = elem.checked;
+    }
+
+    bridge.changeSettings(JSON.stringify({key, value}));
 }

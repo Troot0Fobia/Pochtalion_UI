@@ -22,6 +22,7 @@ class SettingsBridge(BaseBridge):
     finishParsing = pyqtSignal()
     finishMailing = pyqtSignal()
     sessionChangedState = pyqtSignal(str, str)
+    renderSettings = pyqtSignal(str)
 
     def __init__(self, main_window: QMainWindow, database):
         super().__init__(main_window, database)
@@ -181,3 +182,15 @@ class SettingsBridge(BaseBridge):
             except asyncio.CancelledError:
                 pass
         await self.main_window.mailer.stop()
+
+
+    @pyqtSlot()
+    def loadSettings(self):
+        settings = self.main_window.settings_manager.get_settings()
+        self.renderSettings.emit(json.dumps(settings))
+
+
+    @pyqtSlot(str)
+    def changeSettings(self, setting_str):
+        setting = json.loads(setting_str)
+        self.main_window.settings_manager.update_settings(setting['key'], setting['value'])
