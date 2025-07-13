@@ -138,6 +138,7 @@ class Mailer:
                 self.logger.error(f"Catched Frool Error, stop mailing for this session {session_info.wrapper.session_file}: {e}", exc_info=True)
                 await self.finish_session(session_info.session_id)
                 self.main_window.show_notification("Внимание", f"Сессия {session_info.wrapper.session_file} поймала флуд")
+                continue
             except InputUserDeactivatedError as e:
                 self.logger.error(f"Catched User Deactivated Error, skip this user {user_id}: {e}", exc_info=True)
                 continue
@@ -260,7 +261,7 @@ class Mailer:
         self.logger.debug(f'Finish session cause of Flood limit {session_id}\n{session}')
         if session and session.was_started:
             self.logger.debug(f"Session was started from module")
-            await self.main_window.session_manager.stop_session(session.wrapper.session_file)
+            # await self.main_window.session_manager.stop_session(session.wrapper.session_file)
 
         self.logger.debug(f"Before change wrappers {self.session_wrappers}")
         self.session_wrappers = [s for s in self.session_wrappers if s.session_id != session_id]
