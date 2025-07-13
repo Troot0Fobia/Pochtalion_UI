@@ -137,6 +137,7 @@ class Mailer:
             except PeerFloodError as e:
                 self.logger.error(f"Catched Frool Error, stop mailing for this session {session_info.wrapper.session_file}: {e}", exc_info=True)
                 await self.finish_session(session_info.session_id)
+                self.main_window.show_notification("Внимание", f"Сессия {session_info.session_file} поймала флуд")
             except InputUserDeactivatedError as e:
                 self.logger.error(f"Catched User Deactivated Error, skip this user {user_id}: {e}", exc_info=True)
                 continue
@@ -187,33 +188,42 @@ class Mailer:
         if source_data is None:
             return None
         chat_entity = await session_client.get_entity(source_data['chat_username'])
+        user_entity = None
 
         self.logger.info(f"Received chat entity {chat_entity.id}")
         if source_data['chat_type'] == "broadcast" and source_post_id is not None:
             async for comment in session_client.iter_messages(chat_entity, reply_to=source_post_id):
-                sender = await comment.get_input_sender() # InputPeerUser
-                if isinstance(sender, InputPeerUser) and sender.user_id == user_id:
+                sender = await comment.get_sender() # InputPeerUser
+                self.logger.debug(f"Received needed user for mailing of type: {type(sender)}")
+                if isinstance(sender, PeerUser) and sender.id == user_id:
+                    user_entity = sender
+                    # await session_client.get_input_entity(sender)
                     self.logger.info(f"Received from broadcast user entity with id: {sender.user_id}")
                     # await self.main_window.database.add_user_to_session(sender.user_id, session_id)
                     break
         elif source_data['chat_type'] in ("megagroup", "gigagroup", "chat"):
             if source_post_id is not None:
                 message = await session_client.get_messages(chat_entity, ids=source_post_id)
-                sender = await message.get_input_sender()
+                sender = await message.get_sender()
                 if sender:
+                    user_entity = sender
+                    # await session_client.get_input_entity(sender)
                     self.logger.info(f"Received from group from message {message.id} user entity with id: {sender.user_id}")
                     # await self.main_window.database.add_user_to_session(sender.user_id, session_id)
             else:
-                async for user_entity in session_client.iter_participants(chat_entity):
-                    if user_entity.id == user_id:
-                        self.logger.info(f"Received from open particitpants user entity id: {user_entity.id}")
+                async for user in session_client.iter_participants(chat_entity):
+                    if user.id == user_id:
+                        user_entity = user
+                        # await session_client.get_input_entity(user_entity)
+                        self.logger.info(f"Received from open particitpants user entity id: {user.id}")
                         # await self.main_window.database.add_user_to_session(user_entity.id, session_id)
                         break
-                     
-        try:
-            return await session_client.get_input_entity(user_id)
-        except ValueError:
-            pass
+
+        if user_entity:
+            try:
+                return await session_client.get_input_entity(user_entity)
+            except ValueError:
+                pass
 
         self.logger.info("Entity was not received")
         return None
@@ -247,11 +257,16 @@ class Mailer:
 
     async def finish_session(self, session_id):
         session = next((s for s in self.session_wrappers if s.session_id == session_id), None)
+        self.logger.debug(f'Finish session cause of Flood limit {session_id}\n{session}')
         if session and session.was_started:
+            self.logger.debug(f"Session was started from module")
             await self.main_window.session_manager.stop_session(session.wrapper.session_file)
 
+        self.logger.debug(f"Before change wrappers {self.session_wrappers}")
         self.session_wrappers = [s for s in self.session_wrappers if s.session_id != session_id]
+        self.logger.debug(f"After change wrappers {self.session_wrappers}")
         self.sessions_count = len(self.session_wrappers)
+
 
     async def finish_sessions(self):
         for session_info in self.session_wrappers:

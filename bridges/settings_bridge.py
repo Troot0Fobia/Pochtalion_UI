@@ -21,7 +21,7 @@ class SettingsBridge(BaseBridge):
     renderMailingProgressData = pyqtSignal(str)
     finishParsing = pyqtSignal()
     finishMailing = pyqtSignal()
-    sessionChangedState = pyqtSignal(str)
+    sessionChangedState = pyqtSignal(str, str)
 
     def __init__(self, main_window: QMainWindow, database):
         super().__init__(main_window, database)
@@ -33,7 +33,7 @@ class SettingsBridge(BaseBridge):
         active_sessions = self.main_window.session_manager.get_active_sessions()
         for s in sessions:
             s['file_exists'] = (SESSIONS / s['session_file']).exists()
-            s['is_running'] = s['session_file'] in active_sessions
+            s['status'] = active_sessions.get(s['session_file'], 0)
 
         self.renderSettingsSessions.emit(json.dumps(sessions))
 
@@ -48,7 +48,7 @@ class SettingsBridge(BaseBridge):
                 f.write(base64.b64decode(base64data))
 
         session_id = await self.database.add_new_session(fileName)
-        session = {"session_id": session_id, "is_active": 1, "session_file": fileName, 'is_running': False}
+        session = {"session_id": session_id, "is_active": 1, "session_file": fileName, 'status': 0}
         if not self.main_window.active_session:
             self.main_window.active_session = session
         json_session = json.dumps([session])

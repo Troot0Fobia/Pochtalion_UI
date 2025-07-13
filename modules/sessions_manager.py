@@ -14,17 +14,18 @@ class SessionsManager:
 
 
     async def start_session(self, session_id: int, session_file: str, phone_number: str = None, is_module: bool = False) -> ClientWrapper:
-        if session_file in self.sessions and self.sessions[session_file].is_running():
+        if session_file in self.sessions and self.sessions[session_file].status():
             return None
         self.logger.info(f"Starting session {session_file}")
         try:
             wrapper = ClientWrapper(session_id, session_file, self.api_id, self.api_hash, self.database, self.main_window, self.logger)
+            self.sessions[session_file] = wrapper
             result = await wrapper.start(phone_number, is_module)
             if not result:
-                self.main_window.settings_bridge.sessionChangedState.emit("stopped")
+                self.main_window.settings_bridge.sessionChangedState.emit(session_id, "stopped")
+                del self.sessions[session_file]
                 return None
-            self.sessions[session_file] = wrapper
-            self.main_window.settings_bridge.sessionChangedState.emit("started")
+            self.main_window.settings_bridge.sessionChangedState.emit(session_id, "started")
             self.logger.info(f"Session {session_file} started")
             return wrapper
         except Exception as e:
@@ -35,10 +36,11 @@ class SessionsManager:
 
     async def stop_session(self, session_file: str) -> bool:
         if session_file in self.sessions:
+            session_id = self.sessions[session_file].session_id
             await self.sessions[session_file].stop()
             del self.sessions[session_file]
             self.logger.info(f"Session {session_file} stopped")
-            self.main_window.settings_bridge.sessionChangedState.emit("stopped")
+            self.main_window.settings_bridge.sessionChangedState.emit(str(session_id), "stopped")
             return True
         return False
 
@@ -50,8 +52,8 @@ class SessionsManager:
         self.sessions.clear()
 
 
-    def get_active_sessions(self) -> list:
-        return list(self.sessions.keys())
+    def get_active_sessions(self) -> dict:
+        return {session_file: wrapper.status() for session_file, wrapper in self.sessions.items()}
 
 
     def get_wrapper(self, session_file: str) -> ClientWrapper:

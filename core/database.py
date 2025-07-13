@@ -91,12 +91,17 @@ class Database:
                 FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
             )
         """)
+        # TEMP
+        await db.execute("""
+            DROP TRIGGER IF EXISTS delete_user_if_no_sessions
+        """)
         await db.execute("""
             CREATE TRIGGER IF NOT EXISTS delete_user_if_no_sessions
             AFTER DELETE ON user_sessions
             BEGIN
-                DELETE FROM users
+                DELETE FROM цusers
                 WHERE user_id = OLD.user_id
+                AND sended != 0
                 AND NOT EXISTS (
                     SELECT 1 FROM user_sessions WHERE user_id = OLD.user_id
                 );

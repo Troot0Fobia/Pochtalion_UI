@@ -2,7 +2,6 @@ let bridge = null;
 let temp_text = '';
 let temp_photo = '';
 let selected_sessions = null;
-let selectedSession = null;
 
 new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge = channel.objects.settingsBridge;
@@ -70,9 +69,11 @@ function renderSettingsSessions(sessions_json) {
                 Сессия: <span class="session-name">${session.session_file}</span> Номер телефона: <span class="session-phone">${session.phone_number}</span>
             </div>
             <div class="buttons">
-                ${session.is_running
+                ${session.status === 0
+                    ? '<div class="btn start-session-btn"><img src="assets/icons/start.png" alt="start session" class="icons" onclick="startSession(this)"></div>'
+                    : session.status === 1
                     ? '<div class="btn stop-session-btn"><img src="assets/icons/stop.png" alt="stop session" class="icons" onclick="stopSession(this)"></div>'
-                    : '<div class="btn start-session-btn"><img src="assets/icons/start.png" alt="start session" class="icons" onclick="startSession(this)"></div>'
+                    : '<div class="btn" style="background-color: blue;"><div class="loader"></div></div>'
                 }
                 <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
             </div>
@@ -83,9 +84,6 @@ function renderSettingsSessions(sessions_json) {
 
 async function authorizeToSession() {
     const phone_number_input = document.getElementById('auth-phone-input').value.trim();
-    // if (!/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/.test(phone_number_input))
-    //     await bridge.show_notification("Введите корректные данные");
-
     await bridge.saveSession('', '', phone_number_input);
 }
 
@@ -98,7 +96,7 @@ async function addSessions(elem) {
         const reader = new FileReader();
         reader.onload = async function(e) {
             const base64data = e.target.result.split(',')[1];
-            await bridge.saveSession(file.name, base64data);
+            await bridge.saveSession(file.name, base64data, '');
             elem.value = '';
         }
         reader.readAsDataURL(file);
@@ -118,7 +116,6 @@ async function deleteSession(elem) {
 
 async function startSession(elem) {
     const session = elem.closest('.row');
-    selectedSession = session;
     const session_id = session.dataset.id;
     const session_name = session.querySelector('.session-name').innerText;
     await bridge.startSession(JSON.stringify({"session_id": session_id, "session_name": session_name}));
@@ -129,26 +126,29 @@ async function startSession(elem) {
     `;
 }
 
-function sessionChangedState(state) {
-    // TODO remake for cycle
-    if (!selectedSession) return;
-    if (state === "started")
-        selectedSession.querySelector('.buttons').innerHTML = `
-            <div class="btn stop-session-btn"><img src="assets/icons/stop.png" alt="stop session" class="icons" onclick="stopSession(this)"></div>
-            <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
-        `;
-    else if (state === "stopped")
-        selectedSession.querySelector('.buttons').innerHTML = `
-            <div class="btn start-session-btn"><img src="assets/icons/start.png" alt="start session" class="icons" onclick="startSession(this)"></div>
-            <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
-        `;
-    selectedSession = null;
+function sessionChangedState(session_id, state) {
+    const session_divs = document.querySelectorAll('.sessions .sessions-list .row');
+    session_divs.forEach(session_row => {
+        if (session_row.dataset.id === session_id) {
+            const buttons = session_row.querySelector('.buttons');
+            if (state === "started")
+                buttons.innerHTML = `
+                    <div class="btn stop-session-btn"><img src="assets/icons/stop.png" alt="stop session" class="icons" onclick="stopSession(this)"></div>
+                    <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
+                `;
+            else if (state === "stopped")
+                buttons.innerHTML = `
+                    <div class="btn start-session-btn"><img src="assets/icons/start.png" alt="start session" class="icons" onclick="startSession(this)"></div>
+                    <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
+                `;
+            return;
+        }
+    });
 }
 
 
 async function stopSession(elem) {
     const session = elem.closest('.row');
-    selectedSession = session;
     const session_name = session.querySelector('.session-name').innerText;
     await bridge.stopSession(session_name);
 

@@ -72,10 +72,24 @@ function renderDialogs(dialogs_raw) {
         const dialog_div = document.createElement('div');
         dialog_div.className = "dialog";
         dialog_div.dataset.user_id = dialog.user_id;
+        let profile_photo = '';
+        if (dialog.profile_photo) {
+            // profile_photo = `<video loop muted autoplay src="../assets/profile_photos/${session_filename}/${dialog.profile_photo}" alt="${dialog.profile_photo}" type="video/mp4" class="profile-photo"></video>`;
+            if (dialog.profile_photo.endsWith('.mp4'))
+                profile_photo = `<div class="profile-photo" style="background-color: blue; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">Video</div>`;
+            else
+                profile_photo = `<img src="../assets/profile_photos/${session_filename}/${dialog.profile_photo}" alt="${dialog.profile_photo}" class="profile-photo"></img>`;
+        } else {
+            profile_photo = `<img src="assets/images/profile.png" alt="${dialog.profile_photo}" class="profile-photo"></img>`;
+        }
+        // ${dialog.profile_photo.endsWith('.mp4')
+        //     ? "<video src" + dialog
+        //     : "<img src=" + dialog.profile_photo ? '../assets/profile_photos/' + session_filename + '/' + dialog.profile_photo : 'assets/images/profile.png'}" alt="${dialog.profile_photo}" class="profile-photo"></img>
+        // }
 
         dialog_div.innerHTML = `
             <div class="lef-side">
-                <img src="${dialog.profile_photo ? '../assets/profile_photos/' + session_filename + '/' + dialog.profile_photo : 'assets/images/profile.png'}" alt="${dialog.profile_photo}" class="profile-photo">
+                ${profile_photo}
             </div>
             <div class="right-side">
                 <div class="name">${dialog.first_name} ${dialog.last_name}</div>

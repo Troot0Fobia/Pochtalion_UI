@@ -88,6 +88,7 @@ class Parser:
                     try:
                         async for comment in client.iter_messages(group_entity, reply_to=message.id):
                             user_entity = await comment.get_sender()
+                            await client.get_input_entity(user_entity)
                             await self._handle_user(user_entity, message.id, session_id)
                             await asyncio.sleep(PARSE_DELAY)
                     except:
@@ -103,10 +104,12 @@ class Parser:
                 if self.is_parse_messages:
                     async for message in client.iter_messages(group_entity, self.count_of_messages or None):
                         user_entity = await message.get_sender()
+                        await client.get_input_entity(user_entity)
                         await self._handle_user(user_entity, message.id, session_id)
                         await asyncio.sleep(PARSE_DELAY)
                 else:
                     async for user_entity in client.iter_participants(group_entity):
+                        await client.get_input_entity(user_entity)
                         await self._handle_user(user_entity, None, session_id)
                         await asyncio.sleep(PARSE_DELAY)
 
@@ -114,7 +117,7 @@ class Parser:
 
 
     async def _handle_user(self, user_entity, message_id, session_id):
-        if isinstance(user_entity, types.User) and not user_entity.bot:
+        if isinstance(user_entity, types.User) and not user_entity.bot and not user_entity.deleted:
             self.logger.debug(f"Received new user with id {user_entity.id}. Processing...")
             if not user_entity.id in self.existing_ids.keys():
                 self.existing_ids[user_entity.id] = (
