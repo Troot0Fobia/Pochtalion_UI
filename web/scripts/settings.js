@@ -526,8 +526,11 @@ function finishMailing() {
 
 function renderSettings(settings_str) {
     const settings = JSON.parse(settings_str);
-    const setting_elem = document.getElementById('force-parse-to-db');
+    let setting_elem = document.getElementById('force-parse-to-db');
     setting_elem.checked = settings.force_parse_to_db;
+    setting_elem = document.getElementById('fetch-sessions-old-dialogs');
+    setting_elem.checked = settings.fetch_sessions_old_dialogs;
+    
 }
 
 
@@ -540,4 +543,9 @@ function changeSettings(elem) {
     }
 
     bridge.changeSettings(JSON.stringify({key, value}));
+}
+
+
+function resetSettings() {
+    bridge.resetSettings();
 }

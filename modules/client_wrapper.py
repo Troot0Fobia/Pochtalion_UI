@@ -70,6 +70,7 @@ class ClientWrapper:
             if "UNIQUE" in str(e):
                 self.main_window.show_notification("Ошибка", "Такая сессия уже существует")
         self._register_handlers()
+        # if self.main_window.settings_manager.get_setting('fetch_sessions_old_dialogs') and not is_module:
         if not is_module:
             await self._fetch_dialogs()
         self._status = 1
@@ -102,7 +103,12 @@ class ClientWrapper:
             user_id = dialog.entity.id
             messages = []
             last_id = 0
-            if await self.database.check_user_presense(user_id):
+            is_user_exists = await self.database.check_user_presense(user_id)
+            
+            if not self.main_window.settings_manager.get_setting('fetch_sessions_old_dialogs') and not is_user_exists:
+                return
+            
+            if is_user_exists:
                 last_id = await self.database.get_last_sync_message_id(self._session_id, user_id)
                 self.logger.debug(f"{self.session_file}\tLast message id from existed user {last_id}")
             else:

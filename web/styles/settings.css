@@ -86,6 +86,7 @@ html, body {
 
 .active-type {
     color: aliceblue !important;
+    /* text-decoration: underline; */
     border-bottom: 2px solid aliceblue;
 }
 
@@ -165,7 +166,8 @@ input::-webkit-inner-spin-button {
 .stop-button,
 .delete-btn,
 .cancel-btn,
-.stop-session-btn {
+.stop-session-btn,
+.reset-settings {
     background-color: #bd2918;
 }
 
@@ -177,7 +179,8 @@ input::-webkit-inner-spin-button {
 .stop-button:not([disabled]):hover,
 .delete-btn:hover,
 .cancel-btn:hover,
-.stop-session-btn:hover {
+.stop-session-btn:hover,
+.reset-settings:hover {
     background-color: #f2301b;
 }
 
@@ -391,10 +394,20 @@ h1 {
     font-size: 18px;
 }
 
+#common-tab-block {
+    flex-wrap: wrap-reverse;
+}
+
 .settings-row {
     display: flex;
     flex-direction: row;
     align-items: center;
     padding: 5px 0;
     gap: 10px;
+}
+
+.settings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
 }

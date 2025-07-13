@@ -21,7 +21,7 @@ function renderMessages(messages_raw, user_id, session, is_old, user_data_str) {
     document.getElementById('profile-image').innerHTML = user_data.profile_photo;
     document.getElementById('full-name').innerText = user_data.user_full_name;
     document.getElementById('username').innerText = user_data.username ? `@${user_data.username}` : '';
-    document.getElementById('user-id').innerText = user_id;
+    document.getElementById('user-id').innerText = `id: ${user_id}`;
     
     const messages = JSON.parse(messages_raw);
     const chat_messages = document.getElementById('chat-history');
@@ -60,7 +60,7 @@ function renderAttachment(mime_type, attachment, user_session) {
     if (mime_type.startsWith('image/'))
         return `<img src="${path}" alt='${attachment}'>`;
     else if (mime_type.startsWith('audio/')) {
-        if (mime_type.endsWith('ogg'))
+        if (mime_type.endsWith('ogg') || mime_type.endsWith('oga'))
             return `Голосовое сообщение: <audio src="${path}" controls></audio>`;
         else
             return `Аудио файл: ${attachment} <audio src="${path}" controls></audio>`;

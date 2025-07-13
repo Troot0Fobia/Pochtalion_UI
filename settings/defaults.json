@@ -1,3 +1,4 @@
 {
-    "force_parse_to_db": true
+    "force_parse_to_db": true,
+    "fetch_sessions_old_dialogs": false
 }

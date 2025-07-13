@@ -161,7 +161,14 @@
                         <div class="setting-name">Автоматически добавлять пользователей в Базу Данных</div>
                     </div>
                 </div>
+                <div class="row">
+                    <div class="settings-row">    
+                        <input type="checkbox" name="fetch_sessions_old_dialogs" id="fetch-sessions-old-dialogs" onchange="changeSettings(this)">
+                        <div class="setting-name">Получать старые диалоги сессии</div>
+                    </div>
+                </div>
             </div>
+            <div class="button reset-settings" onclick="resetSettings()">Сбросить настройки</div>
         </div>
     </div>
     <div id="session-modal" class="modal hidden">

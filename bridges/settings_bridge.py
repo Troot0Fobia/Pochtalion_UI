@@ -194,3 +194,9 @@ class SettingsBridge(BaseBridge):
     def changeSettings(self, setting_str):
         setting = json.loads(setting_str)
         self.main_window.settings_manager.update_settings(setting['key'], setting['value'])
+
+
+    @pyqtSlot()
+    def resetSettings(self):
+        self.main_window.settings_manager.reset_defaults()
+        self.loadSettings()
