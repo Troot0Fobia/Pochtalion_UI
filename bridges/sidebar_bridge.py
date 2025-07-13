@@ -46,6 +46,7 @@ class SidebarBridge(BaseBridge):
         dialogs = await self.database.get_users_from_session(int(session['session_id']))
         if dialogs:
             unread_dialogs = self.main_window.notification_manager.get_unread_dialogs(int(session['session_id']))
+            self.logger.debug(f"{self.__class__.__name__}\tCurrent session {session}\n\nCurrent dialogs: {dialogs}\n\nAnd unread dialogs: {unread_dialogs}")
             for dialog in dialogs:
                 dialog['is_read'] = dialog['user_id'] not in unread_dialogs
             self.renderDialogs.emit(json.dumps(dialogs))

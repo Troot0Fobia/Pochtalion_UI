@@ -1,4 +1,5 @@
 from telethon import TelegramClient, events, tl, types
+from telethon.errors import PasswordHashInvalidError
 from core.database import Database
 from pathlib import Path
 from core.paths import PROFILE_PHOTOS, SESSIONS, USERS_DATA
@@ -22,31 +23,36 @@ class AuthCanceled(Exception):
 
 class ClientWrapper:
     def __init__(self, session_id: int, session_file: str, api_id: int, api_hash: str, database: Database, main_window, logger):
-        self._session_id = session_id
+        self._session_id = int(session_id)
         self._session_file = session_file
         self._client = TelegramClient(str(SESSIONS / session_file), api_id, api_hash)
         self.database = database
         self.main_window = main_window
         self.logger = logger
         self.auth_window = AuthWindow(main_window, session_file)
-        self._running = False
+        self._status = 0 # 0 - not running | 1 - running | 2 - processing
         self.is_new = True
 
 
     async def start(self, phone_number: str = None, is_module: bool = False) -> bool:
-        if self._running:
+        if self._status:
             self.main_window.show_notification("Внимание", f"Сессия {self._session_file} уже запущена")
-            return
+            return False
+        self._status = 2
         try:
             await self._client.start(
-                phone=phone_number or   self.phone_callback,
+                phone=phone_number or self.phone_callback,
                 code_callback=self.code_callback,
-                password=self.password_callback,
-                max_attempts=1
+                password=self.password_callback
             )
         except AuthCanceled:
             self.logger.warning(f"{self.session_file}\tUser cancelled authentication")
             self.auth_window.close()
+            return False
+        except PasswordHashInvalidError as e:
+            self.logger.warning(f"{self.session_file}\tIvalid password provided")
+            self.auth_window.close()
+            self.main_window.show_notification("Ошибка", "Неверный пароль")
             return False
         except Exception as e:
             self.logger.error(f"{self.session_file}\tUnexpected error", exc_info=True)
@@ -54,7 +60,6 @@ class ClientWrapper:
             return False
 
         self.auth_window.close()
-        self._running = True
         me = await self._client.get_me()
         self.session_user_id = me.id
         try:
@@ -67,6 +72,7 @@ class ClientWrapper:
         self._register_handlers()
         if not is_module:
             await self._fetch_dialogs()
+        self._status = 1
         return True
 
     
@@ -92,14 +98,16 @@ class ClientWrapper:
             if not dialog.is_user:
                 continue
             
-            # self.logger.debug(f"{self.session_file}\t{dialog}")
+            self.logger.debug(f"{self.session_file}\t{dialog}")
             user_id = dialog.entity.id
             messages = []
             last_id = 0
             if await self.database.check_user_presense(user_id):
                 last_id = await self.database.get_last_sync_message_id(self._session_id, user_id)
+                self.logger.debug(f"{self.session_file}\tLast message id from existed user {last_id}")
             else:
                 last_id = getattr(dialog.message, 'id', 0) - 10
+                self.logger.debug(f"{self.session_file}\tLast message id from new user {last_id}")
 
             await self.process_new_user(dialog.entity, dialog.message, user_status=2 if self.is_new else 0, sended=True, is_read=dialog.message.out)
             
@@ -135,7 +143,6 @@ class ClientWrapper:
         profile_photo = None
         user_peer = None
         profile_photo_id = None
-        # TODO Если пользователь существует, получать фото и проверять наличие фото в папке сессии
         
         if isinstance(user_entity, dict):
             user_id = user_entity['user_id']
@@ -146,7 +153,7 @@ class ClientWrapper:
             try:
                 user_peer = await self.client.get_input_entity(user_id)
             except Exception as e:
-                self.logger.error(f"Error receiving user input entity {user_id} from session {self.session_id}", exc_info=True)
+                self.logger.error(f"Error receiving user input entity {user_id} from session {self._session_id}", exc_info=True)
                 return
         elif isinstance(user_entity, types.User):
             user_id = user_entity.id
@@ -168,8 +175,7 @@ class ClientWrapper:
                 profile_photo = await self._client.download_media(photos[0], str(PROFILE_PHOTOS / self._session_file / profile_photo))
                 if profile_photo:
                     profile_photo = Path(profile_photo).name
-                ### TODO CHECK IF METHOD WILL SAVE FILE WITHOUT EXTENSION WITH ITSELF EXT
-        # if not await self.database.check_user_presense(user_id):
+
         if not isinstance(user_entity, types.InputPeerUser):
             await self.database.add_new_user(
                 user_id,
@@ -185,8 +191,8 @@ class ClientWrapper:
                 source_post_id=source_post_id
             )
         if await self.database.add_user_to_session(user_id, self._session_id):
-            self.logger.debug(f"{self.session_file}\tActive session while processing new user {self.main_window.active_session} and current session id: {self.session_id}")
-            if self.main_window.active_session['session_id'] == self.session_id:
+            self.logger.debug(f"{self.session_file}\tActive session while processing new user {self.main_window.active_session} and current session id: {self._session_id}")
+            if self.main_window.active_session['session_id'] == self._session_id:
                 if isinstance(user_entity, types.InputPeerUser):
                     first_name, last_name, profile_photo = await self.database.get_user_data(user_id)
                 if hasattr(last_message, 'message'):
@@ -206,7 +212,7 @@ class ClientWrapper:
                 }]))
 
         if not is_read:
-            self.main_window.notification_manager.add_unread_dialog(user_id, self.session_id)
+            self.main_window.notification_manager.add_unread_dialog(user_id, self._session_id)
 
 
     async def _process_new_messages(self, messages, user_id, from_event: bool = False) -> list:
@@ -259,8 +265,8 @@ class ClientWrapper:
         })
 
         if from_event:
-            self.main_window.notification_manager.add_unread_dialog(user_id, self.session_id)
-            self.main_window.notification_manager.add_unread_message(user_id, self.session_id, messages[0].message or "[Attachment]")
+            self.main_window.notification_manager.add_unread_dialog(user_id, self._session_id)
+            self.main_window.notification_manager.add_unread_message(user_id, self._session_id, messages[0].message or "[Attachment]")
             self.main_window.sidebar_bridge.setUnreadDialog.emit(str(user_id))
 
         await self.database.add_new_message(
@@ -312,7 +318,7 @@ class ClientWrapper:
 
 
     async def sendMessage(self, user_id, message_str):
-        if not self._running:
+        if not self._status:
             self.main_window.show_notification("Внимание", f"Сессия {self._session_file} не запущена")
             return
 
@@ -368,7 +374,7 @@ class ClientWrapper:
 
 
     async def deleteDialog(self, dialog_id: int):
-        if not self._running:
+        if not self._status:
             self.main_window.show_notification("Внимание", f"Сессия {self._session_file} не запущена")
             return
 
@@ -386,14 +392,14 @@ class ClientWrapper:
 
 
     async def stop(self) -> None:
-        if not self._running:
+        if not self._status:
             return
         await self._client.disconnect()
-        self._running = False
+        self._status = 0
 
 
-    def is_running(self) -> bool:
-        return self._running
+    def status(self) -> bool:
+        return self._status
 
 
     @property

@@ -25,8 +25,9 @@ class NotificationManager:
 
 
     def get_unread_dialogs(self, session_id):
+        self.main_window.logger.debug(f"{self.__class__.__name__}\tAnd all unread dialogs: {self.unread_dialogs}")
         return {
-            user_id for (user_id, _session_id), _ in self.unread_dialogs.items() if _session_id == session_id
+            user_id for (user_id, _session_id), is_read in self.unread_dialogs.items() if _session_id == session_id and not is_read
         }
 
 
