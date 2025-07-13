@@ -314,7 +314,7 @@ class ClientWrapper:
         render_messages = await self._process_new_messages(event.messages if is_multiple else [event.message], user_id, from_event=True)
 
         if render_messages and self.main_window.current_chat == user_id:
-            self.main_window.chat_bridge.renderNewMessage(json.dumps(render_messages), f"{user_id}_{self._session_file}")
+            self.main_window.chat_bridge.renderNewMessage(json.dumps(render_messages), sender.id, self._session_file, '')
 
 
     async def sendMessage(self, user_id, message_str):
@@ -370,7 +370,7 @@ class ClientWrapper:
         }]
 
         if message and self.main_window.current_chat == user_id:
-            self.main_window.chat_bridge.renderNewMessage(json.dumps(render_message), f"{user_id}_{self._session_file}")
+            self.main_window.chat_bridge.renderNewMessage(json.dumps(render_message), str(user_id), self._session_file, '')
 
 
     async def deleteDialog(self, dialog_id: int):

@@ -7,15 +7,15 @@ from .base_bridge import BaseBridge
 
 
 class ChatBridge(BaseBridge):
-    renderMessages = pyqtSignal(str, str, int)
+    renderMessages = pyqtSignal(str, str, str, int, str)
     clearChatWindow = pyqtSignal()
 
     def __init__(self, main_window: QMainWindow, database):
         super().__init__(main_window, database)
 
     
-    def renderNewMessage(self, msg, user_session):
-        self.renderMessages.emit(msg, user_session, 1)
+    def renderNewMessage(self, msg, user, session, user_data):
+        self.renderMessages.emit(msg, user, session, 1, user_data)
 
     
     @asyncSlot(str)

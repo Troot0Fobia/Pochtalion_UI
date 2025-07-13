@@ -74,25 +74,24 @@ function renderDialogs(dialogs_raw) {
         dialog_div.dataset.user_id = dialog.user_id;
         let profile_photo = '';
         if (dialog.profile_photo) {
-            // profile_photo = `<video loop muted autoplay src="../assets/profile_photos/${session_filename}/${dialog.profile_photo}" alt="${dialog.profile_photo}" type="video/mp4" class="profile-photo"></video>`;
             if (dialog.profile_photo.endsWith('.mp4'))
                 profile_photo = `<div class="profile-photo" style="background-color: blue; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">Video</div>`;
             else
                 profile_photo = `<img src="../assets/profile_photos/${session_filename}/${dialog.profile_photo}" alt="${dialog.profile_photo}" class="profile-photo"></img>`;
-        } else {
+        } else
             profile_photo = `<img src="assets/images/profile.png" alt="${dialog.profile_photo}" class="profile-photo"></img>`;
-        }
+
         // ${dialog.profile_photo.endsWith('.mp4')
         //     ? "<video src" + dialog
         //     : "<img src=" + dialog.profile_photo ? '../assets/profile_photos/' + session_filename + '/' + dialog.profile_photo : 'assets/images/profile.png'}" alt="${dialog.profile_photo}" class="profile-photo"></img>
         // }
-
+        const user_full_name = `${dialog.first_name} ${dialog.last_name}`;
         dialog_div.innerHTML = `
             <div class="lef-side">
                 ${profile_photo}
             </div>
             <div class="right-side">
-                <div class="name">${dialog.first_name} ${dialog.last_name}</div>
+                <div class="name">${user_full_name}</div>
                 <div class="message-line">
                     <div class="last-message">${dialog.last_message ? dialog.last_message : '[Attachment]'}</div>
                     <img class="unread-dialog" src="assets/icons/message.png" style="display: ${dialog.is_read ? 'none' : 'block'}">
@@ -107,7 +106,12 @@ function renderDialogs(dialogs_raw) {
             );
             dialog_div.classList.add('active');
             dialog_div.querySelector('.unread-dialog').style.display = 'none';
-            bridge.selectDialog(String(dialog.user_id));
+            const user_data = {
+                profile_photo,
+                user_full_name,
+                "username": dialog.username
+            };
+            bridge.selectDialog(String(dialog.user_id), JSON.stringify(user_data));
         };
         dialog_div.oncontextmenu = (event) => {
             event.preventDefault();
