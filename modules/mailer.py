@@ -9,7 +9,7 @@ from datetime import datetime
 from modules.client_wrapper import ClientWrapper
 from telethon.errors import PeerFloodError, InputUserDeactivatedError, ForbiddenError
 from core.logger import setup_logger
-from telethon.types import InputPeerUser
+from telethon.types import PeerUser
 
 UPDATE_DELAY = 1
 
@@ -137,7 +137,7 @@ class Mailer:
             except PeerFloodError as e:
                 self.logger.error(f"Catched Frool Error, stop mailing for this session {session_info.wrapper.session_file}: {e}", exc_info=True)
                 await self.finish_session(session_info.session_id)
-                self.main_window.show_notification("Внимание", f"Сессия {session_info.session_file} поймала флуд")
+                self.main_window.show_notification("Внимание", f"Сессия {session_info.wrapper.session_file} поймала флуд")
             except InputUserDeactivatedError as e:
                 self.logger.error(f"Catched User Deactivated Error, skip this user {user_id}: {e}", exc_info=True)
                 continue
