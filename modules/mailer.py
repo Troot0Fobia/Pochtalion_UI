@@ -177,6 +177,12 @@ class Mailer:
             return await session_client.get_input_entity(user_id)
         except ValueError:
             pass
+        except AuthKeyUnregisteredError as e:
+            self.logger.error(f"Unknown error for session {session_id}", exc_info=True)
+            return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error", exc_info=True)
+            return None
 
         if username:
             try:
