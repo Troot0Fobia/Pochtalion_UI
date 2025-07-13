@@ -243,7 +243,7 @@ class Mailer:
                 pass
         self.update_task = None
         self.main_window.settings_bridge.finishMailing.emit()
-        await self.finish_sessions()
+        # await self.finish_sessions()
 
 
     async def start_sessions(self):
@@ -269,11 +269,11 @@ class Mailer:
         self.sessions_count = len(self.session_wrappers)
 
 
-    async def finish_sessions(self):
-        for session_info in self.session_wrappers:
-            if session_info.was_started:
-                await self.main_window.session_manager.stop_session(session_info.wrapper.session_file)
-        self.session_wrappers = []
+    # async def finish_sessions(self):
+    #     for session_info in self.session_wrappers:
+    #         if session_info.was_started:
+    #             await self.main_window.session_manager.stop_session(session_info.wrapper.session_file)
+    #     self.session_wrappers = []
 
 
     async def sendUpdate(self):
