@@ -74,8 +74,9 @@ function renderDialogs(dialogs_raw) {
         dialog_div.dataset.user_id = dialog.user_id;
         let profile_photo = '';
         if (dialog.profile_photo) {
+            // profile_photo = `<video loop muted autoplay src="../assets/profile_photos/${session_filename}/${dialog.profile_photo}" alt="${dialog.profile_photo}" type="video/mp4" class="profile-photo"></video>`;
             if (dialog.profile_photo.endsWith('.mp4'))
-                profile_photo = `<video loop muted autoplay src="../assets/profile_photos/${session_filename}/${dialog.profile_photo}" alt="${dialog.profile_photo}" type="video/mp4" class="profile-photo"></video>`;
+                profile_photo = `<div class="profile-photo" style="background-color: blue; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">Video</div>`;
             else
                 profile_photo = `<img src="../assets/profile_photos/${session_filename}/${dialog.profile_photo}" alt="${dialog.profile_photo}" class="profile-photo"></img>`;
         } else {
@@ -88,7 +89,7 @@ function renderDialogs(dialogs_raw) {
 
         dialog_div.innerHTML = `
             <div class="lef-side">
-            ${profile_photo}
+                ${profile_photo}
             </div>
             <div class="right-side">
                 <div class="name">${dialog.first_name} ${dialog.last_name}</div>
