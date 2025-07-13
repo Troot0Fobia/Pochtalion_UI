@@ -13,9 +13,15 @@ function changeSize(elem) {
 }
 
 
-function renderMessages(messages_raw, user_session, is_old) {
+function renderMessages(messages_raw, user_id, session, is_old, user_data_str) {
     let chat_window_div = document.getElementById('chat-window');
     if (!chat_window_div) return;
+
+    const user_data = JSON.parse(user_data_str);
+    document.getElementById('profile-image').innerHTML = user_data.profile_photo;
+    document.getElementById('full-name').innerText = user_data.user_full_name;
+    document.getElementById('username').innerText = user_data.username ? `@${user_data.username}` : '';
+    document.getElementById('user-id').innerText = user_id;
     
     const messages = JSON.parse(messages_raw);
     const chat_messages = document.getElementById('chat-history');
@@ -35,10 +41,10 @@ function renderMessages(messages_raw, user_session, is_old) {
             mime_types.shift();
             attachment_html = '<div class="album">';
             for (let i = 0; i < mime_types.length; i++)
-                attachment_html += renderAttachment(mime_types[i], attachments[i], user_session);
+                attachment_html += renderAttachment(mime_types[i], attachments[i], `${user_id}_${session}`);
             attachment_html += '</div>';
         } else if (attachments.length === 1 && mime_types.length === 1)
-            attachment_html = renderAttachment(mime_types[0], attachments[0], user_session);
+            attachment_html = renderAttachment(mime_types[0], attachments[0], `${user_id}_${session}`);
 
         message_div.innerHTML = `${attachment_html}
             <div class="text">${message.text}</div>

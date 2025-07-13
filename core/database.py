@@ -376,7 +376,7 @@ class Database:
         users = []
         async with self._lock:
             async with self._db.execute("""
-                SELECT u.user_id, u.first_name, u.last_name, u.profile_photo, m.text, m.created_at
+                SELECT u.user_id, u.first_name, u.last_name, u.profile_photo, u.username, m.text, m.created_at
                 FROM users u
                 JOIN user_sessions us ON u.user_id = us.user_id
                 LEFT JOIN (
@@ -394,12 +394,13 @@ class Database:
                 GROUP BY u.user_id
                 ORDER BY m.created_at DESC
             """, (session_id, session_id, session_id)) as cursor:
-                async for (user_id, first_name, last_name, profile_photo, text, created_at, ) in cursor:
+                async for (user_id, first_name, last_name, profile_photo, username, text, created_at, ) in cursor:
                     users.append({
                         "user_id": user_id,
                         "first_name": first_name or "",
                         "last_name": last_name or "",
                         "profile_photo": profile_photo,
+                        "username": username,
                         "last_message": text[:30] if text else None,
                         "created_at": datetime.fromisoformat(created_at).astimezone(tzlocal.get_localzone()).strftime('%d.%m.%Y %H:%M:%S') if created_at else None
                     })

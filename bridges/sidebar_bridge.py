@@ -25,8 +25,8 @@ class SidebarBridge(BaseBridge):
         self.main_window.openSettings()
 
 
-    @asyncSlot(str)
-    async def selectDialog(self, dialog_id):
+    @asyncSlot(str, str)
+    async def selectDialog(self, dialog_id, user_data):
         self.logger.info(f"{self.__class__.__name__}\tUser changed dialog to {dialog_id}")
         self.main_window.openChatWindow()
         user_id = int(dialog_id)
@@ -35,7 +35,7 @@ class SidebarBridge(BaseBridge):
         self.main_window.notification_manager.delete_unread_messages(user_id, session_id)
         self.main_window.notification_manager.delete_unread_dialog(user_id, session_id)
         messages = await self.database.get_messages_from_user(user_id, session_id)
-        self.chat_bridge.renderMessages.emit(json.dumps(messages), f"{dialog_id}_{self.main_window.active_session['session_file']}", 0)
+        self.chat_bridge.renderMessages.emit(json.dumps(messages), dialog_id, self.main_window.active_session['session_file'], 0, user_data)
 
 
     @asyncSlot(str)
