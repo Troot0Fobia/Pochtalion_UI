@@ -14,6 +14,7 @@
             <div class="tab parsing-tab" id="parsing-tab" onclick="openSettingsTab('parsing')">Парсинг</div>
             <div class="tab smm-tab" id="smm-tab" onclick="openSettingsTab('smm')">Сообщения для рассылки</div>
             <div class="tab sessions-tab" id="sessions-tab" onclick="openSettingsTab('sessions')">Сессии</div>
+            <div class="tab common-tab" id="common-tab" onclick="openSettingsTab('common')">Общие</div>
         </div>
         <div class="tab-block active-tab-block" id="chatting-tab-block">
             Some blocks for chatting (В разработке...)
@@ -148,6 +149,17 @@
                         Добавить сессию
                         <input type="file" id="add-session" accept=".session" style="display: none;" onchange="addSessions(this)">
                     </label>
+                </div>
+            </div>
+        </div>
+        <div class="tab-block" id="common-tab-block">
+            <h1>Настройки</h1>
+            <div class="settings-list">
+                <div class="row">
+                    <div class="settings-row">    
+                        <input type="checkbox" name="force_parse_to_db" id="force-parse-to-db" onchange="changeSettings(this)">
+                        <div class="setting-name">Автоматически добавлять пользователей в Базу Данных</div>
+                    </div>
                 </div>
             </div>
         </div>

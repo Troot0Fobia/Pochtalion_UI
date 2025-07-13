@@ -4,7 +4,7 @@ from pathlib import Path
 from qasync import QEventLoop, QApplication
 from ui.pochtalion_ui import Pochtalion_UI
 from core.paths import (
-    ASSETS, USERS_DATA, PROFILE_PHOTOS, LOGS, TMP, DATABASE, SMM_IMAGES, SESSIONS
+    ASSETS, USERS_DATA, PROFILE_PHOTOS, LOGS, TMP, DATABASE, SMM_IMAGES, SESSIONS, SETTINGS
 )
 
 async def main():
@@ -36,6 +36,7 @@ def init_folders():
     DATABASE.mkdir(parents=True, exist_ok=True)
     SMM_IMAGES.mkdir(parents=True, exist_ok=True)
     SESSIONS.mkdir(parents=True, exist_ok=True)
+    SETTINGS.mkdir(parents=True, exist_ok=True)
 
 if __name__ == "__main__":
     init_folders()

@@ -5,3 +5,5 @@ venv
 logs
 tmp
 .python-version
+/settings/*
+!/settings/defaults.json

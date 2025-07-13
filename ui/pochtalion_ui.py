@@ -12,6 +12,7 @@ from qasync import asyncClose, asyncSlot
 from core.paths import WEB
 from modules.parser import Parser
 from modules.mailer import Mailer
+from core.settings_manager import SettingsManager
 from core.notification_manager import NotificationManager
 from core.logger import setup_logger
 
@@ -28,6 +29,7 @@ class Pochtalion_UI(QMainWindow):
         self.sidebar_window = QWebEngineView()
         self.chat_window = QWebEngineView()
         self.settings_window = QWebEngineView()
+        self.settings_manager = SettingsManager(self.show_notification)
         self.parser = Parser(self)
         self.mailer = Mailer(self)
         self.logger = setup_logger("Pochtalion.UI", "UI.log")
@@ -37,6 +39,8 @@ class Pochtalion_UI(QMainWindow):
     @asyncSlot()
     async def init_async(self):
         self.logger.info("Starting main application")
+        if not self.settings_manager.start():
+            self.close()
         self.database = await Database.create()
         self.session_manager = SessionsManager(29572409, 'b882aac92b82a94c7dc21ccf80b42e4e', self.database, self)
         self.notification_manager = NotificationManager(self, self.database)
@@ -112,6 +116,7 @@ class Pochtalion_UI(QMainWindow):
     @asyncClose
     async def closeEvent(self, event):
         self.logger.info("Closing application")
+        self.settings_manager.save_settings()
         await self.parser.stop()
         await self.mailer.stop()
         await self.notification_manager.stop()
