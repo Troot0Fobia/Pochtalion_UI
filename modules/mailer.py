@@ -7,7 +7,7 @@ import base64
 from dataclasses import dataclass
 from datetime import datetime
 from modules.client_wrapper import ClientWrapper
-from telethon.errors import PeerFloodError, InputUserDeactivatedError, ForbiddenError
+from telethon.errors import PeerFloodError, InputUserDeactivatedError, ForbiddenError, AuthKeyUnregisteredError, FloodWaitError
 from core.logger import setup_logger
 from telethon.types import PeerUser
 
@@ -145,6 +145,10 @@ class Mailer:
             except ForbiddenError as e:
                 self.logger.error(f"Catched Forbidden Error, skip this user {user_id}: {e}", exc_info=True)
                 continue
+            except FloodWaitError as e:
+                self.logger.error(f"Catched Flood Wait Error, wait for {e.seconds}", exc_info=True)
+                self.main_window.show_notification("Внимание", f"Сессия {session_info.wrapper.session_file} поймала флуд, ждем {e.seconds + 10} секунд")
+                await asyncio.sleep(e.seconds + 10)
             except Exception as e:
                 self.logger.error(f"Unexpected error during message sending", exc_info=True)
                 continue

@@ -1,4 +1,5 @@
 {
     "force_parse_to_db": true,
-    "fetch_sessions_old_dialogs": false
+    "fetch_sessions_old_dialogs": false,
+    "dialog_filters": [true, true, true, true, true]
 }

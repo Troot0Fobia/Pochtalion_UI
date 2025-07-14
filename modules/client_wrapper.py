@@ -1,8 +1,8 @@
 from telethon import TelegramClient, events, tl, types
-from telethon.errors import PasswordHashInvalidError
+from telethon.errors import PasswordHashInvalidError, UsernameInvalidError
 from core.database import Database
 from pathlib import Path
-from core.paths import PROFILE_PHOTOS, SESSIONS, USERS_DATA
+from core.paths import PROFILE_PHOTOS, SESSIONS, USERS_DATA, TMP
 from ui.auth_window import AuthWindow
 from PyQt6.QtWidgets import QDialog
 import shutil
@@ -16,6 +16,16 @@ import asyncio
 from sqlite3 import IntegrityError
 from datetime import datetime
 import tzlocal
+
+# TODO fix this shit
+
+from PyQt6.QtWidgets import (
+    QDialog, QLabel, QPushButton, QVBoxLayout,
+    QHBoxLayout, QGridLayout, QDialogButtonBox
+)
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt
+
 
 class AuthCanceled(Exception):
     pass
@@ -105,7 +115,7 @@ class ClientWrapper:
             last_id = 0
             is_user_exists = await self.database.check_user_presense(user_id)
             
-            if not self.main_window.settings_manager.get_setting('fetch_sessions_old_dialogs') and not is_user_exists:
+            if not self.main_window.settings_manager.get_setting('fetch_sessions_old_dialogs') and not is_user_exists and user_id != 777000:
                 return
             
             if is_user_exists:
@@ -173,14 +183,26 @@ class ClientWrapper:
             user_peer = user_entity
         
         profile_photo = await self.database.get_user_photo(user_id)
-        if not profile_photo or (profile_photo and not (PROFILE_PHOTOS / self._session_file / profile_photo).exists()):
+        profile_photo_path = PROFILE_PHOTOS / self._session_file if user_status != -1 else TMP
+        if not profile_photo or (profile_photo and not (profile_photo_path / profile_photo).exists()):
             photos = await self._client.get_profile_photos(user_peer, limit=1)
             if photos:
                 profile_photo_id = photos[0].id
                 profile_photo = str(user_id)
-                profile_photo = await self._client.download_media(photos[0], str(PROFILE_PHOTOS / self._session_file / profile_photo))
+                profile_photo = await self._client.download_media(photos[0], str(profile_photo_path / profile_photo))
                 if profile_photo:
                     profile_photo = Path(profile_photo).name
+
+        if user_status == -1:
+            return {
+                "user_id": user_id,
+                "first_name": first_name,
+                "last_name": last_name,
+                "user_full_name": f"{first_name} {last_name}", # TODO maybe fix it
+                "username": username,
+                "phone_number": phone_number,
+                "profile_photo": profile_photo
+            }
 
         if not isinstance(user_entity, types.InputPeerUser):
             await self.database.add_new_user(
@@ -212,6 +234,8 @@ class ClientWrapper:
                     "first_name": first_name,
                     "last_name": last_name,
                     "profile_photo": profile_photo,
+                    "username": username,
+                    "status": user_status,
                     "is_read": is_read,
                     "last_message": last_message,
                     "created_at": last_message.date.astimezone(tzlocal.get_localzone()).strftime('%d.%m.%Y %H:%M:%S') if hasattr(last_message, 'date') else datetime.now().astimezone(tzlocal.get_localzone()).strftime('%d.%m.%Y %H:%M:%S')
@@ -320,7 +344,7 @@ class ClientWrapper:
         render_messages = await self._process_new_messages(event.messages if is_multiple else [event.message], user_id, from_event=True)
 
         if render_messages and self.main_window.current_chat == user_id:
-            self.main_window.chat_bridge.renderNewMessage(json.dumps(render_messages), sender.id, self._session_file, '')
+            self.main_window.chat_bridge.renderNewMessage(json.dumps(render_messages), str(sender.id), self._session_file, r'{}')
 
 
     async def sendMessage(self, user_id, message_str):
@@ -376,7 +400,7 @@ class ClientWrapper:
         }]
 
         if message and self.main_window.current_chat == user_id:
-            self.main_window.chat_bridge.renderNewMessage(json.dumps(render_message), str(user_id), self._session_file, '')
+            self.main_window.chat_bridge.renderNewMessage(json.dumps(render_message), str(user_id), self._session_file, r'{}')
 
 
     async def deleteDialog(self, dialog_id: int):
@@ -394,7 +418,33 @@ class ClientWrapper:
         self.main_window.sidebar_bridge.removeDialog.emit()
 
         if self.main_window.current_chat == dialog_id:
-            self.main_window.chat_bridge.clearChatWindow.emit()
+            self.main_window.chat_bridge.clearChatWindow.emit() 
+
+# TODO remake this method
+
+    async def searchUsername(self, username):
+        try:
+            entity = await self._client.get_entity(username)
+        except UsernameInvalidError as e:
+            self.logger.error(f"{self._session_file}\tUsername does not exist", exc_info=True)
+            self.main_window.show_notification("Внимание", f"Такой username '{username}' не существует")
+            return
+        user_data = None
+        if not isinstance(entity, types.User):
+            self.main_window.show_notification("Внимание", f"Сущность с username '{username}' не пользователь")
+        else:
+            if entity.bot or entity.deleted:
+                self.main_window.show_notification("Внимание", f"Пользователь с username '{username}' или бот, или удален")
+            else:
+                user_data = await self.process_new_user(entity, last_message=None, user_status=-1)
+        
+        if user_data:
+            dialog = UserInfoDialog(user_data)
+            result = dialog.exec()
+
+            if result == 2:
+                await self.process_new_user(user_data, None, user_status=6)
+                await self.main_window.sidebar_bridge.selectDialog(str(user_data['user_id']), json.dumps(user_data))
 
 
     async def stop(self) -> None:
@@ -421,3 +471,61 @@ class ClientWrapper:
     @property
     def session_id(self):
         return self._session_id
+
+
+# TODO Remake this window
+
+class UserInfoDialog(QDialog):
+    def __init__(self, user_data: dict, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Информация о пользователе")
+        self.setModal(True)
+        self.setFixedSize(400, 300)
+
+        layout = QVBoxLayout()
+        grid = QGridLayout()
+
+        # Фото профиля
+        image_label = QLabel()
+        profile_path = TMP / user_data.get("profile_photo", "")
+        if profile_path.exists():
+            pixmap = QPixmap(str(profile_path))
+            image_label.setPixmap(pixmap.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio))
+        else:
+            image_label.setText("Фото отсутствует")
+            image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Информация
+        grid.addWidget(QLabel("ID:"), 0, 0)
+        grid.addWidget(QLabel(str(user_data["user_id"])), 0, 1)
+
+        grid.addWidget(QLabel("Имя:"), 1, 0)
+        grid.addWidget(QLabel(user_data["user_full_name"]), 1, 1)
+
+        grid.addWidget(QLabel("Username:"), 2, 0)
+        grid.addWidget(QLabel("@" + user_data["username"] if user_data["username"] else "-"), 2, 1)
+
+        grid.addWidget(QLabel("Телефон:"), 3, 0)
+        grid.addWidget(QLabel(user_data["phone_number"] or "-"), 3, 1)
+
+        # Кнопки
+        button_box = QDialogButtonBox()
+        write_btn = QPushButton("Написать пользователю")
+        ok_btn = QPushButton("Ок")
+
+        button_box.addButton(write_btn, QDialogButtonBox.ButtonRole.ActionRole)
+        button_box.addButton(ok_btn, QDialogButtonBox.ButtonRole.AcceptRole)
+
+        write_btn.clicked.connect(self.write_to_user)
+        ok_btn.clicked.connect(self.accept)
+
+        layout.addWidget(image_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addLayout(grid)
+        layout.addSpacing(10)
+        layout.addWidget(button_box)
+
+        self.setLayout(layout)
+
+    def write_to_user(self):
+        print("Написать пользователю нажато")
+        self.done(2)  # Можно вернуть код 2 для обработки

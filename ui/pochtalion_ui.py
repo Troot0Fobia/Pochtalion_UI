@@ -92,6 +92,8 @@ class Pochtalion_UI(QMainWindow):
 
 
     async def loadSidebar(self):
+        filter_settings = self.settings_manager.get_setting('dialog_filters')
+        self.sidebar_bridge.renderFilters.emit(json.dumps(filter_settings))
         sessions = await self.database.get_sessions()
         if sessions:
             self.active_session = sessions[0]

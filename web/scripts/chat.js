@@ -13,15 +13,25 @@ function changeSize(elem) {
 }
 
 
+document.getElementById('input-field').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+
 function renderMessages(messages_raw, user_id, session, is_old, user_data_str) {
     let chat_window_div = document.getElementById('chat-window');
     if (!chat_window_div) return;
 
-    const user_data = JSON.parse(user_data_str);
-    document.getElementById('profile-image').innerHTML = user_data.profile_photo;
-    document.getElementById('full-name').innerText = user_data.user_full_name;
-    document.getElementById('username').innerText = user_data.username ? `@${user_data.username}` : '';
-    document.getElementById('user-id').innerText = `id: ${user_id}`;
+    if (user_data_str !== '{}') {
+        const user_data = JSON.parse(user_data_str);
+        document.getElementById('profile-image').innerHTML = user_data.profile_photo;
+        document.getElementById('full-name').innerText = user_data.user_full_name;
+        document.getElementById('username').innerText = user_data.username ? `@${user_data.username}` : '';
+        document.getElementById('user-id').innerText = `id: ${user_id}`;
+    }
     
     const messages = JSON.parse(messages_raw);
     const chat_messages = document.getElementById('chat-history');

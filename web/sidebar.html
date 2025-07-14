@@ -7,6 +7,23 @@
     <script src="scripts/sidebar.js"></script>
 </head>
 <body>
+    <div class="dialog-header">
+        <div class="search-field">
+            <input type="text" name="search_user" id="search-user" placeholder="Введите username"
+                oninput="filterData(this)">
+            <img src="assets/icons/search.png" class="icon" id="search-icon" alt="search" onclick="searchUsername(this)">
+        </div>
+        <div class="filter-container">
+            <img src="assets/icons/filter.png" class="icon" id="filter-icon" alt="filter" onclick="openFilter()">
+            <div class="filter-menu" id="filter-menu" hidden>
+                <label><input type="checkbox" name="filter" value="new_dialog" onchange="filterEntities()">Новые пользователи</label>
+                <label><input type="checkbox" name="filter" value="old_dialog" onchange="filterEntities()">Старые диалоги</label>
+                <label><input type="checkbox" name="filter" value="parser_dialog" onchange="filterEntities()">Пользователь с парсинга</label>
+                <label><input type="checkbox" name="filter" value="mailer_dialog" onchange="filterEntities()">Пользователь с рассылки</label>
+                <label><input type="checkbox" name="filter" value="searched_dialog" onchange="filterEntities()">Пользователь с поиска</label>
+            </div>
+        </div>
+    </div>
     <div class="main-part">
         <div class="dialogs" id="dialogs"></div>
         <div class="main-line">

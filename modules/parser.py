@@ -116,6 +116,7 @@ class Parser:
 
 
     async def _handle_user(self, user_entity, message_id, session_id, wrapper):
+        self.logger.debug(f'Received user_entity of type {type(user_entity)}')
         if isinstance(user_entity, types.User) and not user_entity.bot and not user_entity.deleted:
             self.logger.debug(f"Received new user with id {user_entity.id}. Processing...")
             if not user_entity.id in self.existing_ids.keys():

@@ -1,6 +1,13 @@
 let bridge = null;
 let currentDialogId = null;
 let currentDialogDiv = null;
+const FILTER_MASKS = {
+    'new_dialog': s => !(s & 0b100) && !(s & 0b010),
+    'old_dialog': s => !(s & 0b100) && (s & 0b010),
+    'parser_dialog': s => (s & 0b100) && !(s & 0b010) && !(s & 0b001),
+    'mailer_dialog': s => (s & 0b100) && !(s & 0b010) && (s & 0b001),
+    'searched_dialog': s => (s & 0b100) && (s & 0b010)
+};
 
 new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge = channel.objects.sidebarBridge;
@@ -11,7 +18,50 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.deleteSessionFromSelect.connect(deleteSessionFromSelect);
     bridge.renderMessageNotifications.connect(renderMessageNotifications);
     bridge.setUnreadDialog.connect(setUnreadDialog);
+    bridge.renderFilters.connect(renderFilters);
 });
+
+
+async function searchUsername() {
+    const search_input = document.getElementById('search-user');
+    const search_value = search_input.value?.replace(/[^0-9A-Za-z_]/g, '').slice(0, 32);
+    if (search_value.length < 5) {
+        bridge.show_notification("Неверный username");
+        return;
+    }
+
+    await bridge.searchUsername(search_value);
+    search_input.value = '';
+    filterData(search_input);
+}
+
+
+function filterEntities() {
+    const values = [];
+    document.querySelectorAll('.filter-menu input[type="checkbox"]').forEach(checkbox => {
+        const is_enable = checkbox.checked;
+        values.push(is_enable);
+        const lambda = FILTER_MASKS[checkbox.value];
+        document.querySelectorAll('.dialog').forEach(dialog => {
+            if (lambda(parseInt(dialog.dataset.status)))
+                dialog.classList.toggle('filtered-out', !is_enable);
+        });
+    });
+    bridge.changeSettings(JSON.stringify({'key': 'dialog_filters', 'value': values}));
+}
+
+
+function filterData(elem) {
+    const search = elem.value.toLowerCase();
+    document.querySelectorAll('.dialog').forEach(dialog => {
+        if (dialog.style.display === 'none') return;
+        const name = dialog.querySelector('.name')?.textContent?.toLowerCase() || '';
+        const username = dialog.dataset.username?.toLowerCase() || '';
+        const match = [name, username].some(text => text.includes(search));
+
+        dialog.classList.toggle('searched-hidden', !match);
+    });
+}
 
 
 document.addEventListener('click', e => {
@@ -72,6 +122,8 @@ function renderDialogs(dialogs_raw) {
         const dialog_div = document.createElement('div');
         dialog_div.className = "dialog";
         dialog_div.dataset.user_id = dialog.user_id;
+        dialog_div.dataset.status = dialog.status;
+        dialog_div.dataset.username = dialog.username;
         let profile_photo = '';
         if (dialog.profile_photo) {
             if (dialog.profile_photo.endsWith('.mp4'))
@@ -125,6 +177,20 @@ function renderDialogs(dialogs_raw) {
         }
         sidebar.appendChild(dialog_div);
     });
+    filterEntities();
+}
+
+
+function openFilter() {
+    const filter_menu = document.getElementById('filter-menu');
+    filter_menu.hidden = !filter_menu.hidden;
+}
+
+function renderFilters(settings_str) {
+    const settings = JSON.parse(settings_str);
+    document.querySelectorAll('.filter-menu input[type="checkbox"]').forEach((checkbox, index) =>
+        checkbox.checked = settings[index]
+    );
 }
 
 

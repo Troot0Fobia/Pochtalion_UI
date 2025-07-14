@@ -153,8 +153,8 @@ class SettingsBridge(BaseBridge):
                 pass
         await self.main_window.parser.stop()
     
-    @asyncSlot(str)
-    async def show_notification(self, message):
+    @pyqtSlot(str)
+    def show_notification(self, message):
         self.main_window.show_notification("Внимание", message)
 
 

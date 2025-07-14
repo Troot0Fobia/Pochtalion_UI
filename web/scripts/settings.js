@@ -428,7 +428,7 @@ async function startParsing() {
     if (!selected_sessions || selected_sessions.length === 0 || !parse_links
         || is_parse_channel && !count_of_posts
         || !is_parse_channel && is_parse_messages && !count_of_messages) {
-            await bridge.show_notification("Введите корректные данные");
+            bridge.show_notification("Введите корректные данные");
             return;
         }
 
@@ -487,7 +487,7 @@ async function startMailing() {
     const delay = document.getElementById('delay-between-mailing-messages').value;
 
     if (is_parse_usernames && !mailing_data) {
-        await bridge.show_notification("Введите корректные данные");
+        bridge.show_notification("Введите корректные данные");
         return;
     }
 

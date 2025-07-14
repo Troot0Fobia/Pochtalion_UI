@@ -13,6 +13,7 @@ class SidebarBridge(BaseBridge):
     deleteSessionFromSelect = pyqtSignal(str)
     renderMessageNotifications = pyqtSignal(str)
     setUnreadDialog = pyqtSignal(str)
+    renderFilters = pyqtSignal(str)
 
     def __init__(self, main_window: QMainWindow, database):
         super().__init__(main_window, database)
@@ -66,3 +67,23 @@ class SidebarBridge(BaseBridge):
         self.logger.info(f"{self.__class__.__name__}\tUser fetch message notifications")
         message_notifications = self.main_window.notification_manager.get_unread_messages()
         self.renderMessageNotifications.emit(json.dumps(message_notifications))
+
+
+    @asyncSlot(str)
+    async def searchUsername(self, username):
+        wrapper = self.main_window.session_manager.get_wrapper(self.main_window.active_session['session_file'])
+        if wrapper is None:
+            self.main_window.show_notification("Внимание", f"Сессия {self.main_window.active_session['session_file']} не запущена")
+            return
+        await wrapper.searchUsername(username)
+
+
+    @pyqtSlot(str)
+    def changeSettings(self, setting_str):
+        setting = json.loads(setting_str)
+        self.main_window.settings_manager.update_settings(setting['key'], setting['value'])
+
+
+    @pyqtSlot(str)
+    def show_notification(self, message):
+        self.main_window.show_notification("Внимание", message)
