@@ -190,7 +190,8 @@ input::-webkit-inner-spin-button {
 #auth-button,
 .add-session-button,
 .edit-btn,
-#add-smm-message {
+#add-smm-message,
+#refresh-session-manager {
     background-color: #0746a3;
 }
 
@@ -206,7 +207,8 @@ input::-webkit-inner-spin-button {
 #auth-button:hover,
 .add-session-button:hover,
 .edit-btn:hover,
-#add-smm-message:hover {
+#add-smm-message:hover,
+#refresh-session-manager:hover {
     background-color: #2373ec;
 }
 

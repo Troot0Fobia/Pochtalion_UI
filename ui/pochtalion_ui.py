@@ -135,6 +135,13 @@ class Pochtalion_UI(QMainWindow):
             return self._session_manager
 
 
+    async def refreshSessionManager(self):
+        if self._session_manager is not None:
+            await self._session_manager.close_sessions()
+            self._session_manager = None
+            self.initSessionManager()
+
+
     def openSettings(self):
         self.settings_bridge.loadSettings()
         self.stack.setCurrentWidget(self.settings_window)

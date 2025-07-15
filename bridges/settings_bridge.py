@@ -215,3 +215,9 @@ class SettingsBridge(BaseBridge):
     def resetSettings(self):
         self.main_window.settings_manager.reset_defaults()
         self.loadSettings()
+
+
+    @asyncSlot()
+    async def refreshSessionManager(self):
+        if self.main_window.settings_manager.get_setting('api_keys'):
+            await self.main_window.refreshSessionManager()

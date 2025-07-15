@@ -555,6 +555,11 @@ function changeSettings(elem) {
 }
 
 
+async function refreshSessionManager() {
+    await bridge.refreshSessionManager();
+}
+
+
 function resetSettings() {
     bridge.resetSettings();
 }
