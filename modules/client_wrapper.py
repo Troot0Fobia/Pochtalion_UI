@@ -1,5 +1,5 @@
 from telethon import TelegramClient, events, tl, types
-from telethon.errors import PasswordHashInvalidError, UsernameInvalidError
+from telethon.errors import PasswordHashInvalidError, UsernameInvalidError, ApiIdInvalidError, ApiIdPublishedFloodError
 from core.database import Database
 from pathlib import Path
 from core.paths import PROFILE_PHOTOS, SESSIONS, USERS_DATA, TMP
@@ -60,9 +60,19 @@ class ClientWrapper:
             self.auth_window.close()
             return False
         except PasswordHashInvalidError as e:
-            self.logger.warning(f"{self.session_file}\tIvalid password provided")
+            self.logger.warning(f"{self.session_file}\tInvalid password provided")
             self.auth_window.close()
             self.main_window.show_notification("Ошибка", "Неверный пароль")
+            return False
+        except ApiIdInvalidError as e:
+            self.logger.warning(f"{self.session_file}\tInvalid api_id provided")
+            self.auth_window.close()
+            self.main_window.show_notification("Ошибка", "API id невалидный")
+            return False
+        except ApiIdPublishedFloodError as e:
+            self.logger.warning(f"{self.session_file}\tAPI id is catched flood error")
+            self.auth_window.close()
+            self.main_window.show_notification("Ошибка", "API id поймал флуд")
             return False
         except Exception as e:
             self.logger.error(f"{self.session_file}\tUnexpected error", exc_info=True)

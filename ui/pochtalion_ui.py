@@ -136,6 +136,7 @@ class Pochtalion_UI(QMainWindow):
 
 
     def openSettings(self):
+        self.settings_bridge.loadSettings()
         self.stack.setCurrentWidget(self.settings_window)
 
     
