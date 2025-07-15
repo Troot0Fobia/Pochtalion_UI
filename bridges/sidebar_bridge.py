@@ -56,7 +56,10 @@ class SidebarBridge(BaseBridge):
     @asyncSlot(str)
     async def deleteDialog(self, dialog_id_str):
         self.logger.info(f"{self.__class__.__name__}\tDeleting dialog {dialog_id_str}")
-        await self.main_window.session_manager.deleteDialog(
+        session_manager = self.main_window.session_manager
+        if session_manager is None:
+            return
+        await session_manager.deleteDialog(
             self.main_window.active_session['session_file'],
             int(dialog_id_str)
         )
@@ -71,7 +74,10 @@ class SidebarBridge(BaseBridge):
 
     @asyncSlot(str)
     async def searchUsername(self, username):
-        wrapper = self.main_window.session_manager.get_wrapper(self.main_window.active_session['session_file'])
+        session_manager = self.main_window.session_manager
+        if session_manager is None:
+            return
+        wrapper = session_manager.get_wrapper(self.main_window.active_session['session_file'])
         if wrapper is None:
             self.main_window.show_notification("Внимание", f"Сессия {self.main_window.active_session['session_file']} не запущена")
             return

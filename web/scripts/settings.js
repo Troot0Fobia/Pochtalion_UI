@@ -530,7 +530,8 @@ function renderSettings(settings_str) {
     setting_elem.checked = settings.force_parse_to_db;
     setting_elem = document.getElementById('fetch-sessions-old-dialogs');
     setting_elem.checked = settings.fetch_sessions_old_dialogs;
-    
+    setting_elem = document.getElementById('api-keys');
+    setting_elem.value = settings.api_keys;
 }
 
 
@@ -540,6 +541,14 @@ function changeSettings(elem) {
     let value = null;
     if (elem_type === 'checkbox') {
         value = elem.checked;
+    } else if (elem_type === 'text') {
+        if (key === 'api_keys')
+            if (/^\d{5,8}\:[a-fA-F0-9]{32}$/.test(elem.value))
+                value = elem.value;
+            else {
+                bridge.show_notification("Неверные ключи");
+                return;
+            }
     }
 
     bridge.changeSettings(JSON.stringify({key, value}));

@@ -418,7 +418,7 @@ class ClientWrapper:
         self.main_window.sidebar_bridge.removeDialog.emit()
 
         if self.main_window.current_chat == dialog_id:
-            self.main_window.chat_bridge.clearChatWindow.emit() 
+            self.main_window.chat_bridge.clearChatWindow.emit()
 
 # TODO remake this method
 

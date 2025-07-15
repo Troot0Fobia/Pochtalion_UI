@@ -23,7 +23,10 @@ class ChatBridge(BaseBridge):
         session_file = self.main_window.active_session['session_file']
         error_message = f"Ошибка отправки сообщения для сессии {session_file} по причине: "
         try:
-            await self.main_window.session_manager.sendMessage(
+            session_manager = self.main_window.session_manager
+            if session_manager is None:
+                return
+            await session_manager.sendMessage(
                 session_file,
                 self.main_window.current_chat,
                 message

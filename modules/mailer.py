@@ -257,11 +257,14 @@ class Mailer:
 
 
     async def start_sessions(self):
+        session_manager = self.main_window.session_manager
+        if session_manager is None:
+            return
         for session_id, session_file in self.session_files.items():
-            session_wrapper = self.main_window.session_manager.get_wrapper(session_file)
+            session_wrapper = session_manager.get_wrapper(session_file)
             was_started = False
             if not session_wrapper:
-                session_wrapper = await self.main_window.session_manager.start_session(session_id, session_file, is_module=True)
+                session_wrapper = await session_manager.start_session(session_id, session_file, is_module=True)
                 was_started = True
             self.session_wrappers.append(self.SessionWrapperInfo(session_wrapper, was_started, session_id, 0))
 

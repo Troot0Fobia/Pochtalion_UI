@@ -4,10 +4,10 @@ from shutil import copyfile
 import json
 
 class SettingsManager:
-    def __init__(self, show_notification: callable):
+    def __init__(self, main_window):
         self.default_settings = SETTINGS / 'defaults.json'
         self.settings_file = SETTINGS / 'settings.json'
-        self.show_notification = show_notification
+        self.main_window = main_window
         self.logger = setup_logger("Pochtalion.Settings", "settings_manager.log")
         self.settings = None
 
@@ -15,7 +15,7 @@ class SettingsManager:
     def start(self):
         if not self.default_settings.exists():
             self.logger.error("Default settings file does not exist")
-            self.show_notification("Ошибка", "Файл стандартных настроек не существует")
+            self.main_window.show_notification("Ошибка", "Файл стандартных настроек не существует")
             return False
 
         if not self.settings_file.exists():
@@ -42,6 +42,8 @@ class SettingsManager:
     def update_settings(self, key, value):
         self.logger.info(f"User changes settings '{key}': {value}")
         self.settings[key] = value
+        if key == 'api_keys':
+            self.main_window.initSessionManager()
 
 
     def get_setting(self, key):
@@ -62,7 +64,7 @@ class SettingsManager:
             copyfile(self.default_settings, self.settings_file)
         except Exception as e:
             self.logger.error("Error while restore defaults settings", exc_info=True)
-            self.show_notification("Ошибка", "Ошибка во время восстановления стандартных настроек")
+            self.main_window.show_notification("Ошибка", "Ошибка во время восстановления стандартных настроек")
             return
 
         try:

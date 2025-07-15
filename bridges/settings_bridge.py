@@ -31,7 +31,10 @@ class SettingsBridge(BaseBridge):
     @asyncSlot()
     async def loadSettingsSessions(self):
         sessions = await self.database.get_sessions()
-        active_sessions = self.main_window.session_manager.get_active_sessions()
+        active_sessions = {}
+        session_manager = self.main_window.session_manager
+        if session_manager is not None:
+            active_sessions = session_manager.get_active_sessions()
         for s in sessions:
             s['file_exists'] = (SESSIONS / s['session_file']).exists()
             s['status'] = active_sessions.get(s['session_file'], 0)
@@ -56,7 +59,10 @@ class SettingsBridge(BaseBridge):
         self.renderSettingsSessions.emit(json_session)
         self.sidebar_bridge.renderSelectSessions.emit(json_session)
         if phone_number:
-            await self.main_window.session_manager.start_session(session_id, fileName, phone_number)
+            session_manager = self.main_window.session_manager
+            if session_manager is None:
+                return
+            await session_manager.start_session(session_id, fileName, phone_number)
 
 
     @asyncSlot(str, str)
@@ -125,13 +131,19 @@ class SettingsBridge(BaseBridge):
 
     @asyncSlot(str)
     async def startSession(self, session_str):
+        session_manager = self.main_window.session_manager
+        if session_manager is None:
+            return
         session = json.loads(session_str)
-        await self.main_window.session_manager.start_session(session['session_id'], session['session_name'])
+        await session_manager.start_session(session['session_id'], session['session_name'])
 
     
     @asyncSlot(str)
     async def stopSession(self, session_file):
-        await self.main_window.session_manager.stop_session(session_file)
+        session_manager = self.main_window.session_manager
+        if session_manager is None:
+            return
+        await session_manager.stop_session(session_file)
 
 
     @asyncSlot(str)

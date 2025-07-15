@@ -3,20 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-    <script src="scripts/settings.js"></script>
+    <script src="scripts/settings.js" defer></script>
     <link rel="stylesheet" href="styles/settings.css">
 </head>
 <body>
     <div class="settings" id="settings">
         <div class="tabs">
-            <div class="tab chatting-tab active-tab" id="chatting-tab" onclick="openSettingsTab('chatting')">Общение</div>
+            <div class="tab common-tab active-tab" id="common-tab" onclick="openSettingsTab('common')">Общие</div>
+            <div class="tab chatting-tab" id="chatting-tab" onclick="openSettingsTab('chatting')">Общение</div>
             <div class="tab mailing-tab" id="mailing-tab" onclick="openSettingsTab('mailing')">Рассылка</div>
             <div class="tab parsing-tab" id="parsing-tab" onclick="openSettingsTab('parsing')">Парсинг</div>
             <div class="tab smm-tab" id="smm-tab" onclick="openSettingsTab('smm')">Сообщения для рассылки</div>
             <div class="tab sessions-tab" id="sessions-tab" onclick="openSettingsTab('sessions')">Сессии</div>
-            <div class="tab common-tab" id="common-tab" onclick="openSettingsTab('common')">Общие</div>
         </div>
-        <div class="tab-block active-tab-block" id="chatting-tab-block">
+        <div class="tab-block active-tab-block" id="common-tab-block">
+            <h1>Настройки</h1>
+            <div class="settings-list">
+                <div class="row">
+                    <div class="settings-row">    
+                        <div class="setting-name">API ключи для работы</div>
+                        <input type="text" name="api_keys" id="api-keys" onblur="changeSettings(this)" placeholder="<api_id>:<api_hash>">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="settings-row">    
+                        <input type="checkbox" name="force_parse_to_db" id="force-parse-to-db" onchange="changeSettings(this)">
+                        <div class="setting-name">Автоматически добавлять пользователей в Базу Данных</div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="settings-row">    
+                        <input type="checkbox" name="fetch_sessions_old_dialogs" id="fetch-sessions-old-dialogs" onchange="changeSettings(this)">
+                        <div class="setting-name">Получать старые диалоги сессии</div>
+                    </div>
+                </div>
+            </div>
+            <div class="button reset-settings" onclick="resetSettings()">Сбросить настройки</div>
+        </div>
+        <div class="tab-block" id="chatting-tab-block">
             Some blocks for chatting (В разработке...)
         </div>
         <div class="tab-block" id="mailing-tab-block">
@@ -151,24 +175,6 @@
                     </label>
                 </div>
             </div>
-        </div>
-        <div class="tab-block" id="common-tab-block">
-            <h1>Настройки</h1>
-            <div class="settings-list">
-                <div class="row">
-                    <div class="settings-row">    
-                        <input type="checkbox" name="force_parse_to_db" id="force-parse-to-db" onchange="changeSettings(this)">
-                        <div class="setting-name">Автоматически добавлять пользователей в Базу Данных</div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="settings-row">    
-                        <input type="checkbox" name="fetch_sessions_old_dialogs" id="fetch-sessions-old-dialogs" onchange="changeSettings(this)">
-                        <div class="setting-name">Получать старые диалоги сессии</div>
-                    </div>
-                </div>
-            </div>
-            <div class="button reset-settings" onclick="resetSettings()">Сбросить настройки</div>
         </div>
     </div>
     <div id="session-modal" class="modal hidden">

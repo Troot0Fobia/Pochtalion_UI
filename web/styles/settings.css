@@ -404,10 +404,21 @@ h1 {
     align-items: center;
     padding: 5px 0;
     gap: 10px;
+    width: 100%;
 }
 
 .settings-list {
     display: flex;
     flex-direction: column;
     gap: 5px;
+}
+
+#api-keys {
+    flex: 1;
+    border: none;
+    border-radius: 10px;
+    background-color: #070013b7;
+    color: white;
+    outline: none;
+    padding: 5px;
 }
