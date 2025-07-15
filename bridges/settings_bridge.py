@@ -67,6 +67,9 @@ class SettingsBridge(BaseBridge):
 
     @asyncSlot(str, str)
     async def deleteSession(self, session_id_str, session_name):
+        session_manager = self.main_window.session_manager
+        if session_manager is not None:
+            await session_manager.stop_session(session_name)
         session_id = int(session_id_str)
         user_ids = await self.database.delete_session(session_id)
         try:
