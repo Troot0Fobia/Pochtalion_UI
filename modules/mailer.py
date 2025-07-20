@@ -209,17 +209,17 @@ class Mailer:
                 if isinstance(sender, PeerUser) and sender.id == user_id:
                     user_entity = sender
                     # await session_client.get_input_entity(sender)
-                    self.logger.info(f"Received from broadcast user entity with id: {sender.user_id}")
+                    self.logger.info(f"Received from broadcast user entity with id: {sender.id}")
                     # await self.main_window.database.add_user_to_session(sender.user_id, session_id)
                     break
         elif source_data['chat_type'] in ("megagroup", "gigagroup", "chat"):
             if source_post_id is not None:
                 message = await session_client.get_messages(chat_entity, ids=source_post_id)
                 sender = await message.get_sender()
-                if sender:
+                if isinstance(sender, PeerUser) and sender.id == user_id:
                     user_entity = sender
                     # await session_client.get_input_entity(sender)
-                    self.logger.info(f"Received from group from message {message.id} user entity with id: {sender.user_id}")
+                    self.logger.info(f"Received from group from message {message.id} user entity with id: {sender.id}")
                     # await self.main_window.database.add_user_to_session(sender.user_id, session_id)
             else:
                 async for user in session_client.iter_participants(chat_entity):
