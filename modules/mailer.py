@@ -201,8 +201,11 @@ class Mailer:
 
         try:
             chat_entity = await session_client.get_entity(source_data['chat_username'])
-        except UsernameNotOccupiedError:
+        except UsernameNotOccupiedError as e:
             self.logger.error(f"Chat {source_data['chat_username']} was deleted. Skip it...", exc_info=True)
+            return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error was occured. Skip user {user_id}", exc_info=True)
             return None
             
         user_entity = None
