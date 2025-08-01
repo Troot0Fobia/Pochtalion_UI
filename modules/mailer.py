@@ -7,7 +7,7 @@ import base64
 from dataclasses import dataclass
 from datetime import datetime
 from modules.client_wrapper import ClientWrapper
-from telethon.errors import PeerFloodError, InputUserDeactivatedError, ForbiddenError, AuthKeyUnregisteredError, FloodWaitError
+from telethon.errors import PeerFloodError, InputUserDeactivatedError, ForbiddenError, AuthKeyUnregisteredError, FloodWaitError, UsernameNotOccupiedError
 from core.logger import setup_logger
 from telethon.types import PeerUser
 
@@ -198,7 +198,13 @@ class Mailer:
         source_data = await self.main_window.database.get_parse_source(source_chat_id)
         if source_data is None:
             return None
-        chat_entity = await session_client.get_entity(source_data['chat_username'])
+
+        try:
+            chat_entity = await session_client.get_entity(source_data['chat_username'])
+        except UsernameNotOccupiedError:
+            self.logger.error(f"Chat {source_data['chat_username']} was deleted. Skip it...", exc_info=True)
+            return None
+            
         user_entity = None
 
         self.logger.info(f"Received chat entity {chat_entity.id}")
