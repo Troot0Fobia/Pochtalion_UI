@@ -38,6 +38,12 @@
                         <div class="setting-name">Получать старые диалоги сессии</div>
                     </div>
                 </div>
+                <div class="row">
+                    <div class="settings-row">    
+                        <input type="checkbox" name="parse_admins" id="parse-admins" onchange="changeSettings(this)">
+                        <div class="setting-name">Парсить админов и модераторов</div>
+                    </div>
+                </div>
             </div>
             <div class="button reset-settings" onclick="resetSettings()">Сбросить настройки</div>
         </div>
@@ -165,7 +171,7 @@
                 <div class="sessions-header">
                     <h1>Сессии</h1>
                     <input type="text" id="auth-phone-input" placeholder="Номер телефона"
-                        oninput="this.value = this.value.replace(/^[^+][^0-9]/g, '').slice(0, 16);">
+                        oninput="this.value = this.value.replace(/\D/g, '').slice(0, 16);">
                     <input type="button" class="button auth-button" id="auth-button" onclick="authorizeToSession()" value="Авторизоваться">
                 </div>
                 <div class="sessions-list" id="sessions-list"></div>
