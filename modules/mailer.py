@@ -7,7 +7,7 @@ import base64
 from dataclasses import dataclass
 from datetime import datetime
 from modules.client_wrapper import ClientWrapper
-from telethon.errors import PeerFloodError, InputUserDeactivatedError, ForbiddenError, AuthKeyUnregisteredError, FloodWaitError
+from telethon.errors import PeerFloodError, InputUserDeactivatedError, ForbiddenError, AuthKeyUnregisteredError, FloodWaitError, UsernameNotOccupiedError
 from core.logger import setup_logger
 from telethon.types import PeerUser
 
@@ -108,7 +108,7 @@ class Mailer:
                         "first_name": getattr(entity, 'first_name', None),
                         "last_name": getattr(entity, 'last_name', None),
                         "username": getattr(entity, 'username', None),
-                        "phone_number": getattr(entity, 'phone_number', None)
+                        "phone_number": getattr(entity, 'phone', None)
                     },
                     last_message=None,
                     user_status=4
@@ -135,7 +135,7 @@ class Mailer:
             try:
                 await session_info.wrapper.sendMessage(user_id, json.dumps(message))
             except PeerFloodError as e:
-                self.logger.error(f"Catched Frool Error, stop mailing for this session {session_info.wrapper.session_file}: {e}", exc_info=True)
+                self.logger.error(f"Catched Flood Error, stop mailing for this session {session_info.wrapper.session_file}: {e}", exc_info=True)
                 await self.finish_session(session_info.session_id)
                 self.main_window.show_notification("Внимание", f"Сессия {session_info.wrapper.session_file} поймала флуд")
                 continue
@@ -198,7 +198,16 @@ class Mailer:
         source_data = await self.main_window.database.get_parse_source(source_chat_id)
         if source_data is None:
             return None
-        chat_entity = await session_client.get_entity(source_data['chat_username'])
+
+        try:
+            chat_entity = await session_client.get_entity(source_data['chat_username'])
+        except UsernameNotOccupiedError as e:
+            self.logger.error(f"Chat {source_data['chat_username']} was deleted. Skip it...", exc_info=True)
+            return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error was occured. Skip user {user_id}", exc_info=True)
+            return None
+            
         user_entity = None
 
         self.logger.info(f"Received chat entity {chat_entity.id}")
