@@ -5,7 +5,7 @@ from pathlib import Path
 from telethon.tl import types
 from datetime import datetime
 from core.logger import setup_logger
-from telethon.tl.types import ChannelParticipantAdmin, ChannelParticipantCreator
+from telethon.tl.types import ChannelParticipantAdmin, ChannelParticipantCreator, Channel
 
 PARSE_DELAY = 1
 UPDATE_DELAY = 1
@@ -126,11 +126,20 @@ class Parser:
                             await asyncio.sleep(PARSE_DELAY)
                     except Exception as e:
                         self.logger.error("Unexpected error while parsing group by open participants", exc_info=True)
+            else:
+                if group_type == "broadcast" and not self.is_parse_channel:
+                    self.main_window.show_notification("Внимание", f"Несоответствие типа группы и настроек.\nГруппа @{parse_username} является каналом, выбрано парсить группу")
+                elif group_type in ("megagroup", "gigagroup", "chat") and self.is_parse_channel:
+                    self.main_window.show_notification("Внимание", f"Несоответствие типа группы и настроек.\nГруппа @{parse_username} является группой, выбрано парсить канал")
+
 
         await self.stop()
 
 
-    def _check_user_needness(user_entity, is_parse_admins) -> bool:
+    def _check_user_needness(self, user_entity, is_parse_admins) -> bool:
+        if isinstance(user_entity, Channel):
+            return False
+
         if user_entity.bot:
             return False
 
@@ -152,7 +161,7 @@ class Parser:
                     "first_name": getattr(user_entity, 'first_name', None),
                     "last_name": getattr(user_entity, 'last_name', None),
                     "username": getattr(user_entity, 'username', None),
-                    "phone_number": getattr(user_entity, 'phone_number', None)
+                    "phone_number": getattr(user_entity, 'phone', None)
                 }
                 self.existing_ids[user_entity.id] = (
                     self.group_id,
