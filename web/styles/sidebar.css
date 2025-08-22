@@ -1,27 +1,40 @@
 html, body {
-    height: 100%;
+    height: 100vh;
+    max-height: 100vh;
     width: 100%;
     margin: 0;
     padding: 0;
     background-color: #27284A;
     color: #d0d0d0;
     font-family: Arial, Helvetica, sans-serif;
-    scrollbar-width: thin;
+}
+
+#dialogs {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-color: #1a5fb4 #ffffff;
+}
+#dialogs::-webkit-scrollbar-track {
+    background-color: #f0f0f0;
+}
+
+#dialogs::-webkit-scrollbar-thumb {
+    background-color: #888888;
+}
+
+.sidebar-main {
+    height: 100vh;
+    max-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 .dialog-header {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    /* width: 100%; */
-    height: 50px;
+    padding: 5px;
     background-color: #132D71;
-    box-shadow: 0px 1px 3px #535574;
-    z-index: 1000;
+    box-shadow: 0 1px 3px #535574;
     display: flex;
     flex-direction: row;
     align-items: center;
-    padding: 0 30px;
     justify-content: space-between;
 }
 .search-field {
@@ -30,7 +43,7 @@ html, body {
     gap: 20px;
 }
 #search-user {
-    border-radius: 16px;
+    border-radius: 4px;
     outline: none;
     border: none;
     color: white;
@@ -43,10 +56,9 @@ html, body {
     width: 28px;
 }
 
-
 .filter-container {
+    display: flex;
     position: relative;
-    display: inline-block;
 }
 
 .filter-menu {
@@ -86,9 +98,7 @@ html, body {
 }
 .dialogs {
     min-width: 300px;
-    padding-top: 55px;
-    padding-right: 5px;
-    padding-bottom: 45px;
+    padding: 5px;
 }
 .dialog {
     display: flex;
@@ -130,14 +140,10 @@ html, body {
 }
 
 .main-line {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
+    padding: 5px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 5px;
     background-color: #27284A;
 }
 .main-line img {
