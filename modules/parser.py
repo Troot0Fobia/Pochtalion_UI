@@ -5,6 +5,7 @@ from pathlib import Path
 from telethon.tl import types
 from datetime import datetime
 from core.logger import setup_logger
+from telethon.tl.types import ChannelParticipantAdmin, ChannelParticipantCreator, Channel
 
 PARSE_DELAY = 1
 UPDATE_DELAY = 1
@@ -35,6 +36,7 @@ class Parser:
         self.parse_usernames = []
         self.existing_ids = {}
         self.group_data = {}
+        is_parse_admins = self.main_window.settings_manager.get_setting('parse_admins')
 
         for link in parser_data['parse_links'].splitlines():
             matched = re.match(r'((?P<url>^https?:\/\/t\.me\/(?P<group_username>[a-zA-Z0-9_]{5,32}))($|\/(?P<post_id>\d+))|^@(?P<username>[a-z0-9_]{5,32}$))', link.strip())
@@ -79,40 +81,75 @@ class Parser:
             await self.main_window.database.add_parse_source(self.group_id, *self.group_data[self.group_id])
 
             if group_type == "broadcast" and self.is_parse_channel:
-                async for message in client.iter_messages(group_entity, self.count_of_posts or None):
-                    if not message.post:
-                        continue
-                    # self.logger.debug(f"Received channel post: {message}")
-                    # self.logger.debug(f"Message id: {message.id}")
+                try:
+                    async for message in client.iter_messages(group_entity, self.count_of_posts or None):
+                        if not message.post:
+                            continue
+                        try:
+                            async for comment in client.iter_messages(group_entity, reply_to=message.id):
+                                user_entity = await comment.get_sender()
+                                if not self._check_user_needness(user_entity, is_parse_admins):
+                                    continue
+                                await client.get_input_entity(user_entity)
+                                await self._handle_user(user_entity, message.id, session_id, wrapper)
+                                await asyncio.sleep(PARSE_DELAY)
+                        except:
+                            # this throw unknown shit like
+                            # telethon.errors.rpcerrorlist.MsgIdInvalidError: The message ID used in the peer was invalid (caused by GetRepliesRequest)
+                            # but message matches for channel's post
+                            # https://github.com/LonamiWebs/Telethon/issues/3841
+                            # https://github.com/LonamiWebs/Telethon/issues/3837
+                            # https://stackoverflow.com/questions/72396273/how-to-use-getrepliesrequest-call-in-telethon
+                            pass
+                        await asyncio.sleep(PARSE_DELAY)
+                except Exception as e:
+                    self.logger.error(f"Unexpected error while parsing broadcast", exc_info=True)
+            elif group_type in ("megagroup", "gigagroup", "chat") and not self.is_parse_channel:
+                if self.is_parse_messages:
                     try:
-                        async for comment in client.iter_messages(group_entity, reply_to=message.id):
-                            user_entity = await comment.get_sender()
+                        async for message in client.iter_messages(group_entity, self.count_of_messages or None):
+                            user_entity = await message.get_sender()
+                            if not self._check_user_needness(user_entity, is_parse_admins):
+                                continue
                             await client.get_input_entity(user_entity)
                             await self._handle_user(user_entity, message.id, session_id, wrapper)
                             await asyncio.sleep(PARSE_DELAY)
-                    except:
-                        # this throw unknown shit like
-                        # telethon.errors.rpcerrorlist.MsgIdInvalidError: The message ID used in the peer was invalid (caused by GetRepliesRequest)
-                        # but message matches for channel's post
-                        # https://github.com/LonamiWebs/Telethon/issues/3841
-                        # https://github.com/LonamiWebs/Telethon/issues/3837
-                        # https://stackoverflow.com/questions/72396273/how-to-use-getrepliesrequest-call-in-telethon
-                        pass
-                    await asyncio.sleep(PARSE_DELAY)
-            elif group_type in ("megagroup", "gigagroup", "chat") and not self.is_parse_channel:
-                if self.is_parse_messages:
-                    async for message in client.iter_messages(group_entity, self.count_of_messages or None):
-                        user_entity = await message.get_sender()
-                        await client.get_input_entity(user_entity)
-                        await self._handle_user(user_entity, message.id, session_id, wrapper)
-                        await asyncio.sleep(PARSE_DELAY)
+                    except Exception as e:
+                        self.logger.error(f"Unexpected error while parsing group by messages", exc_info=True)
                 else:
-                    async for user_entity in client.iter_participants(group_entity):
-                        await client.get_input_entity(user_entity)
-                        await self._handle_user(user_entity, None, session_id, wrapper)
-                        await asyncio.sleep(PARSE_DELAY)
+                    try:
+                        async for user_entity in client.iter_participants(group_entity):
+                            if not self._check_user_needness(user_entity, is_parse_admins):
+                                continue
+                            await client.get_input_entity(user_entity)
+                            await self._handle_user(user_entity, None, session_id, wrapper)
+                            await asyncio.sleep(PARSE_DELAY)
+                    except Exception as e:
+                        self.logger.error("Unexpected error while parsing group by open participants", exc_info=True)
+            else:
+                if group_type == "broadcast" and not self.is_parse_channel:
+                    self.main_window.show_notification("Внимание", f"Несоответствие типа группы и настроек.\nГруппа @{parse_username} является каналом, выбрано парсить группу")
+                elif group_type in ("megagroup", "gigagroup", "chat") and self.is_parse_channel:
+                    self.main_window.show_notification("Внимание", f"Несоответствие типа группы и настроек.\nГруппа @{parse_username} является группой, выбрано парсить канал")
+
 
         await self.stop()
+
+
+    def _check_user_needness(self, user_entity, is_parse_admins) -> bool:
+        if isinstance(user_entity, Channel):
+            return False
+
+        if user_entity.bot:
+            return False
+
+        if is_parse_admins:
+            return True
+
+        if isinstance(user_entity, ChannelParticipantAdmin) or isinstance(user_entity, ChannelParticipantCreator):
+            return False
+
+        return True
 
 
     async def _handle_user(self, user_entity, message_id, session_id, wrapper):
@@ -124,7 +161,7 @@ class Parser:
                     "first_name": getattr(user_entity, 'first_name', None),
                     "last_name": getattr(user_entity, 'last_name', None),
                     "username": getattr(user_entity, 'username', None),
-                    "phone_number": getattr(user_entity, 'phone_number', None)
+                    "phone_number": getattr(user_entity, 'phone', None)
                 }
                 self.existing_ids[user_entity.id] = (
                     self.group_id,
