@@ -1,7 +1,10 @@
 import json
 import asyncio
-import shutil 
+import shutil
 import re
+import sys
+from pathlib import Path
+from PyQt6.QtGui import QIcon
 
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QSplitter, QStackedWidget, QApplication
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -18,12 +21,22 @@ from core.notification_manager import NotificationManager
 from core.logger import setup_logger
 from core.paths import WEB, TMP
 
+# Динамический путь к WEB
+if getattr(sys, '_MEIPASS', False):
+    web_base = Path(sys._MEIPASS) / "web"
+else:
+    web_base = WEB
 
 class Pochtalion_UI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Pochtalion")
         self.setMinimumSize(QSize(300, 400))
+        if getattr(sys, '_MEIPASS', False):
+            icon_path = Path(sys._MEIPASS) / "icon.ico"
+        else:
+            icon_path = Path("icon.ico")
+        self.setWindowIcon(QIcon(str(icon_path)))
         self.current_chat = None
         self.active_session = None
         self.database = None
@@ -38,7 +51,6 @@ class Pochtalion_UI(QMainWindow):
         self.logger = setup_logger("Pochtalion.UI", "UI.log")
         self.logger.info("Main UI initialized")
 
-        
     @asyncSlot()
     async def init_async(self):
         self.logger.info("Starting main application")
@@ -53,21 +65,21 @@ class Pochtalion_UI(QMainWindow):
         self.chat_bridge = chat_bridge.ChatBridge(self, self.database)
         self.chat_channel = QWebChannel()
         self.chat_channel.registerObject("chatBridge", self.chat_bridge)
-        self.chat_window.setUrl(QUrl.fromLocalFile(str(WEB / 'chat.html')))
+        self.chat_window.setUrl(QUrl.fromLocalFile(str(web_base / 'chat.html')))
         self.chat_window.page().setWebChannel(self.chat_channel)
 
         ### Sidebar init ###
         self.sidebar_bridge = sidebar_bridge.SidebarBridge(self, self.database)
         self.sidebar_channel = QWebChannel()
         self.sidebar_channel.registerObject("sidebarBridge", self.sidebar_bridge)
-        self.sidebar_window.setUrl(QUrl.fromLocalFile(str(WEB / 'sidebar.html')))
+        self.sidebar_window.setUrl(QUrl.fromLocalFile(str(web_base / 'sidebar.html')))
         self.sidebar_window.page().setWebChannel(self.sidebar_channel)
 
         ### Settings init ###
         self.settings_bridge = settings_bridge.SettingsBridge(self, self.database)
         self.settings_channel = QWebChannel()
         self.settings_channel.registerObject("settingsBridge", self.settings_bridge)
-        self.settings_window.setUrl(QUrl.fromLocalFile(str(WEB / 'settings.html')))
+        self.settings_window.setUrl(QUrl.fromLocalFile(str(web_base / 'settings.html')))
         self.settings_window.page().setWebChannel(self.settings_channel)
 
         self.stack = QStackedWidget()
@@ -158,7 +170,7 @@ class Pochtalion_UI(QMainWindow):
         await self.parser.stop()
         await self.mailer.stop()
         await self.notification_manager.stop()
-        await self.database.closeConnetion()
+        await self.database.closeConnection()
         if self._session_manager:
             await self._session_manager.close_sessions()
         self.chat_window.deleteLater()
