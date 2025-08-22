@@ -1,5 +1,5 @@
 from telethon import TelegramClient, events, tl, types
-from telethon.errors import PasswordHashInvalidError, UsernameInvalidError, ApiIdInvalidError, ApiIdPublishedFloodError
+from telethon.errors import PasswordHashInvalidError, UsernameInvalidError, ApiIdInvalidError, ApiIdPublishedFloodError, FileMigrateError
 from core.database import Database
 from pathlib import Path
 from core.paths import PROFILE_PHOTOS, SESSIONS, USERS_DATA, TMP
@@ -186,7 +186,7 @@ class ClientWrapper:
             first_name = getattr(user_entity, 'first_name', None)
             last_name = getattr(user_entity, 'last_name', None)
             username = getattr(user_entity, 'username', None)
-            phone_number = getattr(user_entity, 'phone_number', None)
+            phone_number = getattr(user_entity, 'phone', None)
             user_peer = user_entity
         elif isinstance(user_entity, types.InputPeerUser):
             user_id = user_entity.user_id
@@ -195,13 +195,18 @@ class ClientWrapper:
         profile_photo = await self.database.get_user_photo(user_id)
         profile_photo_path = PROFILE_PHOTOS / self._session_file if user_status != -1 else TMP
         if not profile_photo or (profile_photo and not (profile_photo_path / profile_photo).exists()):
-            photos = await self._client.get_profile_photos(user_peer, limit=1)
-            if photos:
-                profile_photo_id = photos[0].id
-                profile_photo = str(user_id)
-                profile_photo = await self._client.download_media(photos[0], str(profile_photo_path / profile_photo))
-                if profile_photo:
-                    profile_photo = Path(profile_photo).name
+            try:
+                photos = await self._client.get_profile_photos(user_peer, limit=1)
+                if photos:
+                    profile_photo_id = photos[0].id
+                    profile_photo = str(user_id)
+                    profile_photo = await self._client.download_media(photos[0], str(profile_photo_path / profile_photo))
+                    if profile_photo:
+                        profile_photo = Path(profile_photo).name
+            except FileMigrateError as e:
+                self.logger.error(f"Error while downloading user photo. File was migrated to another server", exc_info=True)
+            except Exception as e:
+                self.logger.error(f"Unexpected error occured while donwloading users profile photo. User id: {user_id}", exc_info=True)
 
         if user_status == -1:
             return {
