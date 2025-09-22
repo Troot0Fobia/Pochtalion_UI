@@ -5,6 +5,11 @@ from datetime import datetime
 import tzlocal
 from pytz import timezone
 from core.paths import DATABASE
+from core.utils import resource_path
+from pathlib import Path
+import appdirs
+from shutil import copyfile
+import sys
 
 DB_PATH = DATABASE / 'database.db'
 
@@ -15,7 +20,20 @@ class Database:
 
     @classmethod
     async def create(cls):
-        
+        # Путь к базе в .exe или локально
+        source_db_path = resource_path(DB_PATH)
+        # Путь для записи
+        if hasattr(sys, '_MEIPASS'):
+            app_name = "Pochtalion"
+            user_data_dir = Path(appdirs.user_data_dir(app_name))
+            user_data_dir.mkdir(parents=True, exist_ok=True)
+            db_path = user_data_dir / "database.db"
+            # Копируем базу в AppData, если отсутствует
+            if not db_path.exists():
+                copyfile(source_db_path, db_path)
+        else:
+            db_path = source_db_path
+
         if not DB_PATH.exists():
             open(DB_PATH, "a").close()
 
@@ -127,10 +145,10 @@ class Database:
     def connection(self):
         return self._db
 
-    async def closeConnetion(self):
+    async def closeConnection(self):
         await self._db.close()
 
-    
+
     ### ========================= Methods for sessions ======================== ###
 
     async def get_sessions(self) -> list:
@@ -178,7 +196,7 @@ class Database:
 
         return user_ids
 
-        
+
     async def update_session(self, session_id: int, user_id: int, phone_number: str) -> bool:
         print(session_id)
         print(user_id)
@@ -191,7 +209,7 @@ class Database:
                 WHERE id = ?
             """, (session_id, )) as cursor:
                 row = await cursor.fetchone()
-                is_new = row['user_id'] is None 
+                is_new = row['user_id'] is None
             await self._db.execute("""
                 UPDATE sessions
                 SET user_id = ?, phone_number = ?
@@ -215,8 +233,8 @@ class Database:
             ) as cursor:
                 await self._db.commit()
                 return str(cursor.lastrowid)
-            
-            
+
+
     async def edit_smm_message(self, id: int, text: str, photo: str) -> str | None:
         async with self._lock:
             async with self._db.execute("""
@@ -232,7 +250,7 @@ class Database:
                     text,
                     photo or row['photo'] or None,
                     id
-                ) 
+                )
             )
             await self._db.commit()
 
@@ -334,7 +352,7 @@ class Database:
                 )
             )
             await self._db.commit()
-    
+
 
     ### ====================== Methods for parse_source ======================= ###
 
@@ -368,7 +386,7 @@ class Database:
                     }
                 else:
                     return None
-    
+
 
     ### ======================== Methods for users ============================ ###
 
@@ -455,7 +473,7 @@ class Database:
             """) as cursor:
                 return {(user_id, session_id): False async for (user_id, session_id) in cursor}
 
-    
+
     async def write_unread_dialogs(self, dialogs: dict):
         async with self._lock:
             for (user_id, session_id), was_read in dialogs.items():
