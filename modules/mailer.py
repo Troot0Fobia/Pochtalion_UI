@@ -7,7 +7,7 @@ import base64
 from dataclasses import dataclass
 from datetime import datetime
 from modules.client_wrapper import ClientWrapper
-from telethon.errors import PeerFloodError, InputUserDeactivatedError, ForbiddenError, AuthKeyUnregisteredError, FloodWaitError, UsernameNotOccupiedError
+from telethon.errors import PeerFloodError, InputUserDeactivatedError, ForbiddenError, AuthKeyUnregisteredError, FloodWaitError, UsernameNotOccupiedError, ChannelPrivateError
 from core.logger import setup_logger
 from telethon.types import PeerUser
 
@@ -212,15 +212,19 @@ class Mailer:
 
         self.logger.info(f"Received chat entity {chat_entity.id}")
         if source_data['chat_type'] == "broadcast" and source_post_id is not None:
-            async for comment in session_client.iter_messages(chat_entity, reply_to=source_post_id):
-                sender = await comment.get_sender() # InputPeerUser
-                self.logger.debug(f"Received needed user for mailing of type: {type(sender)}")
-                if isinstance(sender, PeerUser) and sender.id == user_id:
-                    user_entity = sender
-                    # await session_client.get_input_entity(sender)
-                    self.logger.info(f"Received from broadcast user entity with id: {sender.id}")
-                    # await self.main_window.database.add_user_to_session(sender.user_id, session_id)
-                    break
+            try:
+                async for comment in session_client.iter_messages(chat_entity, reply_to=source_post_id):
+                    sender = await comment.get_sender() # InputPeerUser
+                    self.logger.debug(f"Received needed user for mailing of type: {type(sender)}")
+                    if isinstance(sender, PeerUser) and sender.id == user_id:
+                        user_entity = sender
+                        # await session_client.get_input_entity(sender)
+                        self.logger.info(f"Received from broadcast user entity with id: {sender.id}")
+                        # await self.main_window.database.add_user_to_session(sender.user_id, session_id)
+                        break
+            except Exception as e:
+                self.logger.error(f"Unexpected error occured. Skip group {source_data['chat_username']}", exc_info=True)
+                return None
         elif source_data['chat_type'] in ("megagroup", "gigagroup", "chat"):
             if source_post_id is not None:
                 message = await session_client.get_messages(chat_entity, ids=source_post_id)
@@ -232,13 +236,20 @@ class Mailer:
                         self.logger.info(f"Received from group from message {message.id} user entity with id: {sender.id}")
                         # await self.main_window.database.add_user_to_session(sender.user_id, session_id)
             else:
-                async for user in session_client.iter_participants(chat_entity):
-                    if user.id == user_id:
-                        user_entity = user
-                        # await session_client.get_input_entity(user_entity)
-                        self.logger.info(f"Received from open particitpants user entity id: {user.id}")
-                        # await self.main_window.database.add_user_to_session(user_entity.id, session_id)
-                        break
+                try:
+                    async for user in session_client.iter_participants(chat_entity):
+                        if user.id == user_id:
+                            user_entity = user
+                            # await session_client.get_input_entity(user_entity)
+                            self.logger.info(f"Received from open particitpants user entity id: {user.id}")
+                            # await self.main_window.database.add_user_to_session(user_entity.id, session_id)
+                            break
+                except ChannelPrivateError as e:
+                    self.logger.error(f"Channel privacy corrupted. Skip channel {source_data['chat_username']}", exc_info=True)
+                    return None
+                except Exception as e:
+                    self.logger.error(f"Unexpected error occured. Skip channel {source_data['chat_username']}", exc_info=True)
+                    return None
 
         if user_entity:
             try:
