@@ -1,7 +1,10 @@
 let bridge = null;
 let temp_text = '';
 let temp_photo = '';
-let selected_sessions = null;
+let selectedParseSessions = {};
+let selectedMailSessions = {};
+let sessionsList = [];
+let openedSettingsTabName = undefined
 
 new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge = channel.objects.settingsBridge;
@@ -19,6 +22,7 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
 
 
 async function openSettingsTab(tab_name) {
+    openedSettingsTabName = tab_name
     document.querySelectorAll('.tab').forEach(
         elem => elem.classList.remove('active-tab')
     );
@@ -31,16 +35,18 @@ async function openSettingsTab(tab_name) {
     } else if (tab_name === 'mailing') {
         document.getElementById('mailing-tab').classList.add('active-tab');
         document.getElementById('mailing-tab-block').classList.add('active-tab-block');
-        if (!document.getElementById('start-mailing-button').disabled) {
-            selected_sessions = null;
-            document.getElementById('mailing-account-count').innerText = 0;
+        const isDisabled = document.getElementById('start-mailing-button').disabled
+        const selectedSessionsCount = Object.keys(selectedMailSessions).length
+        if (!isDisabled) {
+            document.getElementById('mailing-account-count').innerText = String(selectedSessionsCount);
         }
     } else if (tab_name === 'parsing') {
         document.getElementById('parsing-tab').classList.add('active-tab');
         document.getElementById('parsing-tab-block').classList.add('active-tab-block');
-        if (!document.getElementById('start-parsing-button').disabled) {
-            selected_sessions = null;
-            document.getElementById('parse-account-count').innerText = 0;
+        const isDisabled = document.getElementById('start-parsing-button').disabled
+        const selectedSessionsCount = Object.keys(selectedParseSessions).length
+        if (!isDisabled) {
+            document.getElementById('parse-account-count').innerText = String(selectedSessionsCount);
         }
     } else if (tab_name === 'smm') {
         document.getElementById('smm-tab').classList.add('active-tab');
@@ -373,6 +379,20 @@ async function loadChooseSessions() {
 }
 
 function renderChooseSessions(sessions_str) {
+    const isChecked = sessId => {
+        if (
+            openedSettingsTabName === 'mailing' &&
+            Boolean(selectedMailSessions?.[sessId]) && 'checked'
+        ) {
+            return 'checked'
+        }
+        if (openedSettingsTabName === 'parsing' &&
+            Boolean(selectedParseSessions?.[sessId]) && 'checked'
+        ) {
+            return 'checked'
+        }
+        return null
+    }
     const sessions = JSON.parse(sessions_str);
     const modal = document.getElementById('session-modal');
     const sessionList = document.getElementById('session-list');
@@ -382,10 +402,13 @@ function renderChooseSessions(sessions_str) {
         const div = document.createElement('div');
         div.innerHTML = `
         <label>
-            <input type="checkbox"
+            <input
+                type="checkbox"
                 value="${session.session_id}"
                 class="session-checkbox"
-                data-file="${session.session_file}">
+                data-file="${session.session_file}"
+                ${isChecked(session.session_id)}
+            >
             ${session.session_file}
         </label>
         `;
@@ -400,23 +423,32 @@ function closeSessionModal() {
 }
 
 function confirmSelectedSessions() {
-    selected_sessions = {};
-    document.querySelectorAll('.session-checkbox:checked').forEach(cb => {
-        const session_id = parseInt(cb.value, 10);
-        const session_file = cb.dataset.file;
-        selected_sessions[session_id] = session_file;
-    });
-    
-    const radio_tab_id = document.querySelector('input[name="settings-tabs"][type="radio"]:checked')?.id;
-    const count = Object.keys(selected_sessions).length;
-    
-    if (radio_tab_id === 'tabparsing')
-        document.getElementById('parse-account-count').innerText = count;
-    else if (radio_tab_id === 'tabmailing')
-        document.getElementById('mailing-account-count').innerText = count;
-
-    closeSessionModal();
+    if (openedSettingsTabName === 'mailing') {
+        // обнуляем объект с сохраненными сессиями
+        selectedMailSessions = {}
+        document.querySelectorAll('.session-checkbox:checked').forEach(cb => {
+            const session_id = parseInt(cb.value, 10);
+            const session_file = cb.dataset.file;
+            selectedMailSessions[session_id] = session_file;
+        });
+        const count = Object.keys(selectedMailSessions).length;
+        document.getElementById('mailing-account-count').innerText = String(count);
+        closeSessionModal();
+    }
+    if (openedSettingsTabName === 'parsing') {
+        // обнуляем объект с сохраненными сессиями
+        selectedParseSessions = {}
+        document.querySelectorAll('.session-checkbox:checked').forEach(cb => {
+            const session_id = parseInt(cb.value, 10);
+            const session_file = cb.dataset.file;
+            selectedParseSessions[session_id] = session_file;
+        });
+        const count = Object.keys(selectedParseSessions).length;
+        document.getElementById('parse-account-count').innerText = String(count);
+        closeSessionModal();
+    }
 }
+
 
 async function startParsing() {
     const parse_links = document.getElementById('parse-links').value.trim();
@@ -425,7 +457,7 @@ async function startParsing() {
     const is_parse_messages = document.getElementById('parse-group-messages').classList.contains('active-type');
     const count_of_messages = document.getElementById('messages-parse-count').value;
 
-    if (!selected_sessions || selected_sessions.length === 0 || !parse_links
+    if (!selectedParseSessions || selectedParseSessions.length === 0 || !parse_links
         || is_parse_channel && !count_of_posts
         || !is_parse_channel && is_parse_messages && !count_of_messages) {
             bridge.show_notification("Введите корректные данные");
@@ -438,7 +470,7 @@ async function startParsing() {
         count_of_posts,
         is_parse_messages,
         count_of_messages,
-        selected_sessions
+        selected_sessions: selectedParseSessions,
     }
     await bridge.startParsing(JSON.stringify(parse_data));
 }
@@ -495,7 +527,7 @@ async function startMailing() {
         is_parse_usernames,
         mailing_data,
         delay,
-        selected_sessions
+        selected_sessions: selectedMailSessions,
     };
 
     await bridge.startMailing(JSON.stringify(mail_data));
