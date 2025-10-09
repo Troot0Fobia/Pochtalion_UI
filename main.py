@@ -1,11 +1,21 @@
-import sys
 import asyncio
-from pathlib import Path
-from qasync import QEventLoop, QApplication
-from ui.pochtalion_ui import Pochtalion_UI
+import sys
+
+from qasync import QApplication, QEventLoop
+
 from core.paths import (
-    ASSETS, USERS_DATA, PROFILE_PHOTOS, LOGS, TMP, DATABASE, SMM_IMAGES, SESSIONS, SETTINGS
+    ASSETS,
+    DATABASE,
+    LOGS,
+    PROFILE_PHOTOS,
+    SESSIONS,
+    SETTINGS,
+    SMM_IMAGES,
+    TMP,
+    USERS_DATA,
 )
+from ui.pochtalion_ui import Pochtalion_UI
+
 
 async def main():
     app = QApplication(sys.argv)
@@ -21,7 +31,7 @@ async def main():
 
     with loop:
         loop.run_until_complete(app_close_event.wait())
-    
+
     window.close()
     app.quit()
     sys.exit(0)
@@ -38,6 +48,8 @@ def init_folders():
     SESSIONS.mkdir(parents=True, exist_ok=True)
     SETTINGS.mkdir(parents=True, exist_ok=True)
 
+
 if __name__ == "__main__":
     init_folders()
     asyncio.run(main())
+

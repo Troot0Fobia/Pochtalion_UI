@@ -1,4 +1,4 @@
-__version__ = "0.0.1"
+__version__ = "0.0.5"
 
 # USERS STATUSES:
 # 0: 000 - user wroten by himself
@@ -31,4 +31,3 @@ __version__ = "0.0.1"
 # #C0392B
 # #8E2A20
 
-# datetime.datetime.now(datetime.UTC).timestamp()
