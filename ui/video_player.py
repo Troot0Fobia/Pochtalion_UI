@@ -1,21 +1,27 @@
-from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QPushButton, QSlider, QHBoxLayout, QLabel
-)
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
-from PyQt6.QtMultimediaWidgets import QVideoWidget
-from PyQt6.QtCore import Qt, QUrl, QTimer
-from PyQt6.QtGui import QAction
 from pathlib import Path
+
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
+from PyQt6.QtMultimediaWidgets import QVideoWidget
+from PyQt6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSlider,
+    QVBoxLayout,
+)
 
 
 class VideoDialog(QDialog):
+
     def __init__(self, video_path: str, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Видео")
-        self.setModal(False)        
+        self.setModal(False)
         self.resize(800, 600)
 
-        self.video_path = Path(video_path.replace('../', '')).resolve()
+        self.video_path = Path(video_path.replace("../", "")).resolve()
         if not self.video_path.exists():
             raise FileNotFoundError(f"{self.video_path} not found")
 
@@ -77,7 +83,11 @@ class VideoDialog(QDialog):
 
     def update_position(self, position):
         self.slider.setValue(position)
-        self.time_label.setText(self.format_time(position) + " / " + self.format_time(self.player.duration()))
+        self.time_label.setText(
+            self.format_time(position)
+            + " / "
+            + self.format_time(self.player.duration())
+        )
 
     def update_duration(self, duration):
         self.slider.setRange(0, duration)
@@ -96,3 +106,4 @@ class VideoDialog(QDialog):
         #     # self.player.stop()
         #     self.player.deleteLater()
         event.accept()
+

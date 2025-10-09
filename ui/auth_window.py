@@ -1,9 +1,15 @@
 from PyQt6.QtWidgets import (
-    QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
 )
-from PyQt6.QtCore import Qt
+
 
 class AuthWindow(QDialog):
+
     def __init__(self, parent, session_file):
         super().__init__(parent)
         self.setWindowTitle("Авторизация Telegram")
@@ -55,9 +61,8 @@ class AuthWindow(QDialog):
         self.future = None
         self._result = None
 
-
     def next_step(self, step):
-        if step == "code": 
+        if step == "code":
             self.state = "code"
             self.phone_input.setDisabled(True)
             self.code_label.show()
@@ -68,7 +73,6 @@ class AuthWindow(QDialog):
             self.password_label.show()
             self.password_input.show()
 
-    
     def _on_send_clicked(self):
         if self.state == "phone":
             self._result = self.phone_input.text().strip()
@@ -79,15 +83,15 @@ class AuthWindow(QDialog):
         if self.future:
             self.future.set_result(self._result)
 
-
     def _on_cancel_clicked(self):
         if self.future:
             self.future.set_result(None)
         self.close()
 
-
     async def get_input_async(self):
         import asyncio
+
         self.future = asyncio.get_event_loop().create_future()
         self.show()
         return await self.future
+
