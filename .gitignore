@@ -1,6 +1,7 @@
 __pycache__
 database
 venv
+.venv
 /assets
 logs
 tmp

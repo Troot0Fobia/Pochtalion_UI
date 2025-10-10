@@ -59,7 +59,9 @@ class ClientWrapper:
         self._status = 0  # 0 - not running | 1 - running | 2 - processing
         self.is_new = True
 
-    async def start(self, phone_number: str | None = None, is_module: bool = False) -> bool:
+    async def start(
+        self, phone_number: str | None = None, is_module: bool = False
+    ) -> bool:
         if self._status:
             self.main_window.show_notification(
                 "Внимание", f"Сессия {self._session_file} уже запущена"
@@ -67,11 +69,13 @@ class ClientWrapper:
             return False
         self._status = 2
         try:
-            self._client.start(
+            start_func = self._client.start(
                 phone=phone_number or self.phone_callback,
                 code_callback=self.code_callback,
                 password=self.password_callback,
             )
+            if isawaitable(start_func):
+                await start_func
         except AuthCanceled:
             self.logger.warning(f"{self.session_file}\tUser cancelled authentication")
             self.auth_window.close()
@@ -720,4 +724,3 @@ class UserInfoDialog(QDialog):
     def write_to_user(self):
         print("Написать пользователю нажато")
         self.done(2)  # Можно вернуть код 2 для обработки
-
