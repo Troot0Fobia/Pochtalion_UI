@@ -96,17 +96,21 @@ class Mailer:
         self.total_users_count = len(self.mail_data)
 
         if self.is_mail_from_usernames:
+            usernames = [data["username"] for data in self.mail_data]
             entities = []
+            seen = set()
             for session_info in self.session_wrappers:
-                if not entities:
-                    entities = await session_info.wrapper.client.get_entity(
-                        [data["username"] for data in self.mail_data]
-                    )
-                    self.logger.info("Entities received.")
-                else:
-                    await session_info.wrapper.client.get_entity(
-                        [data["username"] for data in self.mail_data]
-                    )
+                for username in usernames:
+                    try:
+                        entity = await session_info.wrapper.client.get_entity(username)
+                        if entity.id not in seen:
+                            seen.add(entity.id)
+                            entities.append(entity)
+                    except Exception as e:
+                        self.logger.error(
+                            f"Error while receiving entity from username: {e}",
+                            exc_info=True,
+                        )
 
             self.mail_data = entities
 
