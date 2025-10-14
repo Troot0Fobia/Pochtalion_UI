@@ -54,7 +54,7 @@ class Mailer:
 
         self.smm_messages = await self.main_window.database.get_smm_messages()
         if not self.smm_messages:
-            self.logger.info("User doesn't provide correct data, no mailing messages")
+            self.logger.info("User doesn't provide mailing messages")
             self.main_window.show_notification("Внимание", "Нет сообщений для рассылки")
             return
 
@@ -71,11 +71,16 @@ class Mailer:
         else:
             self.mail_data = await self.main_window.database.get_users_for_sending()
 
-        if not self.session_files or not self.delay_between_messages.isdigit():
-            self.logger.info(
-                "User doesn't provide correct data, session files or delay between messages"
+        if not self.session_files:
+            self.logger.info("User doesn't provide sessions")
+            self.main_window.show_notification("Внимание", "Сессии не выбраны")
+            return
+
+        if not self.delay_between_messages.isdigit():
+            self.logger.info("User doesn't provide correct delay between messages")
+            self.main_window.show_notification(
+                "Внимание", "Неправильная задержка между сообщениями"
             )
-            self.main_window.show_notification("Внимание", "Некорректные данные")
             return
 
         if not self.mail_data:
@@ -149,6 +154,9 @@ class Mailer:
                     self.logger.info("No entity received from data")
                     continue
                 user_id = entity.user_id
+                await self.main_window.database.add_user_to_session(
+                    user_id, session_info.session_id
+                )
 
             self.logger.debug(f"Received entity for mailing {user_id}")
             if smm_message["photo"]:
@@ -162,6 +170,8 @@ class Mailer:
             }
 
             try:
+                if not self.is_mail_from_usernames:
+                    await self.main_window.database.set_user_to_sended(user_id)
                 await session_info.wrapper.sendMessage(user_id, json.dumps(message))
             except PeerFloodError as e:
                 self.logger.error(
@@ -202,15 +212,10 @@ class Mailer:
                 continue
 
             await session_info.wrapper.process_new_user(entity, smm_message["text"])
-            # await self.main_window.database.add_user_to_session(user_id, session_info.session_id)
             session_info.sent_count += 1
-
-            if not self.is_mail_from_usernames:
-                await self.main_window.database.set_user_to_sended(user_id)
 
             await asyncio.sleep(self.delay_between_messages or random.randint(3, 9))
 
-        # await self.finish_sessions()
         await self.stop()
 
     async def get_user_entity(self, user_data, session_client, session_id):
@@ -276,7 +281,6 @@ class Mailer:
                         self.logger.debug(
                             f"Received from broadcast user entity with id: {sender.id}"
                         )
-                        # await self.main_window.database.add_user_to_session(sender.user_id, session_id)
                         break
             except Exception as e:
                 self.logger.error(
@@ -297,7 +301,6 @@ class Mailer:
                             self.logger.debug(
                                 f"Received from group from message {message.id} user entity with id: {sender.id}"
                             )
-                            # await self.main_window.database.add_user_to_session(sender.user_id, session_id)
                 else:
                     async for user in session_client.iter_participants(chat_entity):
                         if user.id == user_id:
@@ -305,7 +308,6 @@ class Mailer:
                             self.logger.debug(
                                 f"Received from open particitpants user entity with id: {user.id}"
                             )
-                            # await self.main_window.database.add_user_to_session(user_entity.id, session_id)
                             break
             except ChannelPrivateError as e:
                 self.logger.error(
@@ -342,7 +344,6 @@ class Mailer:
                 pass
         self.update_task = None
         self.main_window.settings_bridge.finishMailing.emit()
-        # await self.finish_sessions()
 
     async def start_sessions(self):
         session_manager = self.main_window.session_manager
@@ -378,12 +379,6 @@ class Mailer:
         self.logger.debug(f"After change wrappers {self.session_wrappers}")
         self.sessions_count = len(self.session_wrappers)
 
-    # async def finish_sessions(self):
-    #     for session_info in self.session_wrappers:
-    #         if session_info.was_started:
-    #             await self.main_window.session_manager.stop_session(session_info.wrapper.session_file)
-    #     self.session_wrappers = []
-
     async def sendUpdate(self):
         while self._running:
             total_processed_users = sum([s.sent_count for s in self.session_wrappers])
@@ -414,3 +409,4 @@ class Mailer:
     @property
     def running(self):
         return self._running
+
