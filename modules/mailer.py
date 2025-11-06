@@ -370,7 +370,7 @@ class Mailer:
         )
         if session and session.was_started:
             self.logger.debug("Session was started from module")
-            # await self.main_window.session_manager.stop_session(session.wrapper.session_file)
+            await self.main_window.session_manager.stop_session(session.wrapper.session_file)
 
         self.logger.debug(f"Before change wrappers {self.session_wrappers}")
         self.session_wrappers = [
