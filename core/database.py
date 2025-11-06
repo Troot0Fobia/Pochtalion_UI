@@ -209,9 +209,83 @@ class Database:
                 await self._db.commit()
                 return str(cursor.lastrowid)
 
-    async def delete_session(self, session_id: int) -> list:
+    async def delete_session(self, session_id: int, delete_mode: int) -> list:
         user_ids = []
         async with self._lock:
+            if delete_mode == 1:
+                async with self._db.execute(
+                    """
+                        SELECT user_id
+                        FROM user_sessions
+                        WHERE session_id = ?
+                    """,
+                    (session_id,),
+                ) as cursor:
+                    async for (user_id,) in cursor:
+                        user_ids.append(user_id)
+
+                await self._db.execute(
+                    """
+                    DELETE FROM user_sessions
+                    WHERE user_id IN ?
+                """,
+                    (user_ids,),
+                )
+
+                await self._db.execute(
+                    """
+                    DELETE FROM sessions WHERE id = ?
+                """,
+                    (session_id,),
+                )
+            elif delete_mode == 2:
+                async with self._db.execute(
+                    """
+                    SELECT user_id
+                    FROM user_sessions us
+                    LEFT JOIN (
+                        SELECT user_id
+                        FROM users
+                        WHERE user_id = us.user_id AND sended=1
+                    )
+                    WHERE session_id = ?
+                """,
+                    (session_id,),
+                ) as cursor:
+                    async for (user_id,) in cursor:
+                        user_ids.append(user_id)
+
+                await self._db.execute(
+                    """
+                    DELETE FROM sessions WHERE id = ?
+                """,
+                    (session_id,),
+                )
+                pass
+            elif delete_mode == 3:
+                async with self._db.execute(
+                    """
+                    SELECT user_id
+                    FROM user_sessions us
+                    LEFT JOIN (
+                        SELECT user_id
+                        FROM users
+                        WHERE user_id = us.user_id AND sended=0
+                    )
+                    WHERE session_id = ?
+                """,
+                    (session_id,),
+                ) as cursor:
+                    async for (user_id,) in cursor:
+                        user_ids.append(user_id)
+
+                await self._db.execute(
+                    """
+                    DELETE FROM sessions WHERE id = ?
+                """,
+                    (session_id,),
+                )
+                pass
             async with self._db.execute(
                 """
                 SELECT user_id
@@ -236,9 +310,6 @@ class Database:
     async def update_session(
         self, session_id: int, user_id: int, phone_number: str
     ) -> bool:
-        print(session_id)
-        print(user_id)
-        print(phone_number)
         is_new = None
         async with self._lock:
             async with self._db.execute(
@@ -714,4 +785,3 @@ class Database:
             ) as cursor:
                 row = await cursor.fetchone()
                 return row["profile_photo"] if row else None
-
