@@ -4,5 +4,6 @@
     "dialog_filters": [true, true, true, true, true],
     "api_keys": "",
     "parse_admins": false,
-    "load_chats": false
+    "load_chats": false,
+    "force_delete_chats": false
 }

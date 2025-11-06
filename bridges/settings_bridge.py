@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QMainWindow
 from qasync import asyncSlot
 
 from core.paths import PROFILE_PHOTOS, SESSIONS, SMM_IMAGES, USERS_DATA
+from ui.confirm_delete_session import ConfirmDelete
 
 from .base_bridge import BaseBridge
 
@@ -25,6 +26,7 @@ class SettingsBridge(BaseBridge):
     finishMailing = pyqtSignal()
     sessionChangedState = pyqtSignal(str, str)
     renderSettings = pyqtSignal(str)
+    removeSessionRow = pyqtSignal(str)
 
     def __init__(self, main_window: QMainWindow, database):
         super().__init__(main_window, database)
@@ -71,24 +73,32 @@ class SettingsBridge(BaseBridge):
 
     @asyncSlot(str, str)
     async def deleteSession(self, session_id_str, session_name):
-        session_manager = self.main_window.session_manager
-        if session_manager is not None:
-            await session_manager.stop_session(session_name)
-        session_id = int(session_id_str)
-        user_ids = await self.database.delete_session(session_id)
-        try:
-            (SESSIONS / session_name).unlink(missing_ok=True)
-            for user_id in user_ids:
-                shutil.rmtree(
-                    USERS_DATA / f"{user_id}_{session_name}", ignore_errors=True
+        if self.main_window.settings_manager.get_setting("force_delete_chats"):
+            res = 1
+        else:
+            res = ConfirmDelete.ask()
+
+        if res != -1:
+            try:
+                if session_manager := self.main_window.session_manager:
+                    await session_manager.stop_session(session_name)
+
+                user_ids = await self.database.delete_session(int(session_id_str), res)
+                self.removeSessionRow.emit(session_id_str)
+                self.sidebar_bridge.deleteSessionFromSelect.emit(session_id_str)
+                (SESSIONS / session_name).unlink(missing_ok=True)
+
+                for user_id in user_ids:
+                    shutil.rmtree(
+                        USERS_DATA / f"{user_id}_{session_name}", ignore_errors=True
+                    )
+                shutil.rmtree(PROFILE_PHOTOS / session_name, ignore_errors=True)
+            except Exception as e:
+                self.main_window.show_notification("Ошибка", "Ошибка удаления сессии")
+                self.logger.error(
+                    f"{self.__class__.__name__}\tError while deleting session {session_name}: {e}",
+                    exc_info=True,
                 )
-            shutil.rmtree(PROFILE_PHOTOS / session_name, ignore_errors=True)
-            self.sidebar_bridge.deleteSessionFromSelect.emit(session_id_str)
-        except Exception as e:
-            self.logger.error(
-                f"{self.__class__.__name__}\tError while deleting session {session_name}: {e}",
-                exc_info=True,
-            )
 
     @asyncSlot()
     async def loadSMM(self):
@@ -227,4 +237,3 @@ class SettingsBridge(BaseBridge):
     async def refreshSessionManager(self):
         if self.main_window.settings_manager.get_setting("api_keys"):
             await self.main_window.refreshSessionManager()
-

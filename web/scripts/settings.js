@@ -18,16 +18,20 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.finishMailing.connect(finishMailing);
     bridge.sessionChangedState.connect(sessionChangedState);
     bridge.renderSettings.connect(renderSettings);
+    bridge.removeSessionRow.connect(removeSessionRow);
 });
 
 async function openSettingsTab(tab_name) {
     openedSettingsTabName = tab_name;
+
     document
         .querySelectorAll(".tab")
         .forEach((elem) => elem.classList.remove("active-tab"));
+
     document
         .querySelectorAll(".tab-block")
         .forEach((elem) => elem.classList.remove("active-tab-block"));
+
     if (tab_name === "chatting") {
         document.getElementById("chatting-tab").classList.add("active-tab");
         document
@@ -87,7 +91,6 @@ function renderSettingsSessions(sessions_json) {
         const row = document.createElement("div");
         row.className = "row";
         row.dataset.id = session.session_id;
-        // <input type="checkbox" ${session.is_active ? 'checked' : ''}>
         row.innerHTML = `
             <div class="session-info">
                 Сессия: <span class="session-name">${session.session_file}</span> Номер телефона: <span class="session-phone">${session.phone_number}</span>
@@ -135,7 +138,12 @@ async function deleteSession(elem) {
     const session_name = row.querySelector(".session-name").innerText;
 
     await bridge.deleteSession(session_id, session_name);
-    row.remove();
+}
+
+function removeSessionRow(session_id) {
+    document
+        .querySelector(`#sessions-list .row[data-id="${session_id}"]`)
+        ?.remove();
 }
 
 async function startSession(elem) {
@@ -611,7 +619,7 @@ function renderSettings(settings_str) {
 
         if (!elem) continue;
 
-        if (elem.type === 'checkbox') {
+        if (elem.type === "checkbox") {
             elem.checked = Boolean(value);
         } else {
             elem.value = value;
@@ -644,4 +652,3 @@ async function refreshSessionManager() {
 function resetSettings() {
     bridge.resetSettings();
 }
-
