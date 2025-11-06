@@ -20,28 +20,34 @@
             <h1>Настройки</h1>
             <div class="settings-list">
                 <div class="row">
-                    <div class="settings-row">    
+                    <div class="settings-row">
                         <div class="setting-name">API ключи для работы</div>
                         <input type="text" name="api_keys" id="api-keys" onblur="changeSettings(this)" placeholder="<api_id>:<api_hash>">
                         <div class="button" id="refresh-session-manager" onclick="refreshSessionManager()">Обновить ключи</div>
                     </div>
                 </div>
                 <div class="row">
-                    <div class="settings-row">    
+                    <div class="settings-row">
                         <input type="checkbox" name="force_parse_to_db" id="force-parse-to-db" onchange="changeSettings(this)">
                         <div class="setting-name">Автоматически добавлять пользователей в Базу Данных</div>
                     </div>
                 </div>
                 <div class="row">
-                    <div class="settings-row">    
+                    <div class="settings-row">
                         <input type="checkbox" name="fetch_sessions_old_dialogs" id="fetch-sessions-old-dialogs" onchange="changeSettings(this)">
                         <div class="setting-name">Получать старые диалоги сессии</div>
                     </div>
                 </div>
                 <div class="row">
-                    <div class="settings-row">    
+                    <div class="settings-row">
                         <input type="checkbox" name="parse_admins" id="parse-admins" onchange="changeSettings(this)">
                         <div class="setting-name">Парсить админов и модераторов</div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="settings-row">
+                        <input type="checkbox" name="load_chats" id="load-chats" onchange="changeSettings(this)">
+                        <div class="setting-name">Загружать чаты при старте</div>
                     </div>
                 </div>
             </div>

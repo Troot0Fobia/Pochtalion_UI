@@ -19,6 +19,7 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.renderMessageNotifications.connect(renderMessageNotifications);
     bridge.setUnreadDialog.connect(setUnreadDialog);
     bridge.renderFilters.connect(renderFilters);
+    bridge.renderLoadChatsBtn.connect(renderLoadChatsBtn);
 });
 
 async function searchUsername() {
@@ -134,13 +135,9 @@ function renderDialogs(dialogs_raw) {
         } else
             profile_photo = `<img src="assets/images/profile.png" alt="${dialog.profile_photo}" class="profile-photo"></img>`;
 
-        // ${dialog.profile_photo.endsWith('.mp4')
-        //     ? "<video src" + dialog
-        //     : "<img src=" + dialog.profile_photo ? '../assets/profile_photos/' + session_filename + '/' + dialog.profile_photo : 'assets/images/profile.png'}" alt="${dialog.profile_photo}" class="profile-photo"></img>
-        // }
         const user_full_name = `${dialog.first_name} ${dialog.last_name}`;
         dialog_div.innerHTML = `
-            <div class="lef-side">
+            <div class="left-side">
                 ${profile_photo}
             </div>
             <div class="right-side">
@@ -179,6 +176,18 @@ function renderDialogs(dialogs_raw) {
         sidebar.appendChild(dialog_div);
     });
     filterEntities();
+}
+
+function renderLoadChatsBtn() {
+    const btn = document.createElement("button");
+    btn.textContent = "Загрузить диалоги";
+    btn.className = "button";
+    btn.onclick = () => {
+        btn.remove();
+        const select_elem = document.getElementById("choose-session");
+        bridge.loadDialogs(String(select_elem.value));
+    };
+    document.getElementById("dialogs").appendChild(btn);
 }
 
 function openFilter() {
@@ -263,4 +272,3 @@ function renderMessageNotifications(notifications_str) {
 function openSettings() {
     bridge.openSettings();
 }
-
