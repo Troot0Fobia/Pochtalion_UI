@@ -605,12 +605,18 @@ function finishMailing() {
 
 function renderSettings(settings_str) {
     const settings = JSON.parse(settings_str);
-    let setting_elem = document.getElementById("force-parse-to-db");
-    setting_elem.checked = settings.force_parse_to_db;
-    setting_elem = document.getElementById("fetch-sessions-old-dialogs");
-    setting_elem.checked = settings.fetch_sessions_old_dialogs;
-    setting_elem = document.getElementById("api-keys");
-    setting_elem.value = settings.api_keys;
+
+    for (const [key, value] of Object.entries(settings)) {
+        const elem = document.getElementById(key.replaceAll("_", "-"));
+
+        if (!elem) continue;
+
+        if (elem.type === 'checkbox') {
+            elem.checked = Boolean(value);
+        } else {
+            elem.value = value;
+        }
+    }
 }
 
 function changeSettings(elem) {

@@ -15,6 +15,7 @@ class SidebarBridge(BaseBridge):
     renderMessageNotifications = pyqtSignal(str)
     setUnreadDialog = pyqtSignal(str)
     renderFilters = pyqtSignal(str)
+    renderLoadChatsBtn = pyqtSignal()
 
     def __init__(self, main_window: QMainWindow, database):
         super().__init__(main_window, database)
@@ -54,20 +55,27 @@ class SidebarBridge(BaseBridge):
             f"{self.__class__.__name__}\tUser changed session to {session['session_file']}"
         )
         self.main_window.active_session = session
-        dialogs = await self.database.get_users_from_session(int(session["session_id"]))
-        if dialogs:
-            unread_dialogs = self.main_window.notification_manager.get_unread_dialogs(
+
+        if self.main_window.settings_manager.get_setting("load_chats"):
+            if dialogs := await self.database.get_users_from_session(
                 int(session["session_id"])
-            )
-            self.logger.debug(
-                (
-                    f"{self.__class__.__name__}\tCurrent session {session}\n\n"
-                    f"Current dialogs: {dialogs}\n\n"
-                    f"And unread dialogs: {unread_dialogs}"
+            ):
+                unread_dialogs = (
+                    self.main_window.notification_manager.get_unread_dialogs(
+                        int(session["session_id"])
+                    )
                 )
-            )
-            for dialog in dialogs:
-                dialog["is_read"] = dialog["user_id"] not in unread_dialogs
+
+                for dialog in dialogs:
+                    dialog["is_read"] = dialog["user_id"] not in unread_dialogs
+
+                self.renderDialogs.emit(json.dumps(dialogs))
+        else:
+            self.renderLoadChatsBtn.emit()
+
+    @asyncSlot(str)
+    async def loadDialogs(self, session_id_str):
+        if dialogs := await self.database.get_users_from_session(int(session_id_str)):
             self.renderDialogs.emit(json.dumps(dialogs))
 
     @asyncSlot(str)
@@ -114,4 +122,3 @@ class SidebarBridge(BaseBridge):
     @pyqtSlot(str)
     def show_notification(self, message):
         self.main_window.show_notification("Внимание", message)
-

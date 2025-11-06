@@ -9,14 +9,8 @@ from PyQt6.QtCore import QMargins, QSize, Qt, QUrl
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWidgets import (
-    QApplication,
-    QMainWindow,
-    QSplitter,
-    QStackedWidget,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QSplitter,
+                             QStackedWidget, QVBoxLayout, QWidget)
 from qasync import asyncClose, asyncSlot
 
 from bridges import chat_bridge, settings_bridge, sidebar_bridge
@@ -118,21 +112,22 @@ class Pochtalion_UI(QMainWindow):
     async def loadSidebar(self):
         filter_settings = self.settings_manager.get_setting("dialog_filters")
         self.sidebar_bridge.renderFilters.emit(json.dumps(filter_settings))
-        sessions = await self.database.get_sessions()
-        if sessions:
+        if sessions := await self.database.get_sessions():
             self.active_session = sessions[0]
             self.sidebar_bridge.renderSelectSessions.emit(json.dumps(sessions))
 
-            dialogs = await self.database.get_users_from_session(
-                sessions[0]["session_id"]
-            )
-            if dialogs:
-                unread_dialogs = self.notification_manager.get_unread_dialogs(
+            if self.settings_manager.get_setting("load_chats"):
+                if dialogs := await self.database.get_users_from_session(
                     sessions[0]["session_id"]
-                )
-                for dialog in dialogs:
-                    dialog["is_read"] = dialog["user_id"] not in unread_dialogs
-                self.sidebar_bridge.renderDialogs.emit(json.dumps(dialogs))
+                ):
+                    unread_dialogs = self.notification_manager.get_unread_dialogs(
+                        sessions[0]["session_id"]
+                    )
+                    for dialog in dialogs:
+                        dialog["is_read"] = dialog["user_id"] not in unread_dialogs
+                    self.sidebar_bridge.renderDialogs.emit(json.dumps(dialogs))
+            else:
+                self.sidebar_bridge.renderLoadChatsBtn.emit()
 
     def initSessionManager(self):
         if self._session_manager is not None:
@@ -151,7 +146,7 @@ class Pochtalion_UI(QMainWindow):
             )
         except ValueError as e:
             self.show_notification("Внимание", "API ключи неверные")
-            self.logger.error("User entered incorrect api keys", exc_info=True)
+            self.logger.error(f"User entered incorrect api keys: {e}", exc_info=True)
 
     @property
     def session_manager(self):
@@ -213,4 +208,3 @@ class Pochtalion_UI(QMainWindow):
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)
         msg.setModal(False)
         msg.show()
-
