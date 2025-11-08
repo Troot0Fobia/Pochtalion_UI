@@ -127,13 +127,13 @@ class Database:
         )
         await db.execute(
             """
-            CREATE TRIGGER IF NOT EXISTS delete_messages_if_user_does_not_exist
-            AFTER DELETE ON users
-            BEGIN
-                DELETE FROM messages
-                WHERE chat_id = OLD.user_id;
-            END;
-        """
+                CREATE TRIGGER IF NOT EXISTS delete_messages_if_user_does_not_exist
+                AFTER DELETE ON users
+                BEGIN
+                    DELETE FROM messages
+                    WHERE chat_id = OLD.user_id;
+                END;
+            """
         )
 
         await db.commit()
@@ -186,45 +186,42 @@ class Database:
                 await self._db.commit()
                 return str(cursor.lastrowid)
 
-    async def delete_session(self, session_id: int, delete_mode: int) -> list:
-        user_ids = []
+    async def delete_session(
+        self, session_id: int, delete_mode: int
+    ) -> list[int] | dict[int, list[int]]:
+        user_ids: list[int] = []
+        message_ids: dict[int, list[int]] = {}
 
         async with self._lock:
-            if delete_mode == 2:
-                sended_filter = "AND sended = 1"
-            elif delete_mode == 3:
-                sended_filter = "AND sended = 0"
-            else:
-                sended_filter = ""
-
-            where_clause = f"""
-                WHERE user_id IN (
-                    SELECT user_id
-                    FROM user_sessions
-                    WHERE session_id = ?
-                ) {sended_filter}
-            """
-
-            async with self._db.execute(
-                f"""
-                    SELECT user_id
-                    FROM users
-                    {where_clause}
-                """,
-                (session_id,),
-            ) as cursor:
-                async for (user_id,) in cursor:
-                    user_ids.append(user_id)
-
-            await self._db.execute(
-                f"""
-                    DELETE FROM messages
-                    {where_clause}
-                """,
-                (session_id,),
-            )
-
             if delete_mode != 0:
+                # Selecting the type of users to delete
+                if delete_mode == 2:
+                    sended_filter = "AND sended = 1"
+                elif delete_mode == 3:
+                    sended_filter = "AND sended = 0"
+                else:
+                    sended_filter = ""
+
+                where_clause = f"""
+                    WHERE user_id IN (
+                        SELECT user_id
+                        FROM user_sessions
+                        WHERE session_id = ?
+                    ) {sended_filter}
+                """
+
+                # Save users' ids to delete users' data
+                async with self._db.execute(
+                    f"""
+                        SELECT user_id
+                        FROM users
+                        {where_clause}
+                    """,
+                    (session_id,),
+                ) as cursor:
+                    async for (user_id,) in cursor:
+                        user_ids.append(user_id)
+
                 await self._db.execute(
                     f"""
                         DELETE FROM users
@@ -232,10 +229,31 @@ class Database:
                     """,
                     (session_id,),
                 )
+            else:
+                # Otherwise save messages' ids and connected
+                # users ids to delete media files
+                async with self._db.execute(
+                    """
+                        SELECT chat_id, message_id
+                        FROM messages
+                        WHERE session_id = ?
+                    """,
+                    (session_id,),
+                ) as cursor:
+                    async for (
+                        chat_id,
+                        message_id,
+                    ) in cursor:
+                        if chat_id not in message_ids:
+                            message_ids[chat_id] = []
+                        message_ids[chat_id].append(message_id)
 
             await self._db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
             await self._db.commit()
 
+        if delete_mode == 0:
+            return message_ids
+        else:
             return user_ids
 
     async def update_session(
