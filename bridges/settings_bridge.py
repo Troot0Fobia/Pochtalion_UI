@@ -47,6 +47,8 @@ class SettingsBridge(BaseBridge):
     @asyncSlot(str, str, str)
     async def saveSession(self, fileName, base64data, phone_number):
         if not fileName and not base64data:
+            if not phone_number:
+                return
             fileName = f"{int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp())}_telethon.session"
             open(SESSIONS / fileName, "a").close()
         else:
@@ -65,6 +67,7 @@ class SettingsBridge(BaseBridge):
         json_session = json.dumps([session])
         self.renderSettingsSessions.emit(json_session)
         self.sidebar_bridge.renderSelectSessions.emit(json_session)
+
         if phone_number:
             session_manager = self.main_window.session_manager
             if session_manager is None:
@@ -83,16 +86,30 @@ class SettingsBridge(BaseBridge):
                 if session_manager := self.main_window.session_manager:
                     await session_manager.stop_session(session_name)
 
-                user_ids = await self.database.delete_session(int(session_id_str), res)
-                self.removeSessionRow.emit(session_id_str)
-                self.sidebar_bridge.deleteSessionFromSelect.emit(session_id_str)
+                ids = await self.database.delete_session(int(session_id_str), res)
                 (SESSIONS / session_name).unlink(missing_ok=True)
 
-                for user_id in user_ids:
-                    shutil.rmtree(
-                        USERS_DATA / f"{user_id}_{session_name}", ignore_errors=True
-                    )
+                if res == 0:
+                    # If not delete user then delete messages'
+                    # files which linked with session
+                    for user_id, message_ids in ids.items():
+                        folder = USERS_DATA / f"{user_id}_{session_name}"
+                        for message_id in message_ids:
+                            for file in folder.glob(f"{message_id}[._]*"):
+                                file.unlink(missing_ok=True)
+                        if not any(folder.iterdir()):
+                            folder.rmdir()
+                else:
+                    # Else delete whole folder with user data
+                    # linked with deleted session
+                    for user_id in ids:
+                        shutil.rmtree(
+                            USERS_DATA / f"{user_id}_{session_name}", ignore_errors=True
+                        )
+
                 shutil.rmtree(PROFILE_PHOTOS / session_name, ignore_errors=True)
+                self.removeSessionRow.emit(session_id_str)
+                self.sidebar_bridge.deleteSessionFromSelect.emit(session_id_str)
             except Exception as e:
                 self.main_window.show_notification("Ошибка", "Ошибка удаления сессии")
                 self.logger.error(
