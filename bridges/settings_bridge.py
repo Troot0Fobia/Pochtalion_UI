@@ -73,7 +73,10 @@ class SettingsBridge(BaseBridge):
 
     @asyncSlot(str, str)
     async def deleteSession(self, session_id_str, session_name):
-        res = ConfirmDelete.ask()
+        if self.main_window.settings_manager.get_setting("force_delete_chats"):
+            res = 1
+        else:
+            res = ConfirmDelete.ask()
 
         if res != -1:
             try:
@@ -85,12 +88,11 @@ class SettingsBridge(BaseBridge):
                 self.sidebar_bridge.deleteSessionFromSelect.emit(session_id_str)
                 (SESSIONS / session_name).unlink(missing_ok=True)
 
-                if res != 0:
-                    for user_id in user_ids:
-                        shutil.rmtree(
-                            USERS_DATA / f"{user_id}_{session_name}", ignore_errors=True
-                        )
-                    shutil.rmtree(PROFILE_PHOTOS / session_name, ignore_errors=True)
+                for user_id in user_ids:
+                    shutil.rmtree(
+                        USERS_DATA / f"{user_id}_{session_name}", ignore_errors=True
+                    )
+                shutil.rmtree(PROFILE_PHOTOS / session_name, ignore_errors=True)
             except Exception as e:
                 self.main_window.show_notification("Ошибка", "Ошибка удаления сессии")
                 self.logger.error(

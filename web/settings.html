@@ -50,6 +50,12 @@
                         <div class="setting-name">Загружать чаты при старте</div>
                     </div>
                 </div>
+                <div class="row">
+                    <div class="settings-row">
+                        <input type="checkbox" name="force_delete_chats" id="force-delete-chats" onchange="changeSettings(this)">
+                        <div class="setting-name">Принудительно удалять чаты при удалении сессии</div>
+                    </div>
+                </div>
             </div>
             <div class="button reset-settings" onclick="resetSettings()">Сбросить настройки</div>
         </div>

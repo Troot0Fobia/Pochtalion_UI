@@ -125,36 +125,13 @@ class Database:
             )
         """
         )
-        # # TEMP
         await db.execute(
             """
-            DROP TRIGGER IF EXISTS delete_user_if_no_sessions
-        """
-        )
-        await db.execute(
-            """
-            CREATE TRIGGER IF NOT EXISTS delete_user_if_no_sessions
-            AFTER DELETE ON user_sessions
-            BEGIN
-                DELETE FROM users
-                WHERE user_id = OLD.user_id
-                AND sended != 0
-                AND NOT EXISTS (
-                    SELECT 1 FROM user_sessions WHERE user_id = OLD.user_id
-                );
-            END;
-        """
-        )
-        await db.execute(
-            """
-            CREATE TRIGGER IF NOT EXISTS delete_messages_if_user_has_no_sessions
-            AFTER DELETE ON user_sessions
+            CREATE TRIGGER IF NOT EXISTS delete_messages_if_user_does_not_exist
+            AFTER DELETE ON users
             BEGIN
                 DELETE FROM messages
-                WHERE chat_id = OLD.user_id
-                AND NOT EXISTS (
-                    SELECT 1 FROM user_sessions WHERE user_id = OLD.user_id
-                );
+                WHERE chat_id = OLD.user_id;
             END;
         """
         )
@@ -211,101 +188,55 @@ class Database:
 
     async def delete_session(self, session_id: int, delete_mode: int) -> list:
         user_ids = []
+
         async with self._lock:
-            if delete_mode == 1:
-                async with self._db.execute(
-                    """
-                        SELECT user_id
-                        FROM user_sessions
-                        WHERE session_id = ?
-                    """,
-                    (session_id,),
-                ) as cursor:
-                    async for (user_id,) in cursor:
-                        user_ids.append(user_id)
-
-                await self._db.execute(
-                    """
-                    DELETE FROM user_sessions
-                    WHERE user_id IN ?
-                """,
-                    (user_ids,),
-                )
-
-                await self._db.execute(
-                    """
-                    DELETE FROM sessions WHERE id = ?
-                """,
-                    (session_id,),
-                )
-            elif delete_mode == 2:
-                async with self._db.execute(
-                    """
-                    SELECT user_id
-                    FROM user_sessions us
-                    LEFT JOIN (
-                        SELECT user_id
-                        FROM users
-                        WHERE user_id = us.user_id AND sended=1
-                    )
-                    WHERE session_id = ?
-                """,
-                    (session_id,),
-                ) as cursor:
-                    async for (user_id,) in cursor:
-                        user_ids.append(user_id)
-
-                await self._db.execute(
-                    """
-                    DELETE FROM sessions WHERE id = ?
-                """,
-                    (session_id,),
-                )
-                pass
+            if delete_mode == 2:
+                sended_filter = "AND sended = 1"
             elif delete_mode == 3:
-                async with self._db.execute(
-                    """
-                    SELECT user_id
-                    FROM user_sessions us
-                    LEFT JOIN (
-                        SELECT user_id
-                        FROM users
-                        WHERE user_id = us.user_id AND sended=0
-                    )
-                    WHERE session_id = ?
-                """,
-                    (session_id,),
-                ) as cursor:
-                    async for (user_id,) in cursor:
-                        user_ids.append(user_id)
+                sended_filter = "AND sended = 0"
+            else:
+                sended_filter = ""
 
-                await self._db.execute(
-                    """
-                    DELETE FROM sessions WHERE id = ?
-                """,
-                    (session_id,),
-                )
-                pass
+            where_clause = f"""
+                WHERE user_id IN (
+                    SELECT user_id
+                    FROM user_sessions
+                    WHERE session_id = ?
+                ) {sended_filter}
+            """
+
             async with self._db.execute(
-                """
-                SELECT user_id
-                FROM user_sessions
-                WHERE session_id = ?
-            """,
+                f"""
+                    SELECT user_id
+                    FROM users
+                    {where_clause}
+                """,
                 (session_id,),
             ) as cursor:
                 async for (user_id,) in cursor:
                     user_ids.append(user_id)
 
             await self._db.execute(
-                """
-                DELETE FROM sessions WHERE id = ?
-            """,
+                f"""
+                    DELETE FROM messages
+                    {where_clause}
+                """,
                 (session_id,),
             )
+
+            if delete_mode != 0:
+                await self._db.execute(
+                    f"""
+                        DELETE FROM users
+                        {where_clause}
+                    """,
+                    (session_id,),
+                )
+
+            await self._db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
             await self._db.commit()
 
-        return user_ids
+            return user_ids
 
     async def update_session(
         self, session_id: int, user_id: int, phone_number: str
