@@ -125,18 +125,6 @@ class Database:
             )
         """
         )
-        # # TEMP
-        await db.execute(
-            """
-            DROP TRIGGER IF EXISTS delete_user_if_no_sessions
-        """
-        )
-        # # TEMP
-        await db.execute(
-            """
-            DROP TRIGGER IF EXISTS delete_messages_if_user_has_no_sessions
-            """
-        )
         await db.execute(
             """
             CREATE TRIGGER IF NOT EXISTS delete_messages_if_user_does_not_exist
