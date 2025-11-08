@@ -31,7 +31,9 @@ class SidebarBridge(BaseBridge):
         self.logger.info(
             f"{self.__class__.__name__}\tUser changed dialog to {dialog_id}"
         )
-        self.main_window.openChatWindow()
+        if self.main_window.current_chat == int(dialog_id):
+            self.main_window.openChatWindow()
+            self.main_window.current_chat = None
         user_id = int(dialog_id)
         session_id = int(self.main_window.active_session["session_id"])
         self.main_window.current_chat = user_id
