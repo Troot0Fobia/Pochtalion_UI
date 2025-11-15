@@ -206,11 +206,12 @@ class SettingsBridge(BaseBridge):
                     # files which linked with session
                     for user_id, message_ids in ids.items():
                         folder = USERS_DATA / f"{user_id}_{session_name}"
-                        for message_id in message_ids:
-                            for file in folder.glob(f"{message_id}[._]*"):
-                                file.unlink(missing_ok=True)
-                        if not any(folder.iterdir()):
-                            folder.rmdir()
+                        if folder.exists():
+                            for message_id in message_ids:
+                                for file in folder.glob(f"{message_id}[._]*"):
+                                    file.unlink(missing_ok=True)
+                            if not any(folder.iterdir()):
+                                folder.rmdir()
                 else:
                     # Else delete whole folder with user data
                     # linked with deleted session
