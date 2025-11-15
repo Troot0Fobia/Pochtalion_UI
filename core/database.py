@@ -10,7 +10,7 @@ import appdirs
 import tzlocal
 from pytz import timezone
 
-from core.paths import DATABASE
+from core.paths import DATABASE, SMM_VOICES
 from core.utils import resource_path
 
 DB_PATH = DATABASE / "database.db"
@@ -65,6 +65,17 @@ class Database:
                 photo TEXT DEFAULT NULL
             )
         """
+        )
+        await db.execute(
+            """
+                CREATE TABLE IF NOT EXISTS smm_voices (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    description TEXT DEFAULT NULL,
+                    selected INTEGER DEFAULT 0,
+                    path TEXT UNIQUE NOT NULL
+                )
+            """
         )
         await db.execute(
             """
@@ -282,6 +293,19 @@ class Database:
             await self._db.commit()
         return is_new
 
+    async def get_session_user_id(self, session_id: int) -> int:
+        async with self._lock:
+            async with self._db.execute(
+                """
+                    SELECT user_id
+                    FROM sessions
+                    WHERE id = ?
+                """,
+                (session_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return row["user_id"] or 0
+
     # ## ==================== Methods for sending messages ===================== ###
 
     async def add_smm_message(self, text: str, photo: str) -> str:
@@ -345,23 +369,138 @@ class Database:
         async with self._lock:
             async with self._db.execute(
                 """
-                SELECT photo FROM smm_messages WHERE id = ?
-            """,
+                    SELECT photo
+                    FROM smm_messages
+                    WHERE id = ?
+                """,
                 (id,),
             ) as cursor:
                 row = await cursor.fetchone()
 
             await self._db.execute(
                 """
-                DELETE FROM smm_messages
-                WHERE id = ?
-            """,
+                    DELETE FROM smm_messages
+                    WHERE id = ?
+                """,
                 (id,),
             )
 
             await self._db.commit()
 
             return row["photo"]
+
+    # ## ===================== Methods for sending voices ======================= ###
+    async def add_voice_message(
+        self, name: str, description: str, path: str, selected: bool = False
+    ) -> str:
+        async with self._lock:
+            async with self._db.execute(
+                """
+                    INSERT INTO smm_voices (name, description, selected, path)
+                    VALUES (?, ?, ?, ?)
+                """,
+                (name, description, int(selected), path),
+            ) as cursor:
+                await self._db.commit()
+                return str(cursor.lastrowid)
+
+    async def get_voice_message(self, id: int) -> dict:
+        async with self._lock:
+            async with self._db.execute(
+                """
+                    SELECT name, description, selected, path
+                    FROM smm_voices
+                    WHERE id = ?
+                """,
+                (id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return {
+                    "name": row["name"],
+                    "desc": row["description"],
+                    "selected": bool(row["selected"]),
+                    "path": str(SMM_VOICES / row["path"]),
+                }
+
+    async def get_voice_messages(self) -> list[dict]:
+        voice_msgs = []
+        async with self._lock:
+            async with self._db.execute(
+                """
+                    SELECT id, name, description, selected, path
+                    FROM smm_voices
+                """,
+            ) as cursor:
+                async for (id, name, desc, selected, path,) in cursor:
+                    voice_msgs.append(
+                        {
+                            "id": id,
+                            "name": name,
+                            "desc": desc,
+                            "selected": bool(selected),
+                            "path": str(SMM_VOICES / path),
+                        }
+                    )
+
+        return voice_msgs
+
+    async def get_voices_for_mailing(self) -> list:
+        voices = []
+        async with self._lock:
+            async with self._db.execute(
+                """
+                    SELECT path
+                    FROM smm_voices
+                    WHERE selected = 1
+                """
+            ) as cursor:
+                async for (path,) in cursor:
+                    voices.append(path)
+
+        return voices
+
+
+    async def toggle_voice_message_selection(self, id: int, selected: bool) -> bool:
+        async with self._lock:
+            async with self._db.execute(
+                """
+                    UPDATE smm_voices
+                    SET selected = ?
+                    WHERE id = ?
+                """,
+                (
+                    int(selected),
+                    id,
+                ),
+            ) as cursor:
+                changed = cursor.rowcount > 0
+                await self._db.commit()
+                return changed
+
+    async def delete_voice_message(self, id: int) -> str | None:
+        async with self._lock:
+            async with self._db.execute(
+                """
+                    SELECT path
+                    FROM smm_voices
+                    WHERE id = ?
+                """,
+                (id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+
+            async with self._db.execute(
+                """
+                    DELETE FROM smm_voices
+                    WHERE id = ?
+                """,
+                (id,),
+            ) as cursor:
+                changed = cursor.rowcount > 0
+                await self._db.commit()
+                if changed:
+                    return row["path"]
+                return None
 
     # ## ========================= Methods for messages ========================= ###
 
@@ -370,11 +509,11 @@ class Database:
         async with self._lock:
             async with self._db.execute(
                 """
-                SELECT id, message_id, text, attachment, attachment_type, is_out, created_at
-                FROM messages
-                WHERE chat_id = ? AND session_id = ?
-                ORDER BY created_at ASC, message_id ASC
-            """,
+                    SELECT id, message_id, text, attachment, attachment_type, is_out, created_at
+                    FROM messages
+                    WHERE chat_id = ? AND session_id = ?
+                    ORDER BY created_at ASC, message_id ASC
+                """,
                 (
                     chat_id,
                     session_id,

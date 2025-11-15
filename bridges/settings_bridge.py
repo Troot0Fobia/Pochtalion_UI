@@ -4,20 +4,20 @@ import datetime
 import json
 import shutil
 import uuid
+from pathlib import Path
 
 import puremagic
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import QMainWindow
 from qasync import asyncSlot
 
-from core.paths import PROFILE_PHOTOS, SESSIONS, SMM_IMAGES, USERS_DATA
+from core.paths import (PROFILE_PHOTOS, SESSIONS, SMM_IMAGES, SMM_VOICES, USERS_DATA)
 from ui.confirm_delete_session import ConfirmDelete
 
 from .base_bridge import BaseBridge
 
 
 class SettingsBridge(BaseBridge):
-    renderSettingsSessions = pyqtSignal(str)
+    renderSessions = pyqtSignal(str, bool)
     renderSMMMessages = pyqtSignal(str)
     renderChooseSessions = pyqtSignal(str)
     renderParsingProgressData = pyqtSignal(str)
@@ -27,22 +27,134 @@ class SettingsBridge(BaseBridge):
     sessionChangedState = pyqtSignal(str, str)
     renderSettings = pyqtSignal(str)
     removeSessionRow = pyqtSignal(str)
+    renderVoiceMessages = pyqtSignal(str)
+    removeVoiceMessageRow = pyqtSignal(str)
+    renderObjects = pyqtSignal(str, str, str, str, bool)
 
-    def __init__(self, main_window: QMainWindow, database):
+    def __init__(self, main_window, database):
         super().__init__(main_window, database)
 
-    @asyncSlot()
-    async def loadSettingsSessions(self):
+    @asyncSlot(bool)
+    async def loadSessions(self, isSettings: bool):
         sessions = await self.database.get_sessions()
-        active_sessions = {}
-        session_manager = self.main_window.session_manager
-        if session_manager is not None:
-            active_sessions = session_manager.get_active_sessions()
-        for s in sessions:
-            s["file_exists"] = (SESSIONS / s["session_file"]).exists()
-            s["status"] = active_sessions.get(s["session_file"], 0)
+        if isSettings:
+            active_sessions = {}
+            if session_manager := self.main_window.session_manager:
+                active_sessions = session_manager.get_active_sessions()
+            for s in sessions:
+                s["file_exists"] = (SESSIONS / s["session_file"]).exists()
+                s["status"] = active_sessions.get(s["session_file"], 0)
 
-        self.renderSettingsSessions.emit(json.dumps(sessions))
+        self.renderSessions.emit(json.dumps(sessions), isSettings)
+
+    @asyncSlot()
+    async def loadVoiceMessages(self) -> None:
+        voice_msgs = await self.database.get_voice_messages()
+        self.renderVoiceMessages.emit(json.dumps(voice_msgs))
+
+    @asyncSlot(str, str, str)
+    async def addVoiceMessage(self, name: str, desc: str, path: str) -> None:
+        path = path.replace("../", "")
+        voice_data = []
+        voice_path = Path(path)
+
+        if not voice_path.exists():
+            self.main_window.show_notification(
+                "Ошибка",
+                f"Файл голосового сообщения не найден по пути {voice_path.absolute()}",
+            )
+            self.logger.error(
+                f"Provided path for saving voice message {voice_path.absolute()} does not exist"
+            )
+        elif not name:
+            self.main_window.show_notification(
+                "Ошибка", "Название сообщения не может быть пустым"
+            )
+        else:
+            filename = f"{uuid.uuid4().hex}{puremagic.ext_from_filename(voice_path)}"
+            new_path = SMM_VOICES / filename
+            shutil.copy(voice_path, new_path)
+            voice_id = await self.database.add_voice_message(name, desc, filename)
+            voice_data = [
+                {
+                    "id": voice_id,
+                    "name": name,
+                    "desc": desc,
+                    "selected": False,
+                    "path": str(new_path),
+                }
+            ]
+        self.renderVoiceMessages.emit(json.dumps(voice_data))
+
+    @asyncSlot(str, bool)
+    async def changeVoiceSelect(self, voice_id_str: str, selected: bool) -> None:
+        await self.database.toggle_voice_message_selection(int(voice_id_str), selected)
+
+    @asyncSlot(str)
+    async def deleteVoiceMessage(self, voice_id_str: str) -> None:
+        if path := await self.database.delete_voice_message(int(voice_id_str)):
+            Path(path).unlink(missing_ok=True)
+            self.removeVoiceMessageRow.emit(voice_id_str)
+
+    @asyncSlot(str, str, bool)
+    async def get_session_dialogs(
+        self, session_id_str: str, session_file: str, isFavorite: bool
+    ) -> None:
+        dialogs: list[dict] = []
+
+        try:
+            if not session_file:
+                self.logger.warning(
+                    f"There is no session_file provided for receiving session '{session_id_str}' dialogs"
+                )
+            else:
+                if isFavorite:
+                    if session_user_id := await self.main_window.database.get_session_user_id(
+                        int(session_id_str)
+                    ):
+                        dialogs = [{"id": session_user_id, "title": "Избранное"}]
+                    else:
+                        self.logger.warning(
+                            f"There is no session with id {session_id_str}"
+                        )
+                else:
+                    if session_manager := self.main_window.session_manager:
+                        dialogs = await session_manager.get_session_dialogs(
+                            int(session_id_str), session_file
+                        )
+        except Exception as e:
+            self.logger.error(
+                f"Error occured while receiving session '{session_file}' dialogs: {e}",
+                exc_info=True,
+            )
+
+        self.renderObjects.emit(
+            "dialogs", session_id_str, session_file, json.dumps(dialogs), isFavorite
+        )
+
+    @asyncSlot(str, str, str)
+    async def get_dialog_voices(
+        self, dialog_id_str: str, session_id_str: str, session_file: str
+    ) -> None:
+        voices = []
+
+        try:
+            if not session_file:
+                self.logger.warning(
+                    f"There is no session_file provided for receiving dialog '{dialog_id_str}' voices"
+                )
+            else:
+                if session_manager := self.main_window.session_manager:
+                    voices = await session_manager.get_dialog_voices(
+                        int(session_id_str), session_file, int(dialog_id_str)
+                    )
+        except Exception as e:
+            self.logger.error(
+                f"Error occured while receiving dialog '{dialog_id_str}' voices: {e}",
+                exc_info=True,
+            )
+
+        self.renderObjects.emit("voices", dialog_id_str, "", json.dumps(voices), False)
 
     @asyncSlot(str, str, str)
     async def saveSession(self, fileName, base64data, phone_number):
@@ -65,7 +177,7 @@ class SettingsBridge(BaseBridge):
         if not self.main_window.active_session:
             self.main_window.active_session = session
         json_session = json.dumps([session])
-        self.renderSettingsSessions.emit(json_session)
+        self.renderSessions.emit(json_session, True)
         self.sidebar_bridge.renderSelectSessions.emit(json_session)
 
         if phone_number:

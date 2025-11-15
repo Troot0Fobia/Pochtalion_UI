@@ -6,6 +6,9 @@ html, body {
     background-color: #27284A;
     color: #ffffff;
     font-family: Arial, Helvetica, sans-serif;
+    user-select: none;
+    scrollbar-color: #EDEBE5 transparent;
+    scrollbar-width: thin;
 }
 .settings {
     display: flex;
@@ -16,6 +19,8 @@ html, body {
 .tabs {
     display: flex;
     flex-direction: row;
+    width: 100%;
+    justify-content: space-around;
 }
 
 .tab {
@@ -23,6 +28,7 @@ html, body {
     gap: 30px;
     border-radius: 15px 15px 0 0;
     cursor: pointer;
+    text-align: center;
 }
 
 .tab-block {
@@ -33,7 +39,7 @@ html, body {
 }
 
 .active-tab-block {
-    display: flex;
+    display: flex !important;
 }
 
 .column {
@@ -51,9 +57,7 @@ html, body {
     flex-direction: column;
 }
 
-.select-mailing-type,
-.select-parse-type,
-.channel-parse-type {
+.select-type {
     display: flex;
     flex-direction: row;
     gap: 10px;
@@ -148,7 +152,8 @@ input::-webkit-inner-spin-button {
 
 .start-button,
 .accept-btn,
-.start-session-btn {
+.start-session-btn,
+.add-voice-window .add-button {
     background-color: #2E8B57;
 }
 
@@ -159,7 +164,8 @@ input::-webkit-inner-spin-button {
 
 .start-button:not([disabled]):hover,
 .accept-btn:hover,
-.start-session-btn:hover {
+.start-session-btn:hover,
+.add-voice-window .add-button:hover {
     background-color: #17b935;
 }
 
@@ -167,7 +173,8 @@ input::-webkit-inner-spin-button {
 .delete-btn,
 .cancel-btn,
 .stop-session-btn,
-.reset-settings {
+.reset-settings,
+.add-voice-window .cancel-button {
     background-color: #bd2918;
 }
 
@@ -180,7 +187,8 @@ input::-webkit-inner-spin-button {
 .delete-btn:hover,
 .cancel-btn:hover,
 .stop-session-btn:hover,
-.reset-settings:hover {
+.reset-settings:hover,
+.add-voice-window .cancel-button:hover {
     background-color: #f2301b;
 }
 
@@ -229,12 +237,344 @@ textarea {
     min-width: 300px;
 }
 
+.smm-tab {
+    width: 100%;
+}
+
+#smm-tab-block {
+    padding-top: 10px;
+}
+
 .smm-block,
 .smm-message-list {
     display: flex;
     flex-direction: column;
     width: 100%;
     gap: 10px;
+}
+
+.smm-block {
+    display: none;
+}
+
+.smm-session-container-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+}
+
+.title-icon {
+    width: 20px;
+    height: 20px;
+	rotate: -90deg;
+	transition: rotate 0.3s;
+}
+
+.title-icon.open {
+	rotate: 0deg;
+}
+
+.smm-session-container-block {
+    margin-top: 10px;
+    display: none;
+    padding: 20px;
+    background-color: #07001391;
+    border: 2px solid #EDEBE5;
+    border-radius: 10px;
+}
+
+.smm-session-container-block .row {
+    cursor: pointer;
+}
+
+.smm-session-container-block .row:hover {
+    background-color: #2639a6;
+    color: white;
+}
+
+.smm-voice-messages-container {
+    margin-top: 20px;
+}
+
+.smm-voice-messages-block {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    flex-direction: column;
+}
+
+.row-content {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.voice-desc-viewport {
+    width: 100%;
+    overflow: hidden;
+}
+
+.desc-data-block {
+    width: 100%;
+    max-height: 200px;
+    overflow: hidden auto;
+}
+
+.voice-message-row-side {
+    display: flex;
+    gap: 10px;
+    /* width: 50%; */
+}
+
+.voice-desc-slider {
+    width: 200%;
+    display: flex;
+    align-items: center;
+    transition: transform 0.5s;
+}
+
+.audio-player {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    line-height: 1;
+}
+
+.play-btn {
+    background: transparent;
+    border: none;
+    color: #3585db;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+}
+
+.progress {
+    flex-grow: 1;
+    accent-color: #3585db;
+    cursor: pointer;
+}
+
+.voice-message-desc-btn {
+    background: #3585db;
+    border-radius: 50%;
+    color: #edebe5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    font-size: 22px;
+    aspect-ratio: 1 / 1;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.voice-desc {
+    width: 100%;
+}
+
+.overlay {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1111;
+    width: 100%;
+    height: 100%;
+    background-color: #00000091;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 50px;
+}
+
+.open {
+    display: flex !important;
+}
+
+.smm-title-icon-btn {
+    position: absolute;
+    top: 15px;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    z-index: 1112;
+}
+
+.smm-add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    font-size: 30px;
+    cursor: pointer;
+}
+
+.smm-title-icon-btn img {
+    width: 100%;
+    height: 100%;
+}
+
+.smm-slider {
+    width: fit-content;
+    display: flex;
+    flex-direction: row;
+    overflow: hidden auto;
+    transition: transform 0.5s;
+}
+
+.slide {
+    transform: translateX(-50%);
+}
+
+.progress-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.progress-bar-container {
+    height: 10px;
+    width: 100%;
+}
+
+.progress-bar-track {
+    height: 100%;
+    background-image: linear-gradient(
+        -45deg,
+        rgb(35, 115, 236) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgb(35, 115, 236) 50%,
+        rgb(35, 115, 236) 75%,
+        transparent 75%,
+        transparent
+        );
+    background-size: 25px 25px;
+    border-radius: 20px;
+    animation: slide 0.3s linear infinite;
+}
+
+@keyframes slide {
+    0%   { background-position: 0 0; }
+    100% { background-position: 25px 0; }
+}
+
+.modal-window {
+    position: relative;
+    display: flex;
+    z-index: 1111;
+    background-color: #070013;
+    border: 2px solid #EDEBE5;
+    border-radius: 10px;
+    width: 350px;
+    display:flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 0 25px -10px white;
+}
+
+.smm-modal-window {
+    min-height: 400px;
+    max-height: 500px;
+}
+
+.add-voice-window {
+    display: none;
+    padding: 20px;
+}
+
+.add-voice-window textarea {
+    min-height: 36px;
+}
+
+#add-voice-name {
+    resize: none;
+    height: 24px;
+}
+
+#add-voice-name.attention {
+    border: 1px solid red;
+}
+
+#add-voice-desc {
+    max-height: 150px;
+}
+
+.add-voice-window .buttons {
+    justify-content: center;
+    margin: 0;
+    margin-top: 20px;
+}
+
+.add-voice-window .btn {
+    padding: 10px 5px;
+    width: 90px;
+
+}
+
+.smm-dialogs-window,
+.smm-voices-window {
+    display: flex;
+    gap: 10px;
+    flex-direction: column;
+    width: 310px;
+    padding: 20px;
+    overflow: hidden auto;
+    position: relative;
+}
+
+.dialogs-target-name,
+.voices-target-name {
+    text-align: center;
+}
+
+.smm-dialogs,
+.smm-voices {
+    display: flex;
+    gap: 10px;
+    flex-direction: column;
+    overflow: hidden auto;
+}
+
+.modal-window-row {
+    display: flex;
+    padding: 0 10px;
+    border-radius: 10px;
+    gap: 10px;
+    align-items: center;
+}
+
+.modal-window-dialog-row {
+    padding: 10px;
+    cursor: pointer;
+}
+
+.modal-window-row:hover {
+    background: #edebe5;
+    color: black;
+}
+
+.dialog-title {
+    display: flex;
+    align-items: center;
+    line-height: 1;
+    gap: 10px;
+}
+
+.favorite-icon {
+    font-size: 20px;
+    line-height: normal;
 }
 
 .icons {
@@ -250,8 +590,7 @@ textarea {
     display: flex;
     border-radius: 10px;
     flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     padding: 5px 10px;
     background-color: #EDEBE5;
     color: black;
@@ -297,6 +636,9 @@ textarea {
 }
 
 .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 5px;
     cursor: pointer;
     border-radius: 5px;
@@ -339,6 +681,7 @@ h1 {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    width: 100%;
 }
 
 .sessions-header {

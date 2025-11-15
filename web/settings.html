@@ -8,13 +8,13 @@
 </head>
 <body>
     <div class="settings" id="settings">
-        <div class="tabs">
-            <div class="tab common-tab active-tab" id="common-tab" onclick="openSettingsTab('common')">Общие</div>
-            <div class="tab chatting-tab" id="chatting-tab" onclick="openSettingsTab('chatting')">Общение</div>
-            <div class="tab mailing-tab" id="mailing-tab" onclick="openSettingsTab('mailing')">Рассылка</div>
-            <div class="tab parsing-tab" id="parsing-tab" onclick="openSettingsTab('parsing')">Парсинг</div>
-            <div class="tab smm-tab" id="smm-tab" onclick="openSettingsTab('smm')">Сообщения для рассылки</div>
-            <div class="tab sessions-tab" id="sessions-tab" onclick="openSettingsTab('sessions')">Сессии</div>
+        <div class="tabs main-tabs">
+            <div class="tab active-tab" id="common-tab" onclick="openSettingsTab('common')">Общие</div>
+            <div class="tab" id="chatting-tab" onclick="openSettingsTab('chatting')">Общение</div>
+            <div class="tab" id="mailing-tab" onclick="openSettingsTab('mailing')">Рассылка</div>
+            <div class="tab" id="parsing-tab" onclick="openSettingsTab('parsing')">Парсинг</div>
+            <div class="tab" id="smm-tab" onclick="openSettingsTab('smm')">Сообщения для рассылки</div>
+            <div class="tab" id="sessions-tab" onclick="openSettingsTab('sessions')">Сессии</div>
         </div>
         <div class="tab-block active-tab-block" id="common-tab-block">
             <h1>Настройки</h1>
@@ -69,10 +69,15 @@
                     <textarea name="mailing-usernames" id="mailing-data-field"></textarea>
                 </div>
                 <div class="column">
-                    <div class="select-mailing-type">
+                    <div class="select-type select-mailing-type">
                         <span class="active-type" id="mailing-database" onclick="changeMailingType('db')">Рассылки из базы данных</span>
                         <div>/</div>
                         <span id="mailing-usernames" onclick="changeMailingType('usernames')">Рассылка по usernames</span>
+                    </div>
+                    <div class="select-type select-message-type">
+                        <span class="active-type" id="text-message" onclick="changeMessageType('text')">Текстовые сообщения</span>
+                        <div>/</div>
+                        <span id="voice-message" onclick="changeMessageType('voice')">Голосовые сообщения</span>
                     </div>
                     <div class="timing-settings">
                         <label for="delay-between-mailing">Задержка между сообщениями, сек</label>
@@ -108,13 +113,13 @@
                     <textarea name="parse-links" id="parse-links"></textarea>
                 </div>
                 <div class="column">
-                    <div class="select-parse-type">
+                    <div class="select-type select-parse-type">
                         <span class="active-type" id="parse-group" onclick="changeParsingType('group')">Парсить группу</span>
                         <div>/</div>
                         <span id="parse-channel" onclick="changeParsingType('channel')">Парсить канал</span>
                     </div>
                     <div class="parse-group-settings" id="parse-group-settings">
-                        <div class="channel-parse-type">
+                        <div class="select-type channel-parse-type">
                             <span class="active-type" id="parse-group-participants" onclick="changeGroupParseSettings('participants')">Парсить открытых участников</span>
                             <div>/</div>
                             <span id="parse-group-messages" onclick="changeGroupParseSettings('messages')">Парсить сообщения</span>
@@ -160,7 +165,11 @@
             </div>
         </div>
         <div class="tab-block" id="smm-tab-block">
-            <div class="smm-block" id="smm-block">
+            <div class="tabs smm-tabs">
+                <div class="tab smm-tab text-tab active-tab" id="text-tab" onclick="openSMMSettingsTab('text')">Текстовые сообщения</div>
+                <div class="tab smm-tab voice-tab" id="voice-tab" onclick="openSMMSettingsTab('voice')">Голосовые сообщения</div>
+            </div>
+            <div class="smm-block text-smm-block active-tab-block" id="text-smm-block">
                 <div id="image-preview-overlay" onclick="this.style.display = 'none'">
                     <img id="image-preview-fullscreen" src="" alt="preview">
                 </div>
@@ -176,6 +185,45 @@
                 <div class="button" id="add-smm-message" onclick="addSMMMessage()"><img class="icons" src="assets/icons/add.png" alt="">Добавить сообщение</div>
                 <hr>
                 <div class="smm-message-list" id="smm-message-list"></div>
+            </div>
+            <div class="smm-block voice-smm-block" id="voice-smm-block">
+                <div class="smm-session-container">
+                    <div class="row smm-session-container-title" onclick="toggleSessionContainerView()">
+                        <span>Сессии</span>
+                        <img class="title-icon" src="assets/icons/arrow.png" alt="arrow"/>
+                    </div>
+                    <div class="smm-session-container-block" id="smm-session-container-block">
+                        <div class="sessions-list"></div>
+                    </div>
+                </div>
+                <div class="smm-voice-messages-container">
+                    <div class="smm-voice-messages-title">Голосовые сообщения</div>
+                    <div class="smm-voice-messages-block" id="smm-voice-messages-block"></div>
+                </div>
+                <div class="overlay" id="overlay">
+                    <div class="modal-window add-voice-window">
+                        <textarea maxlength="40" id="add-voice-name" placeholder="Введите название"></textarea>
+                        <textarea maxlength="200" id="add-voice-desc" placeholder="Введите описание"></textarea>
+                        <div class="buttons">
+                            <div class="btn add-button" id="add-button">Добавить</div>
+                            <div class="btn cancel-button" id="cancel-button">Отмена</div>
+                        </div>
+                    </div>
+                    <div class="modal-window smm-modal-window" id="smm-modal-window">
+                        <div class="smm-title-icon-btn" style="right: 15px;" onclick="closeModalWindow()"><img src="assets/icons/close.png"/></div>
+                        <div class="smm-slider" id="smm-slider">
+                            <div class="smm-dialogs-window" id="smm-dialogs-window">
+                                <div class="dialogs-target-name" id="dialogs-target-name"></div>
+                                <div class="smm-dialogs"></div>
+                            </div>
+                            <div class="smm-voices-window" id="smm-voices-window">
+                                <div class="smm-title-icon-btn" style="left: 15px;" onclick="goBack()"><img src="assets/icons/back.png"/></div>
+                                <div class="voices-target-name" id="voices-target-name"></div>
+                                <div class="smm-voices" id="smm-voices"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="tab-block" id="sessions-tab-block">

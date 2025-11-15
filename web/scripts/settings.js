@@ -5,11 +5,36 @@ let selectedParseSessions = {};
 let selectedMailSessions = {};
 let sessionsList = [];
 let openedSettingsTabName = undefined;
+let currentVoicePlayer = null;
+const stopPlay = () => {
+    if (!currentVoicePlayer) {
+        return;
+    }
+    currentVoicePlayer.audio.pause();
+    currentVoicePlayer.audio.currentTime = 0;
+    currentVoicePlayer.play_btn.textContent = "▶";
+    currentVoicePlayer.progress.value = 0;
+    currentVoicePlayer.time.textContent = "0:00";
+    currentVoicePlayer = null;
+};
+const observer = new MutationObserver((mutationList) => {
+    for (const mutation of mutationList) {
+        if (
+            mutation.type === "attributes" &&
+            mutation.attributeName === "class" &&
+            !mutation.target.classList.contains("active-tab-block")
+        ) {
+            toggleSessionContainerView(true);
+            stopPlay();
+            return;
+        }
+    }
+});
 
 new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge = channel.objects.settingsBridge;
 
-    bridge.renderSettingsSessions.connect(renderSettingsSessions);
+    bridge.renderSessions.connect(renderSessions);
     bridge.renderSMMMessages.connect(renderSMMMessages);
     bridge.renderChooseSessions.connect(renderChooseSessions);
     bridge.renderParsingProgressData.connect(renderParsingProgressData);
@@ -19,13 +44,23 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.sessionChangedState.connect(sessionChangedState);
     bridge.renderSettings.connect(renderSettings);
     bridge.removeSessionRow.connect(removeSessionRow);
+    bridge.renderVoiceMessages.connect(renderVoiceMessages);
+    bridge.removeVoiceMessageRow.connect(removeVoiceMessageRow);
+    bridge.renderObjects.connect(renderObjects);
+});
+
+observer.observe(document.getElementById("voice-smm-block"), {
+    attributeFilter: ["class"],
+});
+observer.observe(document.getElementById("smm-tab-block"), {
+    attributeFilter: ["class"],
 });
 
 async function openSettingsTab(tab_name) {
     openedSettingsTabName = tab_name;
 
     document
-        .querySelectorAll(".tab")
+        .querySelectorAll(".main-tabs .tab")
         .forEach((elem) => elem.classList.remove("active-tab"));
 
     document
@@ -72,7 +107,7 @@ async function openSettingsTab(tab_name) {
             .getElementById("sessions-tab-block")
             .classList.add("active-tab-block");
         document.getElementById("sessions-list").innerHTML = "";
-        await bridge.loadSettingsSessions();
+        await bridge.loadSessions(true);
     } else if (tab_name === "common") {
         document.getElementById("common-tab").classList.add("active-tab");
         document
@@ -82,31 +117,406 @@ async function openSettingsTab(tab_name) {
     }
 }
 
-function renderSettingsSessions(sessions_json) {
-    const sessions_list = document.getElementById("sessions-list");
+async function openSMMSettingsTab(tab_name) {
+    document
+        .querySelector(".smm-tabs .tab.active-tab")
+        ?.classList.remove("active-tab");
+
+    document
+        .querySelector(".tab-block .smm-block.active-tab-block")
+        ?.classList.remove("active-tab-block");
+
+    if (tab_name === "text") {
+        document.getElementById("text-tab").classList.add("active-tab");
+        document.getElementById("text-smm-block").classList.add("active-tab-block");
+    } else if (tab_name === "voice") {
+        document.getElementById("voice-tab").classList.add("active-tab");
+        document
+            .getElementById("voice-smm-block")
+            .classList.add("active-tab-block");
+        document.getElementById("smm-voice-messages-block").innerHTML = "";
+        await bridge.loadVoiceMessages();
+    }
+}
+
+function representTime(time) {
+    const m = Math.floor(time / 60);
+    const s = Math.floor(time % 60)
+        .toString()
+        .padStart(2, "0");
+    return `${m}:${s}`;
+}
+
+function createPlayer(voice_path, voice_id) {
+    const player = document.createElement("div");
+    player.dataset.id = voice_id;
+    player.className = "audio-player";
+    player.innerHTML = `
+        <div class="play-btn">▶</div>
+        <div class="time-progress">0:00</div>
+        <input type="range" class="progress" value="0" min="0" max="100">
+        <span class="duration">0:00</span>
+        <audio src="${voice_path}"></audio>
+    `;
+
+    const progress = player.querySelector(".progress");
+    const audio = player.querySelector("audio");
+    const time = player.querySelector(".time-progress");
+
+    audio.addEventListener("loadedmetadata", () => {
+        player.querySelector(".duration").textContent = representTime(
+            audio.duration,
+        );
+    });
+    progress.addEventListener("input", () => {
+        countVoiceCurrentTime(audio, progress);
+    });
+    audio.addEventListener("timeupdate", () => {
+        handleVoiceTimeUpdate(audio, progress, time);
+    });
+
+    return player;
+}
+
+function countDuration(player, audio) {
+    player.querySelector(".duration").textContent = representTime(audio.duration);
+}
+
+function countVoiceCurrentTime(audio, progress) {
+    if (!audio || !isFinite(audio.duration) || audio.duration <= 0) return;
+    audio.currentTime = (progress.value / 100) * audio.duration;
+}
+
+function handleVoiceTimeUpdate(audio, progress, time) {
+    if (!isFinite(audio.duration)) return;
+
+    if (audio.ended) {
+        stopPlay();
+        return;
+    }
+
+    progress.value = (audio.currentTime / audio.duration) * 100 || 0;
+    time.textContent = representTime(audio.currentTime);
+}
+
+document.addEventListener("click", async (e) => {
+    const target = e.target;
+    if (target.classList.contains("play-btn")) {
+        toggleVoicePlay(e.target);
+        return;
+    }
+
+    if (target.matches("div#cancel-button")) {
+        document.querySelector(".overlay .add-voice-window")?.remove("open");
+        return;
+    }
+
+    if (target.matches("div#add-button")) {
+        const add_window = document.querySelector(".overlay .add-voice-window");
+        if (add_window) {
+            const name_field = add_window.querySelector("#add-voice-name");
+            if (!name_field.value) {
+                name_field.classList.add("attention");
+                setTimeout(() => {
+                    name_field.classList.remove("attention");
+                }, 3000);
+                return;
+            }
+            const path = add_window.dataset.path;
+            const desc = add_window.querySelector("#add-voice-desc").value;
+            await bridge.addVoiceMessage(name_field.value, desc, path);
+            add_window.classList.remove("open");
+            return;
+        }
+    }
+
+    const row = target.closest(".smm-voice-messages-block .row");
+    if (!row) return;
+
+    if (target.closest(".delete-btn")) {
+        const id = row.querySelector(".audio-player")?.dataset.id;
+        if (id) await bridge.deleteVoiceMessage(String(id));
+    } else if (target.closest(".voice-message-desc-btn")) {
+        row.querySelector(".voice-desc-slider")?.classList.toggle("slide");
+    }
+});
+
+document.addEventListener("change", async (e) => {
+    if (e.target.matches(".voice-message-row-side input[type=checkbox]")) {
+        const id = e.target.closest(".row")?.querySelector(".audio-player")
+            ?.dataset.id;
+        if (id) await bridge.changeVoiceSelect(String(id), e.target.checked);
+    }
+});
+
+function toggleVoicePlay(elem) {
+    const player = elem.closest(".audio-player");
+    const player_id = player?.dataset.id;
+
+    if (currentVoicePlayer) {
+        if (currentVoicePlayer?.id === player_id) {
+            if (currentVoicePlayer.audio.paused) {
+                currentVoicePlayer.audio.play();
+                elem.textContent = "⏸";
+            } else {
+                currentVoicePlayer.audio.pause();
+                elem.textContent = "▶";
+            }
+            return;
+        } else {
+            stopPlay();
+        }
+    }
+
+    currentVoicePlayer = {
+        id: player_id,
+        player: player,
+        play_btn: player.querySelector(".play-btn"),
+        progress: player.querySelector(".progress"),
+        audio: player.querySelector("audio"),
+        time: player.querySelector(".time-progress"),
+    };
+    currentVoicePlayer.audio.play();
+    currentVoicePlayer.play_btn.textContent = "⏸";
+}
+
+async function renderVoiceMessages(voice_msgs_str) {
+    const voice_msgs = JSON.parse(voice_msgs_str);
+    const voice_messages_block = document.getElementById(
+        "smm-voice-messages-block",
+    );
+    const voices_fragment = document.createDocumentFragment();
+
+    voice_msgs.forEach((voice_msg) => {
+        const voice_row = document.createElement("div");
+        voice_row.className = "row";
+        voice_row.innerHTML = `
+            <div class="row-content">
+                <div class="voice-message-row-side">
+                    <input type="checkbox" ${voice_msg.selected ? "checked" : ""}>
+                    <div class="voice-desc-viewport">
+                        <div class="voice-desc-slider">
+                            <div class="voice-desc audio-name">${voice_msg.name}</div>
+                            <div class="voice-desc voice-message-desc">${voice_msg.desc}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="voice-message-row-side right-side">
+                    <div class="voice-message-desc-btn">🛈</div>
+                    <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete"></div>
+                </div>
+            </div>
+        `;
+        voice_row
+            .querySelector(".right-side")
+            .prepend(createPlayer(voice_msg.path, voice_msg.id));
+
+        voices_fragment.appendChild(voice_row);
+    });
+    voice_messages_block.appendChild(voices_fragment);
+}
+
+async function toggleSessionContainerView(force = null) {
+    const icon = document.querySelector(
+        ".smm-session-container-title .title-icon",
+    );
+    const block = document.querySelector("#smm-session-container-block");
+
+    if (force) {
+        icon?.classList.remove("open");
+        block?.classList.remove("open");
+        return;
+    }
+
+    const isOpen = block?.classList.toggle("open");
+    icon?.classList.toggle("open", isOpen);
+
+    if (isOpen) {
+        block.querySelector(".sessions-list").innerHTML = "";
+        await bridge.loadSessions(false);
+    }
+}
+
+function removeVoiceMessageRow(voice_msg_id_str) {
+    if (currentVoicePlayer?.id === voice_msg_id_str) {
+        stopPlay();
+    }
+
+    document
+        .querySelector(
+            `#smm-voice-messages-block .audio-player[data-id="${voice_msg_id_str}"]`,
+        )
+        ?.closest(".row")
+        ?.remove();
+}
+
+async function renderSessions(sessions_json, is_settings) {
+    console.log(sessions_json)
+    const sessions_list = document.querySelector(
+        `${is_settings ? "#sessions-tab-block" : "#smm-session-container-block"} .sessions-list`,
+    );
     if (!sessions_list) return;
 
+    const fragment = document.createDocumentFragment();
     const sessions = JSON.parse(sessions_json);
     sessions.forEach((session) => {
         const row = document.createElement("div");
         row.className = "row";
         row.dataset.id = session.session_id;
         row.innerHTML = `
-            <div class="session-info">
-                Сессия: <span class="session-name">${session.session_file}</span> Номер телефона: <span class="session-phone">${session.phone_number}</span>
-            </div>
-            <div class="buttons">
-                ${session.status === 0
-                ? '<div class="btn start-session-btn"><img src="assets/icons/start.png" alt="start session" class="icons" onclick="startSession(this)"></div>'
-                : session.status === 1
-                    ? '<div class="btn stop-session-btn"><img src="assets/icons/stop.png" alt="stop session" class="icons" onclick="stopSession(this)"></div>'
-                    : '<div class="btn" style="background-color: blue;"><div class="loader"></div></div>'
-            }
-                <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
+            <div class="row-content">
+                <div class="session-info">
+                    Сессия: <span class="session-name">${session.session_file}</span> Номер телефона: <span class="session-phone">${session.phone_number}</span>
+                </div>
             </div>
         `;
-        sessions_list.appendChild(row);
+
+        if (is_settings) {
+            let statusButton = "";
+            if (session.status === 0) {
+                statusButton = `
+                    <div class="btn start-session-btn">
+                        <img src="assets/icons/start.png" alt="start session" class="icons" onclick="startSession(this)">
+                    </div>
+                `;
+            } else if (session.status === 1) {
+                statusButton = `
+                    <div class="btn stop-session-btn">
+                        <img src="assets/icons/stop.png" alt="stop session" class="icons" onclick="stopSession(this)">
+                    </div>
+                `;
+            } else {
+                statusButton = `
+                    <div class="btn" style="background-color: blue;">
+                        <div class="loader"></div>
+                    </div>
+                `;
+            }
+            row.querySelector(".row-content").insertAdjacentHTML(
+                "beforeend",
+                `
+                <div class="buttons">
+                    ${statusButton}
+                    <div class="btn delete-btn">
+                        <img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)">
+                    </div>
+                </div>
+            `,
+            );
+        } else {
+            row.addEventListener("click", async () => {
+                pushWindow("dialogs", session.session_id, session.session_file);
+                // setTimeout(async () => {
+                await bridge.get_session_dialogs(
+                    String(session.session_id),
+                    session.session_file,
+                    true,
+                );
+                // }, 3000);
+            });
+        }
+        fragment.appendChild(row);
     });
+    sessions_list.appendChild(fragment);
+}
+
+function makeProgressBar() {
+    return '<div class="progress-bar">Загрузка...<div class="progress-bar-container"><div class="progress-bar-track"></div></div></div>';
+}
+
+function goBack() {
+    document.getElementById("smm-slider")?.classList.toggle("slide", false);
+    document.getElementById("smm-voices").innerHTML = "";
+    stopPlay();
+}
+
+function pushWindow(type, target_id_str, target_name) {
+    document.getElementById("overlay")?.classList.toggle("open", true);
+    const push_window = document.getElementById(`smm-${type}-window`);
+    push_window.querySelector(`.smm-${type}`).innerHTML = "";
+    push_window.dataset.id = target_id_str;
+    push_window.querySelector(`.${type}-target-name`).textContent = target_name;
+    push_window.insertAdjacentHTML("beforeend", makeProgressBar());
+    document
+        .getElementById("smm-slider")
+        ?.classList.toggle("slide", type === "voices");
+}
+
+async function renderObjects(
+    type,
+    target_id_str,
+    session_file,
+    targets_str,
+    isFavorite,
+) {
+    const target_window = document.getElementById(`smm-${type}-window`);
+    if (target_window.dataset.id !== target_id_str) {
+        return;
+    }
+    target_window.querySelector(".progress-bar").remove();
+
+    const targets_list = target_window.querySelector(`.smm-${type}`);
+    const fragment = document.createDocumentFragment();
+    const targets = JSON.parse(targets_str);
+
+    targets.forEach((target) => {
+        const target_row = document.createElement("div");
+        if (type === "dialogs") {
+            target_row.className = "modal-window-row modal-window-dialog-row";
+            target_row.dataset.id = target.id;
+            target_row.innerHTML = `<div class="dialog-title">${target.title}</div>`;
+            target_row.addEventListener("click", async () => {
+                pushWindow("voices", target.id, target.title);
+                // setTimeout(async () => {
+                await bridge.get_dialog_voices(
+                    String(target.id),
+                    target_id_str,
+                    session_file,
+                );
+                // }, 3000);
+            });
+        } else if (type === "voices") {
+            target_row.className = "modal-window-row";
+            target_row.appendChild(createPlayer(target.path, target.id));
+            const add_btn = document.createElement("div");
+            add_btn.className = "smm-add-btn";
+            add_btn.textContent = "+";
+            add_btn.addEventListener("click", () => {
+                const add_window = document.querySelector(".overlay .add-voice-window");
+                if (add_window) {
+                    add_window.dataset.path = target.path;
+                    add_window.querySelector("#add-voice-name").value = "";
+                    add_window.querySelector("#add-voice-desc").value = "";
+                    add_window.classList.add("open");
+                }
+            });
+            target_row.appendChild(add_btn);
+        }
+        fragment.appendChild(target_row);
+    });
+    if (isFavorite) {
+        targets_list.innerHTML = "";
+        fragment
+            .querySelector(".dialog-title")
+            ?.insertAdjacentHTML("afterbegin", `<div class="favorite-icon">★</div>`);
+        const load_more_btn = document.createElement("div");
+        load_more_btn.className = "btn";
+        load_more_btn.textContent = "Загрузить еще";
+        load_more_btn.addEventListener("click", async () => {
+            load_more_btn.remove();
+            targets_list.insertAdjacentHTML("beforeend", makeProgressBar());
+            // setTimeout(async () => {
+            await bridge.get_session_dialogs(target_id_str, session_file, false);
+            // }, 4000);
+        });
+        fragment.appendChild(load_more_btn);
+    }
+    targets_list.appendChild(fragment);
+}
+
+function closeModalWindow() {
+    document.getElementById("overlay")?.classList.toggle("open", false);
+    stopPlay();
 }
 
 async function authorizeToSession() {
@@ -203,27 +613,31 @@ async function renderSMMMessages(smm_messages_str) {
             smm_list.lastChild.querySelector(".index").innerText.slice(0, -1),
         );
 
+    const fragment = document.createDocumentFragment();
     const smm_messages = JSON.parse(smm_messages_str);
     smm_messages.forEach((smm_message, index) => {
         const row = document.createElement("div");
         row.classList = "row";
         row.dataset.id = smm_message.id;
         row.innerHTML = `
-            <div class="left-smm-side">
-                <div class="index">${last_index === -1 ? index + 1 : last_index + 1}.</div>
-                <textarea class="smm-text" disabled>${smm_message.text || ""}</textarea>
-                <label>
-                    <img class="image-preview" src="${smm_message.photo ? "../assets/smm_images/" + smm_message.photo : "assets/images/add_image.png"}" alt="add image" onclick="openImage(this)">
-                    <input type="file" accept=".jpg,.jpeg,.png" onchange="uploadImage(this)" disabled>
-                </label>
-            </div>
-            <div class="buttons">
-                <div class="btn edit-btn"><img class="icons" src="assets/icons/edit.png" alt="edit" onclick="editMessage(this)"></div>
-                <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteMessage(this)"></div>
+            <div class="row-content">
+                <div class="left-smm-side">
+                    <div class="index">${last_index === -1 ? index + 1 : last_index + 1}.</div>
+                    <textarea class="smm-text" disabled>${smm_message.text || ""}</textarea>
+                    <label>
+                        <img class="image-preview" src="${smm_message.photo ? "../assets/smm_images/" + smm_message.photo : "assets/images/add_image.png"}" alt="add image" onclick="openImage(this)">
+                        <input type="file" accept=".jpg,.jpeg,.png" onchange="uploadImage(this)" disabled>
+                    </label>
+                </div>
+                <div class="buttons">
+                    <div class="btn edit-btn"><img class="icons" src="assets/icons/edit.png" alt="edit" onclick="editMessage(this)"></div>
+                    <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteMessage(this)"></div>
+                </div>
             </div>
         `;
-        smm_list.appendChild(row);
+        fragment.appendChild(row);
     });
+    smm_list.appendChild(fragment);
 }
 
 async function uploadImage(elem) {
@@ -376,6 +790,25 @@ function changeMailingType(type) {
     }
 }
 
+function changeMessageType(type) {
+    const select_block = document.querySelector(".select-message-type");
+    if (type === "text") {
+        select_block
+            .querySelector("#voice-message")
+            .classList.remove("active-type");
+        select_block
+            .querySelector("#text-message")
+            .classList.add("active-type");
+    } else if (type === "voice") {
+        select_block
+            .querySelector("#text-message")
+            .classList.remove("active-type");
+        select_block
+            .querySelector("#voice-message")
+            .classList.add("active-type");
+    }
+}
+
 function changeParsingType(type) {
     const select_block = document.querySelector(".select-parse-type");
     if (type === "channel") {
@@ -444,16 +877,16 @@ function renderChooseSessions(sessions_str) {
     sessions.forEach((session) => {
         const div = document.createElement("div");
         div.innerHTML = `
-        <label>
-            <input
-                type="checkbox"
-                value="${session.session_id}"
-                class="session-checkbox"
-                data-file="${session.session_file}"
-                ${isChecked(session.session_id)}
-            >
-            ${session.session_file}
-        </label>
+            <label>
+                <input
+                    type="checkbox"
+                    value="${session.session_id}"
+                    class="session-checkbox"
+                    data-file="${session.session_file}"
+                    ${isChecked(session.session_id)}
+                >
+                ${session.session_file}
+            </label>
         `;
         sessionList.appendChild(div);
     });
@@ -569,18 +1002,22 @@ async function startMailing() {
     const is_parse_usernames = document
         .getElementById("mailing-usernames")
         .classList.contains("active-type");
+    const is_send_text = document
+        .getElementById("text-message")
+        .classList.contains("active-type");
     const mailing_data = document
         .getElementById("mailing-data-field")
         .value.trim();
     const delay = document.getElementById("delay-between-mailing-messages").value;
 
     if (is_parse_usernames && !mailing_data) {
-        bridge.show_notification("Введите корректные данные");
+        bridge.show_notification("Введите данные для рассылки");
         return;
     }
 
     const mail_data = {
         is_parse_usernames,
+        is_send_text,
         mailing_data,
         delay,
         selected_sessions: selectedMailSessions,

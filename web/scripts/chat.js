@@ -134,7 +134,7 @@ async function sendMessage() {
         filename: file_preview.textContent.trim(),
         base64_file: file_preview.dataset.base64,
     };
-    bridge.sendMessage(JSON.stringify(send_message));
+    await bridge.sendMessage(JSON.stringify(send_message));
     input_field.value = "";
     document.getElementById("remove-file").click();
 }

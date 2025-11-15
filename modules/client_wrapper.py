@@ -2,7 +2,6 @@ import base64
 import io
 import json
 import shutil
-from datetime import datetime
 from inspect import isawaitable
 from pathlib import Path
 from sqlite3 import IntegrityError
@@ -25,6 +24,7 @@ from telethon.errors import (
     ApiIdPublishedFloodError,
     FileMigrateError,
     PasswordHashInvalidError,
+    TakeoutInitDelayError,
     UsernameInvalidError,
 )
 
@@ -130,9 +130,12 @@ class ClientWrapper:
                     "Ошибка", "Такая сессия уже существует"
                 )
         self._register_handlers()
-        # if self.main_window.settings_manager.get_setting('fetch_sessions_old_dialogs') and not is_module:
-        if not is_module:
-            await self._fetch_dialogs()
+
+        if (
+            self.main_window.settings_manager.get_setting("fetch_sessions_old_dialogs")
+            and not is_module
+        ):
+            await self.fetch_dialogs()
         self._status = 1
         return True
 
@@ -150,70 +153,143 @@ class ClientWrapper:
         self.auth_window.next_step("password")
         return await self.auth_window.get_input_async()
 
-    async def _fetch_dialogs(self):
-        async for dialog in self._client.iter_dialogs():
-            if not dialog.is_user:
-                continue
+    async def fetch_dialogs(self) -> None:
+        try:
+            async with self._client.takeout(users=True) as takeout:
+                async for dialog in takeout.iter_dialogs():
+                    if not dialog.is_user:
+                        continue
 
-            self.logger.debug(f"{self.session_file}\t{dialog}")
-            user_id = dialog.entity.id
-            messages = []
-            last_id = 0
-            is_user_exists = await self.database.check_user_presense(user_id)
+                    self.logger.debug(f"{self.session_file}\t{dialog}")
+                    user_id = dialog.id
+                    messages = []
+                    last_id = 0
+                    is_user_exists = await self.database.check_user_presense(user_id)
 
-            if (
-                not self.main_window.settings_manager.get_setting(
-                    "fetch_sessions_old_dialogs"
-                )
-                and not is_user_exists
-                and user_id != 777000
-            ):
-                return
-
-            if is_user_exists:
-                last_id = await self.database.get_last_sync_message_id(
-                    self._session_id, user_id
-                )
-                self.logger.debug(
-                    f"{self.session_file}\tLast message id from existed user {last_id}"
-                )
-            else:
-                last_id = getattr(dialog.message, "id", 0) - 10
-                self.logger.debug(
-                    f"{self.session_file}\tLast message id from new user {last_id}"
-                )
-
-            await self.process_new_user(
-                dialog.entity,
-                dialog.message,
-                user_status=2 if self.is_new else 0,
-                sended=True,
-                is_read=dialog.message.out,
-            )
-
-            print(f"Last message id: {last_id}")
-            current_group_id = None
-            async for message in self._client.iter_messages(
-                dialog, min_id=last_id, reverse=True
-            ):
-                self.logger.debug(f"{self.session_file}\t{message}")
-                if message.grouped_id:
-                    if current_group_id == message.grouped_id:
-                        messages.append(message)
+                    if is_user_exists:
+                        last_id = await self.database.get_last_sync_message_id(
+                            self._session_id, user_id
+                        )
+                        self.logger.debug(
+                            f"{self.session_file}\tLast message id from existed user {last_id}"
+                        )
                     else:
-                        if messages:
-                            await self._process_new_messages(messages, user_id)
-                        messages = [message]
-                        current_group_id = message.grouped_id
-                else:
-                    if current_group_id:
-                        await self._process_new_messages(messages, user_id)
-                        messages = []
-                        current_group_id = None
-                    await self._process_new_messages([message], user_id)
+                        last_id = getattr(dialog.message, "id", 10) - 10
+                        self.logger.debug(
+                            f"{self.session_file}\tLast message id from new user {last_id}"
+                        )
 
-            if messages:
-                await self._process_new_messages(messages, user_id)
+                    await self.process_new_user(
+                        dialog.entity,
+                        dialog.message,
+                        user_status=2 if self.is_new else 0,
+                        sended=True,
+                        is_read=dialog.message.out,
+                    )
+
+                    current_group_id = None
+                    async for message in self._client.iter_messages(
+                        dialog, min_id=last_id, reverse=True
+                    ):
+                        self.logger.debug(f"{self.session_file}\t{message}")
+                        if message.grouped_id:
+                            if current_group_id == message.grouped_id:
+                                messages.append(message)
+                            else:
+                                if messages:
+                                    await self._process_new_messages(messages, user_id)
+                                messages = [message]
+                                current_group_id = message.grouped_id
+                        else:
+                            if current_group_id:
+                                await self._process_new_messages(messages, user_id)
+                                messages = []
+                                current_group_id = None
+                            await self._process_new_messages([message], user_id)
+
+                    if messages:
+                        await self._process_new_messages(messages, user_id)
+        except TakeoutInitDelayError as e:
+            self.logger.error(
+                f"Takeout rate limit. Must wait {e.seconds}: {e}", exc_info=True
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Unexpected error ocurred while retrieving dialogs: {e}", exc_info=True
+            )
+            self.main_window.show_notification("Ошибка", "Ошибка получения диалогов")
+
+    async def fetch_voice_dialogs(self) -> list[dict]:
+        try:
+            async with self._client.takeout(users=True) as takeout:
+                dialogs = []
+                session_dialogs = await takeout.get_dialogs(
+                    ignore_migrated=True, archived=False
+                )
+                for dialog in session_dialogs:
+                    if (
+                        dialog.is_user
+                        and dialog.title.strip()
+                        and dialog.name != "Telegram"
+                        and not dialog.entity.bot
+                        and dialog.id != self.session_user_id
+                    ):
+                        dialogs.append({"id": dialog.id, "title": dialog.title.strip()})
+
+                return dialogs
+        except TakeoutInitDelayError as e:
+            self.logger.error(
+                f"Takeout rate limit. Must wait {e.seconds}: {e}", exc_info=True
+            )
+            self.main_window.show_notification(
+                "Вниманhие", f"Частые запросы. Нужно подождать {e.seconds}"
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Unexpected error ocurred while retrieving voice dialogs: {e}",
+                exc_info=True,
+            )
+            self.main_window.show_notification("Ошибка", "Ошибка получения диалогов")
+
+        return []
+
+    async def fetch_voices(self, user_id: int) -> list:
+        try:
+            async with self._client.takeout(
+                files=True, max_file_size=5000000
+            ) as takeout:
+                messages = await takeout.get_messages(
+                    user_id, limit=100, filter=types.InputMessagesFilterVoice
+                )
+
+                if not messages:
+                    return []
+
+                folder = TMP / self._session_file / str(user_id)
+                folder.mkdir(parents=True, exist_ok=True)
+
+                voices = []
+                for message in messages:
+                    message_id = message.id
+                    filename = f"{message_id}_voice"
+                    file = await message.download_media(file=str(folder / filename))
+                    voices.append(
+                        {
+                            "id": message_id,
+                            "path": file,
+                        }
+                    )
+
+                return voices
+
+        except Exception as e:
+            self.logger.error(
+                f"Unexpected error occured while retrieving voices from dialog {user_id}: {e}",
+                exc_info=True,
+            )
+            self.main_window.show_notification("Ошибка", "Ошибка получения голосовых")
+
+        return []
 
     async def process_new_user(
         self,
@@ -501,7 +577,7 @@ class ClientWrapper:
                 json.dumps(render_messages), str(sender.id), self._session_file, r"{}"
             )
 
-    async def sendMessage(self, user_id, message_str):
+    async def sendMessage(self, user_id, message_str, voice: bool = False):
         if not self._status:
             self.main_window.show_notification(
                 "Внимание", f"Сессия {self._session_file} не запущена"
@@ -509,31 +585,51 @@ class ClientWrapper:
             return
 
         message_data = json.loads(message_str)
-        b64file = message_data.get("base64_file", None)
-        message_text = message_data.get("text", None)
         filename = message_data.get("filename", None)
-        file_obj = None
-        mime_type = []
-        if b64file:
-            file_obj = io.BytesIO(base64.b64decode(b64file))
-            file_obj.name = filename
-            mime_type = [puremagic.from_stream(file_obj, mime=True)]
-            file_obj.seek(0)
+        message_text = message_data.get("text", None)
 
-        message = await self._client.send_message(
-            await self._client.get_input_entity(user_id),
-            message=message_text,
-            file=file_obj.getvalue() if file_obj else None,
-        )
+        if voice:
+            voice_path = message_data["path"]
+            mime_type = ["audio/ogg"]
 
-        if file_obj:
-            filename = f"{message.id}_{filename}"
-            file_obj.seek(0)
-            dir_path = USERS_DATA / f"{user_id}_{self._session_file}"
-            dir_path.mkdir(parents=True, exist_ok=True)
-            with open(str(dir_path / filename), "wb") as f:
-                f.write(file_obj.read())
-            file_obj.close()
+            message = await self._client.send_file(
+                await self._client.get_input_entity(user_id),
+                file=voice_path,
+                voice_note=True,
+            )
+            if isinstance(message, list):
+                message = message[0]
+
+            filename = f"{message.id}_voice{Path(voice_path).suffix}"
+
+            shutil.copy(
+                voice_path,
+                USERS_DATA / f"{user_id}_{self._session_file}" / filename,
+            )
+        else:
+            b64file = message_data.get("base64_file", None)
+            file_obj = None
+            mime_type = []
+            if b64file:
+                file_obj = io.BytesIO(base64.b64decode(b64file))
+                file_obj.name = filename
+                mime_type = [puremagic.from_stream(file_obj, mime=True)]
+                file_obj.seek(0)
+
+            message = await self._client.send_message(
+                await self._client.get_input_entity(user_id),
+                message=message_text,
+                file=file_obj.getvalue() if file_obj else None,
+            )
+
+            if file_obj:
+                filename = f"{message.id}_{filename}"
+                file_obj.seek(0)
+                dir_path = USERS_DATA / f"{user_id}_{self._session_file}"
+                dir_path.mkdir(parents=True, exist_ok=True)
+                with open(str(dir_path / filename), "wb") as f:
+                    f.write(file_obj.read())
+                file_obj.close()
 
         if hasattr(message, "date") and message.date:
             message_time = message.date.isoformat()

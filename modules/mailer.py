@@ -18,7 +18,7 @@ from telethon.errors import (
 from telethon.types import User
 
 from core.logger import setup_logger
-from core.paths import SMM_IMAGES
+from core.paths import SMM_IMAGES, SMM_VOICES
 from modules.client_wrapper import ClientWrapper
 
 UPDATE_DELAY = 1
@@ -47,15 +47,23 @@ class Mailer:
         self.logger.debug(f"Mailing starting. Processing info: {mail_data_str}")
         mail_data = json.loads(mail_data_str)
         self.is_mail_from_usernames = mail_data["is_parse_usernames"]
+        self.is_send_text_messages = mail_data["is_send_text"]
         self.delay_between_messages = mail_data["delay"]
         self.session_files = mail_data["selected_sessions"]
         self.session_wrappers = []
         self.mail_data = []
 
-        self.smm_messages = await self.main_window.database.get_smm_messages()
+        if self.is_send_text_messages:
+            self.smm_messages = await self.main_window.database.get_smm_messages()
+        else:
+            self.smm_messages = await self.main_window.database.get_voices_for_mailing()
+
         if not self.smm_messages:
-            self.logger.info("User doesn't provide mailing messages")
-            self.main_window.show_notification("Внимание", "Нет сообщений для рассылки")
+            self.logger.info("User doesn't provide mailing data")
+            self.main_window.show_notification(
+                "Внимание",
+                f"Нет {'' if self.is_send_text_messages else 'голосовых'} сообщений для рассылки",
+            )
             return
 
         if self.is_mail_from_usernames:
@@ -159,20 +167,36 @@ class Mailer:
                 )
 
             self.logger.debug(f"Received entity for mailing {user_id}")
-            if smm_message["photo"]:
-                with open(SMM_IMAGES / smm_message["photo"], "rb") as file:
-                    base64_file = base64.b64encode(file.read()).decode("utf-8")
-
-            message = {
-                "base64_file": base64_file,
-                "text": smm_message["text"],
-                "filename": smm_message["photo"],
-            }
-
             try:
+                if self.is_send_text_messages:
+                    if smm_message["photo"]:
+                        with open(SMM_IMAGES / smm_message["photo"], "rb") as file:
+                            base64_file = base64.b64encode(file.read()).decode("utf-8")
+
+                    message = {
+                        "base64_file": base64_file,
+                        "text": smm_message["text"],
+                        "filename": smm_message["photo"],
+                    }
+                else:
+                    message = {
+                        "path": str(SMM_VOICES / smm_message),
+                    }
+
                 if not self.is_mail_from_usernames:
                     await self.main_window.database.set_user_to_sended(user_id)
-                await session_info.wrapper.sendMessage(user_id, json.dumps(message))
+                await session_info.wrapper.sendMessage(
+                    user_id, json.dumps(message), not self.is_send_text_messages
+                )
+            except FloodWaitError as e:
+                self.logger.error(
+                    f"Catched Flood Wait Error, wait for {e.seconds}", exc_info=True
+                )
+                self.main_window.show_notification(
+                    "Внимание",
+                    f"Сессия {session_info.wrapper.session_file} поймала флуд, ждем {e.seconds + 10} секунд",
+                )
+                await asyncio.sleep(e.seconds + 10)
             except PeerFloodError as e:
                 self.logger.error(
                     f"Catched Flood Error, stop mailing for this session {session_info.wrapper.session_file}: {e}",
@@ -196,22 +220,15 @@ class Mailer:
                     exc_info=True,
                 )
                 continue
-            except FloodWaitError as e:
-                self.logger.error(
-                    f"Catched Flood Wait Error, wait for {e.seconds}", exc_info=True
-                )
-                self.main_window.show_notification(
-                    "Внимание",
-                    f"Сессия {session_info.wrapper.session_file} поймала флуд, ждем {e.seconds + 10} секунд",
-                )
-                await asyncio.sleep(e.seconds + 10)
             except Exception:
                 self.logger.error(
                     "Unexpected error during message sending", exc_info=True
                 )
                 continue
 
-            await session_info.wrapper.process_new_user(entity, smm_message["text"])
+            await session_info.wrapper.process_new_user(
+                entity, smm_message["text"] if self.is_send_text_messages else ""
+            )
             session_info.sent_count += 1
 
             await asyncio.sleep(self.delay_between_messages or random.randint(3, 9))
@@ -370,7 +387,9 @@ class Mailer:
         )
         if session and session.was_started:
             self.logger.debug("Session was started from module")
-            await self.main_window.session_manager.stop_session(session.wrapper.session_file)
+            await self.main_window.session_manager.stop_session(
+                session.wrapper.session_file
+            )
 
         self.logger.debug(f"Before change wrappers {self.session_wrappers}")
         self.session_wrappers = [
@@ -409,4 +428,3 @@ class Mailer:
     @property
     def running(self):
         return self._running
-
