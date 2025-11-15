@@ -11,6 +11,7 @@ from core.paths import (
     SESSIONS,
     SETTINGS,
     SMM_IMAGES,
+    SMM_VOICES,
     TMP,
     USERS_DATA,
 )
@@ -45,6 +46,7 @@ def init_folders():
     TMP.mkdir(parents=True, exist_ok=True)
     DATABASE.mkdir(parents=True, exist_ok=True)
     SMM_IMAGES.mkdir(parents=True, exist_ok=True)
+    SMM_VOICES.mkdir(parents=True, exist_ok=True)
     SESSIONS.mkdir(parents=True, exist_ok=True)
     SETTINGS.mkdir(parents=True, exist_ok=True)
 

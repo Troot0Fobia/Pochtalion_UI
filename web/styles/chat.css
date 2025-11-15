@@ -7,6 +7,7 @@ html, body {
     scrollbar-width: thin;
     color: #ffffff;
     font-family: Arial, Helvetica, sans-serif;
+    user-select: none;
 }
 .chat-window {
     display: flex;

@@ -10,7 +10,7 @@ class SessionsManager:
         self.api_hash = api_hash
         self.database = database
         self.main_window = main_window
-        self.sessions = {}
+        self.sessions: dict[str, ClientWrapper] = {}
         self.logger = setup_logger("Pochtalion.SessionManager", "session_manager.log")
         self.logger.info("Session Manager initialized")
 
@@ -34,16 +34,17 @@ class SessionsManager:
                 self.main_window,
                 self.logger,
             )
-            self.sessions[session_file] = wrapper
             result = await wrapper.start(phone_number, is_module)
             if not result:
                 self.main_window.settings_bridge.sessionChangedState.emit(
-                    session_id, "stopped"
+                    str(session_id), "stopped"
                 )
                 del self.sessions[session_file]
                 return None
+
+            self.sessions[session_file] = wrapper
             self.main_window.settings_bridge.sessionChangedState.emit(
-                session_id, "started"
+                str(session_id), "started"
             )
             self.logger.info(f"Session {session_file} started")
             return wrapper
@@ -91,6 +92,34 @@ class SessionsManager:
             )
             return
         await session.sendMessage(user_id, message)
+
+    async def get_or_start_session(
+        self, session_id: int, session_file: str
+    ) -> ClientWrapper | None:
+        session_wrapper = None
+
+        if session_file not in self.sessions:
+            session_wrapper = await self.start_session(session_id, session_file)
+        else:
+            session_wrapper = self.sessions.get(session_file)
+
+        return session_wrapper
+
+    async def get_session_dialogs(
+        self, session_id: int, session_file: str
+    ) -> list[dict]:
+        if session_wrapper := await self.get_or_start_session(session_id, session_file):
+            return await session_wrapper.fetch_voice_dialogs()
+
+        return []
+
+    async def get_dialog_voices(
+        self, session_id: int, session_file: str, dialog_id: int
+    ) -> list[dict]:
+        if session_wrapper := await self.get_or_start_session(session_id, session_file):
+            return await session_wrapper.fetch_voices(dialog_id)
+
+        return []
 
     async def deleteDialog(self, session_file: str, dialog_id: int):
         session = self.sessions.get(session_file)
