@@ -118,7 +118,6 @@ class Parser:
                     async for message in client.iter_messages(
                         group_entity, self.count_of_posts or None
                     ):
-                        print(message)
                         if not message.post:
                             continue
                         try:

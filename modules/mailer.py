@@ -15,6 +15,7 @@ from telethon.errors import (
     PeerFloodError,
     UsernameNotOccupiedError,
 )
+from telethon.errors.rpcerrorlist import MsgIdInvalidError
 from telethon.types import User
 
 from core.logger import setup_logger
@@ -299,9 +300,16 @@ class Mailer:
                             f"Received from broadcast user entity with id: {sender.id}"
                         )
                         break
+            except MsgIdInvalidError:
+                self.logger.warning(
+                    (
+                        f"Post with id '{source_post_id} could be deleted."
+                        f"Skipping post from channel '{chat_entity.title}'..."
+                    )
+                )
             except Exception as e:
                 self.logger.error(
-                    f"Unexpected error occured. Skip group {source_data['chat_username']}: {e}",
+                    f"Unexpected error occured. Skip channel {source_data['chat_username']}: {e}",
                     exc_info=True,
                 )
                 return None
@@ -326,15 +334,22 @@ class Mailer:
                                 f"Received from open particitpants user entity with id: {user.id}"
                             )
                             break
+            except MsgIdInvalidError:
+                self.logger.warning(
+                    (
+                        f"Message with id '{source_post_id} could be deleted."
+                        f"Skipping message from group '{chat_entity.title}'..."
+                    )
+                )
             except ChannelPrivateError as e:
                 self.logger.error(
-                    f"Channel privacy corrupted. Skip channel {source_data['chat_username']}: {e}",
+                    f"Channel privacy corrupted. Skip group {source_data['chat_username']}: {e}",
                     exc_info=True,
                 )
                 return None
             except Exception as e:
                 self.logger.error(
-                    f"Unexpected error occured. Skip channel {source_data['chat_username']}: {e}",
+                    f"Unexpected error occured. Skip group {source_data['chat_username']}: {e}",
                     exc_info=True,
                 )
                 return None
