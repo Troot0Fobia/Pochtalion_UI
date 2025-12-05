@@ -153,10 +153,10 @@ class Parser:
                 and not self.is_parse_channel
             ):
                 if self.is_parse_messages:
-                    try:
-                        async for message in client.iter_messages(
-                            group_entity, self.count_of_messages or None
-                        ):
+                    async for message in client.iter_messages(
+                        group_entity, self.count_of_messages or None
+                    ):
+                        try:
                             user_entity = await message.get_sender()
                             if not self._check_user_needness(
                                 user_entity, is_parse_admins
@@ -167,14 +167,14 @@ class Parser:
                                 user_entity, message.id, session_id, wrapper
                             )
                             await asyncio.sleep(PARSE_DELAY)
-                    except Exception:
-                        self.logger.error(
-                            "Unexpected error while parsing group by messages",
-                            exc_info=True,
-                        )
+                        except Exception:
+                            self.logger.error(
+                                "Unexpected error while parsing group by messages",
+                                exc_info=True,
+                            )
                 else:
-                    try:
-                        async for user_entity in client.iter_participants(group_entity):
+                    async for user_entity in client.iter_participants(group_entity):
+                        try:
                             if not self._check_user_needness(
                                 user_entity, is_parse_admins
                             ):
@@ -184,11 +184,11 @@ class Parser:
                                 user_entity, None, session_id, wrapper
                             )
                             await asyncio.sleep(PARSE_DELAY)
-                    except Exception:
-                        self.logger.error(
-                            "Unexpected error while parsing group by open participants",
-                            exc_info=True,
-                        )
+                        except Exception:
+                            self.logger.error(
+                                "Unexpected error while parsing group by open participants",
+                                exc_info=True,
+                            )
             else:
                 if group_type == "broadcast" and not self.is_parse_channel:
                     self.main_window.show_notification(
