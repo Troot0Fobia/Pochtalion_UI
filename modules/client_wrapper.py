@@ -602,10 +602,12 @@ class ClientWrapper:
                 message = message[0]
 
             filename = f"{message.id}_voice{Path(voice_path).suffix}"
+            user_session_dir_path = USERS_DATA / f"{user_id}_{self._session_file}"
+            user_session_dir_path.mkdir(parents=True, exist_ok=True)
 
             shutil.copy(
                 voice_path,
-                USERS_DATA / f"{user_id}_{self._session_file}" / filename,
+                user_session_dir_path / filename,
             )
         else:
             b64file = message_data.get("base64_file", None)

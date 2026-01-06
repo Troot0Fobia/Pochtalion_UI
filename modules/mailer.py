@@ -69,7 +69,7 @@ class Mailer:
 
         if self.is_mail_from_usernames:
             if not mail_data["mailing_data"]:
-                self.main_window.show_notification("Внимание", "Некорректные данные")
+                self.main_window.show_notification("Внимание", "Нет username'ов для рассылки")
                 return
             for data in mail_data["mailing_data"].splitlines():
                 matched = re.match(
@@ -186,6 +186,7 @@ class Mailer:
 
                 if not self.is_mail_from_usernames:
                     await self.main_window.database.set_user_to_sended(user_id)
+
                 await session_info.wrapper.sendMessage(
                     user_id, json.dumps(message), not self.is_send_text_messages
                 )
