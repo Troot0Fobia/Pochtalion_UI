@@ -453,9 +453,10 @@ class ClientWrapper:
                 )
                 if hasattr(last_message, "message"):
                     last_message = last_message.message
-                    created_at = last_message.date.astimezone(
-                        tzlocal.get_localzone()
-                    ).strftime("%d.%m.%Y %H:%M:%S")
+                    if hasattr(last_message, "date"):
+                        created_at = last_message.date.astimezone(
+                            tzlocal.get_localzone()
+                        ).strftime("%d.%m.%Y %H:%M:%S")
                 elif isinstance(last_message, str):
                     pass
                 else:
