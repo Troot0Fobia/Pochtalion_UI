@@ -159,8 +159,8 @@ class SettingsBridge(BaseBridge):
     @asyncSlot(str, str, str)
     async def saveSession(self, fileName, base64data, phone_number):
         if not fileName and not base64data:
-            if not phone_number:
-                return
+            # if not phone_number:
+            #     return
             fileName = f"{int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp())}_telethon.session"
             open(SESSIONS / fileName, "a").close()
         else:
@@ -180,11 +180,11 @@ class SettingsBridge(BaseBridge):
         self.renderSessions.emit(json_session, True)
         self.sidebar_bridge.renderSelectSessions.emit(json_session)
 
-        if phone_number:
-            session_manager = self.main_window.session_manager
-            if session_manager is None:
-                return
-            await session_manager.start_session(session_id, fileName, phone_number)
+        # if phone_number:
+        session_manager = self.main_window.session_manager
+        if session_manager is None:
+            return
+        await session_manager.start_session(session_id, fileName, phone_number)
 
     @asyncSlot(str, str)
     async def deleteSession(self, session_id_str, session_name):
