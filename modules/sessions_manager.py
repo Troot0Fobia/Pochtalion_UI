@@ -39,7 +39,8 @@ class SessionsManager:
                 self.main_window.settings_bridge.sessionChangedState.emit(
                     str(session_id), "stopped"
                 )
-                del self.sessions[session_file]
+                if session_file in self.sessions:
+                    del self.sessions[session_file]
                 return None
 
             self.sessions[session_file] = wrapper

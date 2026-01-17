@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import io
 import json
@@ -19,7 +20,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
 )
-from telethon import TelegramClient, events, tl, types
+from telethon import TelegramClient, errors, events, tl, types
 from telethon.errors import (
     ApiIdInvalidError,
     ApiIdPublishedFloodError,
@@ -32,6 +33,7 @@ from telethon.errors import (
 from core.database import Database
 from core.paths import PROFILE_PHOTOS, SESSIONS, TMP, USERS_DATA
 from ui.auth_window import AuthWindow
+from ui.qr_login import QRLoginWindow
 
 
 class AuthCanceled(Exception):
@@ -70,13 +72,16 @@ class ClientWrapper:
             return False
         self._status = 2
         try:
-            start_func = self._client.start(
-                phone=phone_number or self.phone_callback,
-                code_callback=self.code_callback,
-                password=self.password_callback,
-            )
-            if isawaitable(start_func):
-                await start_func
+            if phone_number:
+                start_func = self._client.start(
+                    phone=phone_number or self.phone_callback,
+                    code_callback=self.code_callback,
+                    password=self.password_callback,
+                )
+                if isawaitable(start_func):
+                    await start_func
+            else:
+                await self.login_qr()
         except AuthCanceled:
             self.logger.warning(f"{self.session_file}\tUser cancelled authentication")
             self.auth_window.close()
@@ -116,6 +121,7 @@ class ClientWrapper:
             self.main_window.show_notification(
                 "Ошибка", "Не удалось получить сущность сессии"
             )
+            return False
 
         try:
             self.is_new = await self.database.update_session(
@@ -139,6 +145,45 @@ class ClientWrapper:
             await self.fetch_dialogs()
         self._status = 1
         return True
+
+    async def login_qr(self):
+        await self._client.connect()
+
+        if await self._client.is_user_authorized():
+            return
+
+        qr_login = QRLoginWindow()
+        tries = 0
+        while True:
+            qr_login.update_status("Generating QR")
+            qr = await self._client.qr_login()
+
+            qr_login.fill_qr(qr.url)
+            qr_login.update_status("Scan qr code with your phone")
+
+            try:
+                await qr.wait(timeout=120)
+                qr_login.update_status("QR login successful")
+                break
+            except asyncio.TimeoutError:
+                qr_login.update_status("Timeout. Wait for refresh QR")
+                tries += 1
+                if tries > 3:
+                    return
+            except errors.SessionPasswordNeededError:
+                password = await self.password_callback()
+                await self._client.sign_in(password=password)
+                break
+            except Exception as e:
+                qr_login.update_status("Unexpected error occured")
+                self.logger.error(
+                    f"Error occured while auth with qr code: {e}", exc_info=True
+                )
+                break
+
+            await asyncio.sleep(0.3)
+
+        qr_login.exit()
 
     async def phone_callback(self):
         phone = await self.auth_window.get_input_async()

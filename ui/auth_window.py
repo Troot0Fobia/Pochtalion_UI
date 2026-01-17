@@ -69,6 +69,7 @@ class AuthWindow(QDialog):
             self.code_input.show()
         elif step == "password":
             self.state = "password"
+            self.phone_input.setDisabled(True)
             self.code_input.setDisabled(True)
             self.password_label.show()
             self.password_input.show()
@@ -94,4 +95,3 @@ class AuthWindow(QDialog):
         self.future = asyncio.get_event_loop().create_future()
         self.show()
         return await self.future
-
