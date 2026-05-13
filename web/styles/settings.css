@@ -147,7 +147,7 @@ h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: 0.3px; }
   width: 100%;
 }
 
-.setting-name { color: var(--text-primary); font-size: 14px; flex: 1; }
+.setting-name { color: var(--text-primary); font-size: 14px; }
 
 #common-tab-block { flex-wrap: wrap; }
 
