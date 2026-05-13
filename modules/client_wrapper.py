@@ -65,8 +65,11 @@ class ClientWrapper:
         self.is_new = True
 
     async def start(
-        self, phone_number: str | None = None, is_module: bool = False
-    ) -> bool:
+        self,
+        phone_number: str | None = None,
+        is_module: bool = False,
+        force_auth: bool = False,
+    ) -> bool | str:
         if self._status:
             self.main_window.show_notification(
                 "Внимание", f"Сессия {self._session_file} уже запущена"
@@ -76,14 +79,21 @@ class ClientWrapper:
         try:
             if phone_number:
                 start_func = self._client.start(
-                    phone=phone_number or self.phone_callback,
+                    phone=phone_number,
                     code_callback=self.code_callback,
                     password=self.password_callback,
                 )
                 if isawaitable(start_func):
                     await start_func
-            else:
+            elif force_auth:
                 await self.login_qr()
+            else:
+                # Check authorisation without prompting
+                await self._client.connect()
+                if not await self._client.is_user_authorized():
+                    await self._client.disconnect()
+                    self._status = 0
+                    return "needs_reauth"
         except AuthCanceled:
             self.logger.warning(f"{self.session_file}\tUser cancelled authentication")
             self.auth_window.close()
@@ -854,13 +864,13 @@ class ClientWrapper:
     async def stop(self) -> None:
         if not self._status:
             return
-        if self._client and self._client.is_connected:
+        if self._client and self._client.is_connected():
             if isawaitable(disconnect_func := self._client.disconnect()):
                 await disconnect_func
         self._status = 0
 
-    def status(self) -> bool:
-        return bool(self._status)
+    def status(self) -> int:
+        return self._status
 
     @property
     def client(self):

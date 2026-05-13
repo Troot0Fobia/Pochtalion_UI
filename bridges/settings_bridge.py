@@ -194,13 +194,15 @@ class SettingsBridge(BaseBridge):
     @asyncSlot(str, str, str)
     async def saveSession(self, fileName, base64data, phone_number):
         if not fileName and not base64data:
-            # if not phone_number:
-            #     return
+            # New empty session: QR (no phone) or phone auth
             fileName = f"{int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp())}_telethon.session"
             open(SESSIONS / fileName, "a").close()
+            force_auth = not bool(phone_number)
         else:
+            # Uploaded .session file: check if already authorised, don't force QR
             with open(str(SESSIONS / fileName), "wb") as f:
                 f.write(base64.b64decode(base64data))
+            force_auth = False
 
         session_id = await self.database.add_new_session(fileName)
         session = {
@@ -215,11 +217,26 @@ class SettingsBridge(BaseBridge):
         self.renderSessions.emit(json_session, "settings")
         self.sidebar_bridge.renderSelectSessions.emit(json_session)
 
-        # if phone_number:
         session_manager = self.main_window.session_manager
         if session_manager is None:
             return
-        await session_manager.start_session(session_id, fileName, phone_number)
+        await session_manager.start_session(
+            session_id, fileName, phone_number or None, force_auth=force_auth
+        )
+
+    @asyncSlot(str)
+    async def reauthorizeSession(self, session_str: str) -> None:
+        session_manager = self.main_window.session_manager
+        if session_manager is None:
+            return
+        session = json.loads(session_str)
+        phone = session.get("phone") or None
+        await session_manager.start_session(
+            int(session["session_id"]),
+            session["session_name"],
+            phone_number=phone,
+            force_auth=not bool(phone),
+        )
 
     @asyncSlot(str, str)
     async def deleteSession(self, session_id_str, session_name):

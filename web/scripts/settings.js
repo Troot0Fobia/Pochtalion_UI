@@ -712,9 +712,32 @@ function sessionChangedState(session_id, state) {
                     <div class="btn start-session-btn"><img src="assets/icons/start.png" alt="start session" class="icons" onclick="startSession(this)"></div>
                     <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
                 `;
+            else if (state === "needs_reauth")
+                buttons.innerHTML = `
+                    <input type="text" class="input-number reauth-phone" placeholder="Телефон"
+                        maxlength="16" oninput="this.value = this.value.replace(/\\D/g, '').slice(0, 16);"
+                        style="width: 115px;">
+                    <div class="btn start-session-btn" onclick="reauthorizeSession(this)">Войти</div>
+                    <div class="btn open-groups" onclick="reauthorizeSession(this, true)">QR</div>
+                    <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
+                `;
             return;
         }
     });
+}
+
+async function reauthorizeSession(elem, useQR = false) {
+    const row = elem.closest(".row");
+    const session_id = row.dataset.id;
+    const session_name = row.querySelector(".session-name").innerText;
+    const phone = useQR ? "" : (row.querySelector(".reauth-phone")?.value.trim() || "");
+
+    row.querySelector(".buttons").innerHTML = `
+        <div class="btn" style="background-color: blue;"><div class="loader"></div></div>
+        <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteSession(this)"></div>
+    `;
+
+    await bridge.reauthorizeSession(JSON.stringify({ session_id, session_name, phone }));
 }
 
 async function stopSession(elem) {
