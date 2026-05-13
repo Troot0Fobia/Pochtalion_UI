@@ -184,12 +184,12 @@ class Mailer:
                         "path": str(SMM_VOICES / smm_message),
                     }
 
-                if not self.is_mail_from_usernames:
-                    await self.main_window.database.set_user_to_sended(user_id)
-
                 await session_info.wrapper.sendMessage(
                     user_id, json.dumps(message), not self.is_send_text_messages
                 )
+
+                if not self.is_mail_from_usernames:
+                    await self.main_window.database.set_user_to_sended(user_id)
             except FloodWaitError as e:
                 self.logger.error(
                     f"Catched Flood Wait Error, wait for {e.seconds}", exc_info=True
@@ -390,6 +390,11 @@ class Mailer:
                     session_id, session_file, is_module=True
                 )
                 was_started = True
+            if session_wrapper is None:
+                self.logger.warning(
+                    f"Session {session_file} failed to start, skipping"
+                )
+                continue
             self.session_wrappers.append(
                 self.SessionWrapperInfo(session_wrapper, was_started, session_id, 0)
             )

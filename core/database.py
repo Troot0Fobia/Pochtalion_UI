@@ -281,6 +281,8 @@ class Database:
                 (session_id,),
             ) as cursor:
                 row = await cursor.fetchone()
+                if row is None:
+                    return False
                 is_new = row["user_id"] is None
             await self._db.execute(
                 """
@@ -304,7 +306,7 @@ class Database:
                 (session_id,),
             ) as cursor:
                 row = await cursor.fetchone()
-                return row["user_id"] or 0
+                return row["user_id"] if row else 0
 
     # ## ==================== Methods for sending messages ===================== ###
 
@@ -329,6 +331,9 @@ class Database:
                 (id,),
             ) as cursor:
                 row = await cursor.fetchone()
+
+            if row is None:
+                return None
 
             await self._db.execute(
                 """
@@ -387,7 +392,7 @@ class Database:
 
             await self._db.commit()
 
-            return row["photo"]
+            return row["photo"] if row else None
 
     # ## ===================== Methods for sending voices ======================= ###
     async def add_voice_message(

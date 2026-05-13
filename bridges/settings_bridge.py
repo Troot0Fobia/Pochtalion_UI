@@ -36,6 +36,8 @@ class SettingsBridge(BaseBridge):
 
     def __init__(self, main_window, database):
         super().__init__(main_window, database)
+        self.parsing_task: asyncio.Task | None = None
+        self.mailing_task: asyncio.Task | None = None
 
     @asyncSlot(str)
     async def loadSessions(self, destination: str):
