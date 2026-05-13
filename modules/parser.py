@@ -5,10 +5,12 @@ from datetime import datetime
 from pathlib import Path
 
 from telethon.tl import types
+from telethon.tl.functions.messages import CheckChatInviteRequest, ImportChatInviteRequest
 from telethon.tl.types import (
     Channel,
     ChannelParticipantAdmin,
     ChannelParticipantCreator,
+    ChatInviteAlready,
 )
 
 from core.logger import setup_logger
@@ -42,12 +44,13 @@ class Parser:
         self.saved_to_db = self.parse_to_db = (
             self.main_window.settings_manager.get_setting("force_parse_to_db")
         )
-        self.parse_usernames = []
+        self.parse_targets = []  # list of {"kind": "public", "value": str} | {"kind": "private", "hash": str}
         self.existing_ids = {}
         self.group_data = {}
         is_parse_admins = self.main_window.settings_manager.get_setting("parse_admins")
+        self.send_links_to_parsed = self.main_window.settings_manager.get_setting("send_links_to_parsed")
 
-        pattern = re.compile(
+        public_pattern = re.compile(
             r"""
             (
                 ((?P<url>^https?:\/\/t\.me\/(?P<group_username>[a-zA-Z0-9_]{5,32}))($|\/(?P<post_id>\d+))
@@ -56,17 +59,26 @@ class Parser:
         """,
             re.VERBOSE,
         )
+        invite_pattern = re.compile(
+            r"^https?://t\.me/(?:joinchat/|\+)([a-zA-Z0-9_=-]+)$"
+        )
 
         for link in parser_data["parse_links"].splitlines():
-            matched = re.match(pattern, link.strip())
-            if matched:
-                self.parse_usernames.append(
-                    matched.group("group_username") or matched.group("username")
-                )
+            link = link.strip()
+            invite_matched = re.match(invite_pattern, link)
+            if invite_matched:
+                self.parse_targets.append({"kind": "private", "hash": invite_matched.group(1)})
+                continue
+            public_matched = re.match(public_pattern, link)
+            if public_matched:
+                self.parse_targets.append({
+                    "kind": "public",
+                    "value": public_matched.group("group_username") or public_matched.group("username"),
+                })
 
-        self.logger.debug(f"Received links {self.parse_usernames}")
+        self.logger.debug(f"Received targets {self.parse_targets}")
         if (
-            not self.parse_usernames
+            not self.parse_targets
             or not self.session_files
             or self.is_parse_channel
             and not self.count_of_posts.isdigit()
@@ -92,20 +104,25 @@ class Parser:
         self.start_time = datetime.now()
         self.update_task = asyncio.create_task(self.sendUpdate())
 
-        while self.parse_usernames:
+        while self.parse_targets:
             if not self._running:
                 break
 
-            parse_username = self.parse_usernames.pop()
+            target = self.parse_targets.pop()
             wrapper, _, session_id = self.session_wrappers[index % sessions_count]
             client = wrapper.client
             index += 1
 
             try:
-                group_entity = await client.get_entity(parse_username)
+                if target["kind"] == "private":
+                    group_entity = await self._join_private_group(client, target["hash"])
+                    parse_username = f"private:{target['hash'][:8]}"
+                else:
+                    parse_username = target["value"]
+                    group_entity = await client.get_entity(parse_username)
             except Exception:
                 self.logger.error(
-                    f"Failed to get entity for @{parse_username}, skipping",
+                    f"Failed to get entity for {target}, skipping",
                     exc_info=True,
                 )
                 continue
@@ -140,6 +157,10 @@ class Parser:
                                 await self._handle_user(
                                     user_entity, message.id, session_id, wrapper
                                 )
+                                if self.send_links_to_parsed:
+                                    await self._send_link_to_saved(
+                                        user_entity, group_entity, client, comment.id
+                                    )
                                 await asyncio.sleep(PARSE_DELAY)
                         except Exception:
                             # this throw unknown shit like
@@ -173,6 +194,10 @@ class Parser:
                             await self._handle_user(
                                 user_entity, message.id, session_id, wrapper
                             )
+                            if self.send_links_to_parsed:
+                                await self._send_link_to_saved(
+                                    user_entity, group_entity, client, message.id
+                                )
                             await asyncio.sleep(PARSE_DELAY)
                         except Exception:
                             self.logger.error(
@@ -190,6 +215,10 @@ class Parser:
                             await self._handle_user(
                                 user_entity, None, session_id, wrapper
                             )
+                            if self.send_links_to_parsed:
+                                await self._send_link_to_saved(
+                                    user_entity, group_entity, client
+                                )
                             await asyncio.sleep(PARSE_DELAY)
                         except Exception:
                             self.logger.error(
@@ -271,6 +300,53 @@ class Parser:
                         source_chat_id=self.group_id,
                         source_post_id=message_id,
                     )
+
+    async def _send_link_to_saved(self, user_entity, group_entity, client, message_id=None):
+        link = None
+        group_username = getattr(group_entity, "username", None)
+
+        if message_id is not None:
+            if group_username:
+                link = f"https://t.me/{group_username}/{message_id}"
+            else:
+                link = f"https://t.me/c/{group_entity.id}/{message_id}"
+        else:
+            try:
+                async for msg in client.iter_messages(
+                    group_entity, from_user=user_entity, limit=1
+                ):
+                    if group_username:
+                        link = f"https://t.me/{group_username}/{msg.id}"
+                    else:
+                        link = f"https://t.me/c/{group_entity.id}/{msg.id}"
+                    break
+            except Exception:
+                self.logger.warning(
+                    f"Could not fetch messages for user {user_entity.id}", exc_info=True
+                )
+
+        if link is None:
+            username = getattr(user_entity, "username", None)
+            if username:
+                link = f"@{username}"
+
+        if link:
+            try:
+                await client.send_message("me", link)
+            except Exception:
+                self.logger.error(
+                    f"Failed to send link to saved messages for user {user_entity.id}",
+                    exc_info=True,
+                )
+
+    async def _join_private_group(self, client, invite_hash):
+        result = await client(CheckChatInviteRequest(invite_hash))
+        if isinstance(result, ChatInviteAlready):
+            return result.chat
+        join_result = await client(ImportChatInviteRequest(invite_hash))
+        if join_result.chats:
+            return join_result.chats[0]
+        raise RuntimeError(f"No chat entity returned after joining with hash {invite_hash[:8]}")
 
     async def start_sessions(self):
         session_manager = self.main_window.session_manager
@@ -445,7 +521,7 @@ class Parser:
         self.count_of_posts = None
         self.is_parse_messages = None
         self.count_of_messages = None
-        self.parse_usernames = []
+        self.parse_targets = []
 
         if self.update_task:
             self.update_task.cancel()
