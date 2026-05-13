@@ -20,6 +20,7 @@ class SessionsManager:
         session_file: str,
         phone_number: str | None = None,
         is_module: bool = False,
+        force_auth: bool = False,
     ) -> ClientWrapper | None:
         if session_file in self.sessions and self.sessions[session_file].status():
             return None
@@ -34,7 +35,12 @@ class SessionsManager:
                 self.main_window,
                 self.logger,
             )
-            result = await wrapper.start(phone_number, is_module)
+            result = await wrapper.start(phone_number, is_module, force_auth)
+            if result == "needs_reauth":
+                self.main_window.settings_bridge.sessionChangedState.emit(
+                    str(session_id), "needs_reauth"
+                )
+                return None
             if not result:
                 self.main_window.settings_bridge.sessionChangedState.emit(
                     str(session_id), "stopped"
@@ -76,7 +82,7 @@ class SessionsManager:
             await session.stop()
         self.sessions.clear()
 
-    def get_active_sessions(self) -> dict:
+    def get_active_sessions(self) -> dict[str, int]:
         return {
             session_file: wrapper.status()
             for session_file, wrapper in self.sessions.items()
