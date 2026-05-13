@@ -9,8 +9,14 @@ from PyQt6.QtCore import QMargins, QSize, Qt, QUrl
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QSplitter,
-                             QStackedWidget, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QSplitter,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 from qasync import asyncClose, asyncSlot
 
 from bridges import chat_bridge, settings_bridge, sidebar_bridge
@@ -19,6 +25,7 @@ from core.logger import setup_logger
 from core.notification_manager import NotificationManager
 from core.paths import TMP, WEB
 from core.settings_manager import SettingsManager
+from modules.group_mailer import GroupMailer
 from modules.mailer import Mailer
 from modules.parser import Parser
 from modules.sessions_manager import SessionsManager
@@ -52,6 +59,7 @@ class Pochtalion_UI(QMainWindow):
         self.settings_manager = SettingsManager(self)
         self.parser = Parser(self)
         self.mailer = Mailer(self)
+        self.group_mailer = GroupMailer(self)
         self.logger = setup_logger("Pochtalion.UI", "UI.log")
         self.logger.info("Main UI initialized")
 
@@ -106,6 +114,19 @@ class Pochtalion_UI(QMainWindow):
         self.sidebar_window.loadFinished.connect(
             lambda _: asyncio.create_task(self.loadSidebar())
         )
+
+        sessions = await self.database.get_sessions()
+        for session in sessions:
+            session_id = session.get("session_id")
+            session_file = session.get("session_file")
+            if not session_id or not session_file:
+                self.show_notification("Внимание", f"Не удалось получить сессию")
+                self.logger.warning(
+                    f"Failed receive session data when init group_mailer:\n{session}"
+                )
+                continue
+
+            self.group_mailer.add_session(str(session_id), session_file)
 
         return self
 
@@ -177,6 +198,7 @@ class Pochtalion_UI(QMainWindow):
         self.settings_manager.save_settings()
         await self.parser.stop()
         await self.mailer.stop()
+        await self.group_mailer.stop_all()
         await self.notification_manager.stop()
         await self.database.closeConnection()
         if self._session_manager:

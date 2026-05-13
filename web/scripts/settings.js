@@ -47,6 +47,9 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.renderVoiceMessages.connect(renderVoiceMessages);
     bridge.removeVoiceMessageRow.connect(removeVoiceMessageRow);
     bridge.renderObjects.connect(renderObjects);
+    bridge.renderMailingGroups.connect(renderMailingGroups);
+    bridge.changeGroupMailingStatus.connect(changeGroupMailingStatus);
+    bridge.updateGroupMailingProgress.connect(updateGroupMailingProgress);
 });
 
 observer.observe(document.getElementById("voice-smm-block"), {
@@ -107,7 +110,7 @@ async function openSettingsTab(tab_name) {
             .getElementById("sessions-tab-block")
             .classList.add("active-tab-block");
         document.getElementById("sessions-list").innerHTML = "";
-        await bridge.loadSessions(true);
+        await bridge.loadSessions("settings");
     } else if (tab_name === "common") {
         document.getElementById("common-tab").classList.add("active-tab");
         document
@@ -123,7 +126,7 @@ async function openSMMSettingsTab(tab_name) {
         ?.classList.remove("active-tab");
 
     document
-        .querySelector(".tab-block .smm-block.active-tab-block")
+        .querySelector("#smm-tab-block .sub-block.active-tab-block")
         ?.classList.remove("active-tab-block");
 
     if (tab_name === "text") {
@@ -136,6 +139,32 @@ async function openSMMSettingsTab(tab_name) {
             .classList.add("active-tab-block");
         document.getElementById("smm-voice-messages-block").innerHTML = "";
         await bridge.loadVoiceMessages();
+    }
+}
+
+async function openMailingSettingsTab(tab_name) {
+    document
+        .querySelector(".mailing-tabs .tab.active-tab")
+        ?.classList.remove("active-tab");
+
+    document
+        .querySelector("#mailing-tab-block .sub-block.active-tab-block")
+        ?.classList.remove("active-tab-block");
+
+    if (tab_name === "user") {
+        document.getElementById("user-mailing-tab").classList.add("active-tab");
+        document
+            .getElementById("user-mailing-block")
+            .classList.add("active-tab-block");
+    } else if (tab_name === "group") {
+        document.getElementById("group-mailing-tab").classList.add("active-tab");
+        document
+            .getElementById("group-mailing-block")
+            .classList.add("active-tab-block");
+        document.querySelector(
+            "#mailing-session-container-block .sessions-list",
+        ).innerHTML = "";
+        await bridge.loadSessions("mailing");
     }
 }
 
@@ -333,7 +362,7 @@ async function toggleSessionContainerView(force = null) {
 
     if (isOpen) {
         block.querySelector(".sessions-list").innerHTML = "";
-        await bridge.loadSessions(false);
+        await bridge.loadSessions("voices");
     }
 }
 
@@ -350,11 +379,25 @@ function removeVoiceMessageRow(voice_msg_id_str) {
         ?.remove();
 }
 
-async function renderSessions(sessions_json, is_settings) {
-    console.log(sessions_json)
+async function renderSessions(sessions_json, destination) {
+    let container_id = null;
+
+    if (destination === "settings") {
+        container_id = "#sessions-tab-block";
+    } else if (destination === "voices") {
+        container_id = "#smm-session-container-block";
+    } else if (destination === "mailing") {
+        container_id = "#mailing-session-container-block";
+    }
+
+    if (!container_id) {
+        return;
+    }
+
     const sessions_list = document.querySelector(
-        `${is_settings ? "#sessions-tab-block" : "#smm-session-container-block"} .sessions-list`,
+        `${container_id} .sessions-list`,
     );
+
     if (!sessions_list) return;
 
     const fragment = document.createDocumentFragment();
@@ -371,7 +414,7 @@ async function renderSessions(sessions_json, is_settings) {
             </div>
         `;
 
-        if (is_settings) {
+        if (destination === "settings") {
             let statusButton = "";
             if (session.status === 0) {
                 statusButton = `
@@ -403,7 +446,7 @@ async function renderSessions(sessions_json, is_settings) {
                 </div>
             `,
             );
-        } else {
+        } else if (destination === "voices") {
             row.addEventListener("click", async () => {
                 pushWindow("dialogs", session.session_id, session.session_file);
                 // setTimeout(async () => {
@@ -414,10 +457,92 @@ async function renderSessions(sessions_json, is_settings) {
                 );
                 // }, 3000);
             });
+        } else if (destination === "mailing") {
+            let controlButton = "";
+            if (session.groupMailing) {
+                controlButton =
+                    '<div class="btn stop-group-mailing" onclick="toggleControlGroupMailing(false, this)">Стоп</div>';
+            } else {
+                controlButton =
+                    '<div class="btn start-group-mailing" onclick="toggleControlGroupMailing(true, this)">Начать</div>';
+            }
+
+            row.querySelector(".row-content").insertAdjacentHTML(
+                "beforeend",
+                `
+                    <div class="group-mailing-info">
+                        <div class="mailing-delay-label">
+                            <span>Задержка, сек</span>
+                            <input type="number" placeholder="0" class="input-number group-mailing-delay" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
+                        </div>
+                        <div>Отправлено: <span class="group-mailing-count">0</span></div>
+                        <div>Последнее в: <span class="group-mailing-time">—</span></div>
+                    </div>
+                    <div class="buttons">
+                        <div class="btn open-groups" onclick="loadMailingGroups(this)">Группы</div>
+                        ${controlButton}
+                    </div>
+                `,
+            );
         }
         fragment.appendChild(row);
     });
     sessions_list.appendChild(fragment);
+}
+
+function updateGroupMailingProgress(session_id, count, last_time) {
+    const row = document.querySelector(
+        `#mailing-session-container-block .row[data-id="${session_id}"]`,
+    );
+    if (!row) return;
+    const countEl = row.querySelector(".group-mailing-count");
+    const timeEl = row.querySelector(".group-mailing-time");
+    if (countEl) countEl.textContent = String(count);
+    if (timeEl) timeEl.textContent = last_time;
+}
+
+function changeGroupMailingStatus(session_id, is_on) {
+    const controlButtons = document.querySelector(
+        `#mailing-session-container-block .row[data-id="${session_id}"] .buttons`,
+    );
+
+    if (!controlButtons) {
+        return;
+    }
+
+    if (is_on) {
+        controlButtons.querySelector(".start-group-mailing")?.remove();
+        controlButtons.insertAdjacentHTML(
+            "beforeend",
+            '<div class="btn stop-group-mailing" onclick="toggleControlGroupMailing(false, this)">Стоп</div>',
+        );
+    } else {
+        controlButtons.querySelector(".stop-group-mailing")?.remove();
+        controlButtons.insertAdjacentHTML(
+            "beforeend",
+            '<div class="btn start-group-mailing" onclick="toggleControlGroupMailing(true, this)">Начать</div>',
+        );
+    }
+}
+
+async function toggleControlGroupMailing(is_start, elem) {
+    const row = elem.closest(".row");
+    if (!row) {
+        return;
+    }
+    const session_id = row.dataset.id;
+
+    if (!session_id) {
+        return;
+    }
+
+    if (is_start) {
+        let delay = row.querySelector(".group-mailing-delay")?.value;
+        if (!delay) {
+            delay = 0;
+        }
+        await bridge.startGroupMailing(session_id, delay);
+    } else await bridge.stopGroupMailing(session_id);
 }
 
 function makeProgressBar() {
@@ -796,16 +921,10 @@ function changeMessageType(type) {
         select_block
             .querySelector("#voice-message")
             .classList.remove("active-type");
-        select_block
-            .querySelector("#text-message")
-            .classList.add("active-type");
+        select_block.querySelector("#text-message").classList.add("active-type");
     } else if (type === "voice") {
-        select_block
-            .querySelector("#text-message")
-            .classList.remove("active-type");
-        select_block
-            .querySelector("#voice-message")
-            .classList.add("active-type");
+        select_block.querySelector("#text-message").classList.remove("active-type");
+        select_block.querySelector("#voice-message").classList.add("active-type");
     }
 }
 
@@ -923,6 +1042,38 @@ function confirmSelectedSessions() {
         document.getElementById("parse-account-count").innerText = String(count);
         closeSessionModal();
     }
+}
+
+async function loadMailingGroups(button) {
+    const row = button.closest(".row");
+    await bridge.loadMailingGroups(row.dataset.id);
+}
+
+function renderMailingGroups(session_id, groups_data_str) {
+    const modal = document.getElementById("mailing-group-modal");
+    if (!modal) return;
+
+    modal.dataset.id = session_id;
+    modal.querySelector("textarea").value = groups_data_str;
+    modal?.classList.remove("hidden");
+}
+
+async function confirmMailingGroups() {
+    const modal = document.getElementById("mailing-group-modal");
+    if (!modal) return closeMailingGroupsModal();
+
+    const groups_data = modal.querySelector("textarea").value;
+    await bridge.updateMailingGroups(modal.dataset.id, groups_data);
+
+    closeMailingGroupsModal();
+}
+
+function closeMailingGroupsModal() {
+    const modal = document.getElementById("mailing-group-modal");
+    if (!modal) return;
+
+    modal.dataset.id = "";
+    modal.classList.add("hidden");
 }
 
 async function startParsing() {
