@@ -166,22 +166,45 @@ class ClientWrapper:
 
         qr_login = QRLoginWindow()
         tries = 0
+
         while True:
+            if qr_login.closed_event.is_set():
+                qr_login.exit()
+                raise AuthCanceled()
+
             qr_login.update_status("Generating QR")
             qr = await self._client.qr_login()
-
             qr_login.fill_qr(qr.url)
             qr_login.update_status("Scan qr code with your phone")
 
+            qr_task = asyncio.ensure_future(qr.wait(timeout=120))
+            close_task = asyncio.ensure_future(qr_login.closed_event.wait())
+
+            done, pending = await asyncio.wait(
+                {qr_task, close_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+            if close_task in done:
+                qr_login.exit()
+                raise AuthCanceled()
+
             try:
-                await qr.wait(timeout=120)
+                qr_task.result()
                 qr_login.update_status("QR login successful")
                 break
             except asyncio.TimeoutError:
                 qr_login.update_status("Timeout. Wait for refresh QR")
                 tries += 1
                 if tries > 3:
-                    return
+                    break
             except errors.SessionPasswordNeededError:
                 password = await self.password_callback()
                 await self._client.sign_in(password=password)
