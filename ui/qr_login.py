@@ -1,3 +1,4 @@
+import asyncio
 from io import BytesIO
 import qrcode
 from PyQt6.QtCore import Qt
@@ -9,6 +10,7 @@ class QRLoginWindow(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.closed_event = asyncio.Event()
 
         self.setWindowTitle("Telethon QR Login")
         self.setMinimumSize(420, 520)
@@ -30,6 +32,10 @@ class QRLoginWindow(QWidget):
         layout.addWidget(self.status)
         self.setLayout(layout)
         self.show()
+
+    def closeEvent(self, event):
+        self.closed_event.set()
+        super().closeEvent(event)
 
     def update_status(self, text: str):
         self.status.setText(text)
