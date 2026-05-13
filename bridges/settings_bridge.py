@@ -74,7 +74,8 @@ class SettingsBridge(BaseBridge):
     @asyncSlot(str, str)
     async def startGroupMailing(self, session_id: str, delay: str) -> None:
         started = await self.main_window.group_mailer.start_group_mailing(session_id, delay)
-        self.changeGroupMailingStatus.emit(session_id, started)
+        if started:
+            self.changeGroupMailingStatus.emit(session_id, True)
 
     @asyncSlot(str)
     async def stopGroupMailing(self, session_id: str) -> None:

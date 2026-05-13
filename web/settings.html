@@ -63,46 +63,59 @@
             Some blocks for chatting (В разработке...)
         </div>
         <div class="tab-block" id="mailing-tab-block">
-            <div class="control-panel">
-                <div class="column links">
-                    <label for="mailing-usernames-field">Usernames для рассылки</label>
-                    <textarea name="mailing-usernames" id="mailing-data-field"></textarea>
+            <div class="tabs mailing-tabs">
+                <div class="tab sub-tab active-tab" id="user-mailing-tab" onclick="openMailingSettingsTab('user')">Рассылка по пользователям</div>
+                <div class="tab sub-tab" id="group-mailing-tab" onclick="openMailingSettingsTab('group')">Рассылка по группам</div>
+            </div>
+            <div class="sub-block active-tab-block" id="user-mailing-block">
+                <div class="control-panel">
+                    <div class="column links">
+                        <label for="mailing-usernames-field">Usernames для рассылки</label>
+                        <textarea name="mailing-usernames" id="mailing-data-field"></textarea>
+                    </div>
+                    <div class="column">
+                        <div class="select-type select-mailing-type">
+                            <span class="active-type" id="mailing-database" onclick="changeMailingType('db')">Рассылки из базы данных</span>
+                            <div>/</div>
+                            <span id="mailing-usernames" onclick="changeMailingType('usernames')">Рассылка по usernames</span>
+                        </div>
+                        <div class="select-type select-message-type">
+                            <span class="active-type" id="text-message" onclick="changeMessageType('text')">Текстовые сообщения</span>
+                            <div>/</div>
+                            <span id="voice-message" onclick="changeMessageType('voice')">Голосовые сообщения</span>
+                        </div>
+                        <div class="timing-settings">
+                            <label for="delay-between-mailing">Задержка между сообщениями, сек</label>
+                            <input type="text" class="input-number" maxlength="6" placeholder="0" id="delay-between-mailing-messages"
+                                oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
+                        </div>
+                        <div class="choose-accounts">
+                            <label for="choose-button">Выберите аккаунты для работы <span id="mailing-account-count">0</span></label>
+                            <input type="button" class="button choose-button" value="Выбрать" onclick="loadChooseSessions()">
+                        </div>
+                    </div>
                 </div>
-                <div class="column">
-                    <div class="select-type select-mailing-type">
-                        <span class="active-type" id="mailing-database" onclick="changeMailingType('db')">Рассылки из базы данных</span>
-                        <div>/</div>
-                        <span id="mailing-usernames" onclick="changeMailingType('usernames')">Рассылка по usernames</span>
+                <div class="action-buttons">
+                    <input type="button" value="Начать рассылку" class="button start-button" id="start-mailing-button" onclick="startMailing()">
+                    <input type="button" value="Остановить рассылку" class="button stop-button" id="stop-mailing-button" onclick="stopMailing()" disabled>
+                </div>
+                <div class="update-container">
+                    <div class="status-container">
+                        Статус: <span id="mailing-status">сон</span>
                     </div>
-                    <div class="select-type select-message-type">
-                        <span class="active-type" id="text-message" onclick="changeMessageType('text')">Текстовые сообщения</span>
-                        <div>/</div>
-                        <span id="voice-message" onclick="changeMessageType('voice')">Голосовые сообщения</span>
+                    <div class="total-count-container">
+                        Всего отправлено: <span id="total-mailed-count">0/0</span>
                     </div>
-                    <div class="timing-settings">
-                        <label for="delay-between-mailing">Задержка между сообщениями, сек</label>
-                        <input type="text" class="input-number" maxlength="6" placeholder="0" id="delay-between-mailing-messages"
-                            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
-                    </div>
-                    <div class="choose-accounts">
-                        <label for="choose-button">Выберите аккаунты для работы <span id="mailing-account-count">0</span></label>
-                        <input type="button" class="button choose-button" value="Выбрать" onclick="loadChooseSessions()">
+                    <div class="time-container">
+                        Время: <span id="mailing-time">--:--:--/--:--:--</span>
                     </div>
                 </div>
             </div>
-            <div class="action-buttons">
-                <input type="button" value="Начать рассылку" class="button start-button" id="start-mailing-button" onclick="startMailing()">
-                <input type="button" value="Остановить рассылку" class="button stop-button" id="stop-mailing-button" onclick="stopMailing()" disabled>
-            </div>
-            <div class="update-container">
-                <div class="status-container">
-                    Статус: <span id="mailing-status">сон</span>
-                </div>
-                <div class="total-count-container">
-                    Всего отправлено: <span id="total-mailed-count">0/0</span>
-                </div>
-                <div class="time-container">
-                    Время: <span id="mailing-time">--:--:--/--:--:--</span>
+            <div class="sub-block" id="group-mailing-block">
+                <div id="mailing-session-container-block">
+                    <div class="sessions-list">
+
+                    </div>
                 </div>
             </div>
         </div>
@@ -166,10 +179,10 @@
         </div>
         <div class="tab-block" id="smm-tab-block">
             <div class="tabs smm-tabs">
-                <div class="tab smm-tab text-tab active-tab" id="text-tab" onclick="openSMMSettingsTab('text')">Текстовые сообщения</div>
-                <div class="tab smm-tab voice-tab" id="voice-tab" onclick="openSMMSettingsTab('voice')">Голосовые сообщения</div>
+                <div class="tab sub-tab text-tab active-tab" id="text-tab" onclick="openSMMSettingsTab('text')">Текстовые сообщения</div>
+                <div class="tab sub-tab voice-tab" id="voice-tab" onclick="openSMMSettingsTab('voice')">Голосовые сообщения</div>
             </div>
-            <div class="smm-block text-smm-block active-tab-block" id="text-smm-block">
+            <div class="sub-block active-tab-block" id="text-smm-block">
                 <div id="image-preview-overlay" onclick="this.style.display = 'none'">
                     <img id="image-preview-fullscreen" src="" alt="preview">
                 </div>
@@ -186,7 +199,7 @@
                 <hr>
                 <div class="smm-message-list" id="smm-message-list"></div>
             </div>
-            <div class="smm-block voice-smm-block" id="voice-smm-block">
+            <div class="sub-block" id="voice-smm-block">
                 <div class="smm-session-container">
                     <div class="row smm-session-container-title" onclick="toggleSessionContainerView()">
                         <span>Сессии</span>
@@ -250,6 +263,15 @@
             <h3>Выберите сесии</h3>
             <div class="sessions-list" id="session-list"></div>
             <input type="button" class="button choose-button" value="Подтвердить" onclick="confirmSelectedSessions()">
+        </div>
+    </div>
+    <div id="mailing-group-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeMailingGroupsModal()">&times;</span>
+            <h3>Вставьте группы для рассылки</h3>
+            <textarea name="mailing-groups" id="mailing-group-data-field"></textarea>
+                <!-- <div class="sessions-list" id="session-list"></div> -->
+            <input type="button" class="button choose-button" value="Подтвердить" onclick="confirmMailingGroups()">
         </div>
     </div>
 </body>
