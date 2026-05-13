@@ -28,7 +28,9 @@ from telethon.errors import (
     PasswordHashInvalidError,
     TakeoutInitDelayError,
     UsernameInvalidError,
+    UserNotParticipantError,
 )
+from telethon.tl.functions.channels import GetParticipantRequest, JoinChannelRequest
 
 from core.database import Database
 from core.paths import PROFILE_PHOTOS, SESSIONS, TMP, USERS_DATA
@@ -623,6 +625,70 @@ class ClientWrapper:
             self.main_window.chat_bridge.renderNewMessage(
                 json.dumps(render_messages), str(sender.id), self._session_file, r"{}"
             )
+
+    async def is_joined(self, client, group):
+        try:
+            me = await client.get_me()
+            await client(GetParticipantRequest(channel=group, participant=me.id))
+            return True
+        except UserNotParticipantError:
+            return False
+        except Exception:
+            # GetParticipantRequest only works for channels/supergroups;
+            # for regular Chat groups assume already a member
+            return True
+
+    async def sendGroupMessage(self, group: str, message):
+        if not self._status:
+            self.main_window.show_notification(
+                "Внимание", f"Сессия {self._session_file} не запущена"
+            )
+            return
+
+        if not await self.is_joined(self._client, group):
+            self.logger.info(f"{self._session_file}\tJoining group {group}")
+            await self._client(JoinChannelRequest(group))
+
+        filename = message.get("filename", None)
+        message_text = message.get("text", None)
+        b64file = message.get("base64_file", None)
+
+        file_obj = None
+        if b64file:
+            file_obj = io.BytesIO(base64.b64decode(b64file))
+            file_obj.name = filename
+            file_obj.seek(0)
+
+        group_entity = await self._client.get_entity(group)
+        if not group_entity:
+            self.main_window.show_notification(
+                "Внимание", f"Не удалось получить сущность группы\n{group}"
+            )
+            return
+
+        message = await self._client.send_message(
+            group_entity if not isinstance(group_entity, list) else group_entity[0],
+            message=message_text,
+            file=file_obj.getvalue() if file_obj else None,
+        )
+
+        if file_obj:
+            file_obj.close()
+
+        if hasattr(message, "date") and message.date:
+            message_time = message.date.isoformat()
+            render_time = message.date.astimezone(tzlocal.get_localzone()).strftime(
+                "%d.%m.%Y %H:%M:%S"
+            )
+        else:
+            message_time = (
+                datetime.now()
+                .astimezone(tzlocal.get_localzone())
+                .strftime("%d.%m.%Y %H:%M:%S")
+            )
+            render_time = message_time
+
+        return render_time
 
     async def sendMessage(self, user_id, message_str, voice: bool = False):
         if not self._status:

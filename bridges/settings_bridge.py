@@ -17,7 +17,7 @@ from .base_bridge import BaseBridge
 
 
 class SettingsBridge(BaseBridge):
-    renderSessions = pyqtSignal(str, bool)
+    renderSessions = pyqtSignal(str, str)
     renderSMMMessages = pyqtSignal(str)
     renderChooseSessions = pyqtSignal(str)
     renderParsingProgressData = pyqtSignal(str)
@@ -30,22 +30,54 @@ class SettingsBridge(BaseBridge):
     renderVoiceMessages = pyqtSignal(str)
     removeVoiceMessageRow = pyqtSignal(str)
     renderObjects = pyqtSignal(str, str, str, str, bool)
+    renderMailingGroups = pyqtSignal(str, str)
+    changeGroupMailingStatus = pyqtSignal(str, bool)
+    updateGroupMailingProgress = pyqtSignal(str, int, str)
 
     def __init__(self, main_window, database):
         super().__init__(main_window, database)
 
-    @asyncSlot(bool)
-    async def loadSessions(self, isSettings: bool):
+    @asyncSlot(str)
+    async def loadSessions(self, destination: str):
         sessions = await self.database.get_sessions()
-        if isSettings:
+        if destination == "settings":
             active_sessions = {}
             if session_manager := self.main_window.session_manager:
                 active_sessions = session_manager.get_active_sessions()
             for s in sessions:
                 s["file_exists"] = (SESSIONS / s["session_file"]).exists()
                 s["status"] = active_sessions.get(s["session_file"], 0)
+        elif destination == "mailing":
+            group_mailer = self.main_window.group_mailer
+            for s in sessions:
+                session_id = str(s["session_id"])
+                if group_mailer:
+                    if session_id not in group_mailer.work_sessions:
+                        group_mailer.add_session(session_id, s["session_file"])
+                    s["groupMailing"] = group_mailer.is_session_mailing(session_id)
+                else:
+                    s["groupMailing"] = False
 
-        self.renderSessions.emit(json.dumps(sessions), isSettings)
+        self.renderSessions.emit(json.dumps(sessions), destination)
+
+    @asyncSlot(str)
+    async def loadMailingGroups(self, session_id: str) -> None:
+        groups = self.main_window.group_mailer.get_session_groups(session_id)
+        self.renderMailingGroups.emit(session_id, groups)
+
+    @asyncSlot(str, str)
+    async def updateMailingGroups(self, session_id: str, groups_data: str) -> None:
+        self.main_window.group_mailer.update_groups(session_id, groups_data)
+
+    @asyncSlot(str, str)
+    async def startGroupMailing(self, session_id: str, delay: str) -> None:
+        started = await self.main_window.group_mailer.start_group_mailing(session_id, delay)
+        self.changeGroupMailingStatus.emit(session_id, started)
+
+    @asyncSlot(str)
+    async def stopGroupMailing(self, session_id: str) -> None:
+        await self.main_window.group_mailer.stop_group_mailing(session_id)
+        self.changeGroupMailingStatus.emit(session_id, False)
 
     @asyncSlot()
     async def loadVoiceMessages(self) -> None:
@@ -177,7 +209,7 @@ class SettingsBridge(BaseBridge):
         if not self.main_window.active_session:
             self.main_window.active_session = session
         json_session = json.dumps([session])
-        self.renderSessions.emit(json_session, True)
+        self.renderSessions.emit(json_session, "settings")
         self.sidebar_bridge.renderSelectSessions.emit(json_session)
 
         # if phone_number:
