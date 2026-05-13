@@ -8,3 +8,4 @@ tmp
 .python-version
 /settings/*
 !/settings/defaults.json
+CLAUDE.md
