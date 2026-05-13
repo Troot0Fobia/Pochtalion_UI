@@ -101,7 +101,14 @@ class Parser:
             client = wrapper.client
             index += 1
 
-            group_entity = await client.get_entity(parse_username)
+            try:
+                group_entity = await client.get_entity(parse_username)
+            except Exception:
+                self.logger.error(
+                    f"Failed to get entity for @{parse_username}, skipping",
+                    exc_info=True,
+                )
+                continue
             group_type = self._get_channel_type(group_entity)
             self.group_id = group_entity.id
             self.group_data[self.group_id] = (
@@ -281,6 +288,11 @@ class Parser:
                     session_id, session_file, is_module=True
                 )
                 was_started = True
+            if session_wrapper is None:
+                self.logger.warning(
+                    f"Session {session_file} failed to start, skipping"
+                )
+                continue
             self.session_wrappers.append((session_wrapper, was_started, session_id))
 
     # async def finish_sessions(self):

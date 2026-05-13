@@ -32,7 +32,7 @@ class NotificationManager:
         self.unread_messages = {
             (_user_id, _session_id, _message_text)
             for _user_id, _session_id, _message_text in self.unread_messages
-            if _user_id != user_id and _session_id != session_id
+            if not (_user_id == user_id and _session_id == session_id)
         }
 
     def get_unread_messages(self):
