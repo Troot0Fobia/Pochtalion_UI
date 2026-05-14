@@ -2,6 +2,7 @@ import asyncio
 import base64
 import io
 import json
+import re
 import shutil
 from datetime import datetime
 from inspect import isawaitable
@@ -31,6 +32,8 @@ from telethon.errors import (
     UserNotParticipantError,
 )
 from telethon.tl.functions.channels import GetParticipantRequest, JoinChannelRequest
+from telethon.tl.functions.messages import CheckChatInviteRequest, ImportChatInviteRequest
+from telethon.tl.types import ChatInviteAlready
 
 from core.database import Database
 from core.paths import PROFILE_PHOTOS, SESSIONS, TMP, USERS_DATA
@@ -671,16 +674,14 @@ class ClientWrapper:
             # for regular Chat groups assume already a member
             return True
 
+    _INVITE_RE = re.compile(r"^(?:https?://)?t\.me/(?:joinchat/|\+)([a-zA-Z0-9_=-]+)$")
+
     async def sendGroupMessage(self, group: str, message):
         if not self._status:
             self.main_window.show_notification(
                 "Внимание", f"Сессия {self._session_file} не запущена"
             )
             return
-
-        if not await self.is_joined(self._client, group):
-            self.logger.info(f"{self._session_file}\tJoining group {group}")
-            await self._client(JoinChannelRequest(group))
 
         filename = message.get("filename", None)
         message_text = message.get("text", None)
@@ -692,7 +693,33 @@ class ClientWrapper:
             file_obj.name = filename
             file_obj.seek(0)
 
-        group_entity = await self._client.get_entity(group)
+        invite_match = self._INVITE_RE.match(group.strip())
+        if invite_match:
+            invite_hash = invite_match.group(1)
+            try:
+                result = await self._client(CheckChatInviteRequest(invite_hash))
+                if isinstance(result, ChatInviteAlready):
+                    group_entity = result.chat
+                else:
+                    join_result = await self._client(ImportChatInviteRequest(invite_hash))
+                    if not join_result.chats:
+                        self.main_window.show_notification(
+                            "Внимание", f"Не удалось вступить в группу\n{group}"
+                        )
+                        return None
+                    group_entity = join_result.chats[0]
+            except Exception as e:
+                self.logger.error(f"Failed to join private group {group}", exc_info=e)
+                self.main_window.show_notification(
+                    "Внимание", f"Не удалось вступить в приватную группу\n{group}"
+                )
+                return None
+        else:
+            if not await self.is_joined(self._client, group):
+                self.logger.info(f"{self._session_file}\tJoining group {group}")
+                await self._client(JoinChannelRequest(group))
+            group_entity = await self._client.get_entity(group)
+
         if not group_entity:
             self.main_window.show_notification(
                 "Внимание", f"Не удалось получить сущность группы\n{group}"

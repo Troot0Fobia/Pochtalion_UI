@@ -29,6 +29,7 @@ class Parser:
         self.count_of_messages = None
         self.session_files = None
         self._running = False
+        self._session_user_ids: set[int] = set()
         self.update_task = None
         self.logger = setup_logger("Pochtalion.Parser", "parser.log")
 
@@ -98,6 +99,12 @@ class Parser:
         self.group_id = None
         await self.start_sessions()
 
+        self._session_user_ids = {
+            wrapper.session_user_id
+            for wrapper, _, _ in self.session_wrappers
+            if getattr(wrapper, "session_user_id", None) is not None
+        }
+
         sessions_count = len(self.session_wrappers)
         self.logger.debug(f"Sessions started {sessions_count}")
         index = 0
@@ -130,7 +137,7 @@ class Parser:
             self.group_id = group_entity.id
             self.group_data[self.group_id] = (
                 group_entity.title,
-                group_entity.username,
+                getattr(group_entity, "username", None),
                 group_type,
             )
             await self.main_window.database.add_parse_source(
@@ -255,6 +262,9 @@ class Parser:
             return False
 
         if user_entity.bot:
+            return False
+
+        if user_entity.id in self._session_user_ids:
             return False
 
         if is_parse_admins:
