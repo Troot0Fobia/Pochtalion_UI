@@ -52,6 +52,19 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.updateGroupMailingProgress.connect(updateGroupMailingProgress);
 });
 
+document.addEventListener("keyup", (event) => {
+    if (event.key === "Escape") {
+        const groupModal = document.getElementById("mailing-group-modal");
+        if (groupModal && !groupModal.classList.contains("hidden")) {
+            return groupModal.classList.add("hidden");
+        }
+        const sessionModal = document.getElementById("session-modal");
+        if (sessionModal && !sessionModal.classList.contains("hidden")) {
+            return sessionModal.classList.add("hidden");
+        }
+    }
+});
+
 observer.observe(document.getElementById("voice-smm-block"), {
     attributeFilter: ["class"],
 });
@@ -772,7 +785,7 @@ async function renderSMMMessages(smm_messages_str) {
                 <div class="left-smm-side">
                     <div class="index">${last_index === -1 ? index + 1 : last_index + 1}.</div>
                     <textarea class="smm-text" disabled>${smm_message.text || ""}</textarea>
-                    <label>
+                    <label class="label-image-preview">
                         <img class="image-preview" src="${smm_message.photo ? "../assets/smm_images/" + smm_message.photo : "assets/images/add_image.png"}" alt="add image" onclick="openImage(this)">
                         <input type="file" accept=".jpg,.jpeg,.png" onchange="uploadImage(this)" disabled>
                     </label>
