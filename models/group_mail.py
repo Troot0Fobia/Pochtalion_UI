@@ -11,6 +11,7 @@ class GroupMail:
         self.delay: int = 0
         self.groups: list[str] = []
         self.group_index: int = 0
+        self.group_cooldowns: dict[str, float] = {}
         self.sended_count: int = 0
 
     def set_session(self, client_wrapper):
@@ -25,6 +26,7 @@ class GroupMail:
     def set_groups(self, groups: list[str]):
         if groups != self.groups:
             self.group_index = 0
+            self.group_cooldowns.clear()
         self.groups = groups
 
     def start(self):
