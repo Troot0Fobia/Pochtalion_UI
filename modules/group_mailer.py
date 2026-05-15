@@ -1,12 +1,14 @@
 import asyncio
 import base64
 import random
+import time
 
 from telethon.errors import (
     FloodWaitError,
     ForbiddenError,
     InputUserDeactivatedError,
     PeerFloodError,
+    SlowModeWaitError,
 )
 
 from core.logger import setup_logger
@@ -129,6 +131,18 @@ class GroupMailer:
             }
             group = groups[group_mail.group_index % len(groups)]
 
+            now = time.time()
+            cooldown_until = group_mail.group_cooldowns.get(group, 0)
+            if cooldown_until > now:
+                soonest = min(group_mail.group_cooldowns.get(g, 0) for g in groups)
+                if soonest > now:
+                    self.logger.info(
+                        f"All groups on slow mode cooldown, waiting {soonest - now:.0f}s"
+                    )
+                    await asyncio.sleep(soonest - now)
+                group_mail.group_index = (group_mail.group_index + 1) % len(groups)
+                continue
+
             try:
                 send_time = await session.sendGroupMessage(group, message_to_send)
                 if send_time is not None:
@@ -166,6 +180,11 @@ class GroupMailer:
                     f"Catched Forbidden Error, skip group {group}",
                     exc_info=e,
                 )
+            except SlowModeWaitError as e:
+                self.logger.warning(
+                    f"Slow mode on group {group}, next send available in {e.seconds}s"
+                )
+                group_mail.group_cooldowns[group] = time.time() + e.seconds
             except ConnectionError as e:
                 self.logger.error(
                     f"Session disconnected, stopping group mailing", exc_info=e
