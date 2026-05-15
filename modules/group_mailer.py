@@ -99,8 +99,6 @@ class GroupMailer:
         if session is None:
             return
 
-        group_index = 0
-
         while group_mail.running:
             groups = group_mail.groups
             if not groups:
@@ -129,7 +127,7 @@ class GroupMailer:
                 "text": message["text"],
                 "filename": message["photo"],
             }
-            group = groups[group_index % len(groups)]
+            group = groups[group_mail.group_index % len(groups)]
 
             try:
                 send_time = await session.sendGroupMessage(group, message_to_send)
@@ -168,10 +166,20 @@ class GroupMailer:
                     f"Catched Forbidden Error, skip group {group}",
                     exc_info=e,
                 )
+            except ConnectionError as e:
+                self.logger.error(
+                    f"Session disconnected, stopping group mailing", exc_info=e
+                )
+                self.main_window.show_notification(
+                    "Внимание",
+                    f"Сессия {session.session_file} отключена — рассылка остановлена",
+                )
+                group_mail.stop()
+                break
             except Exception as e:
                 self.logger.error("Unexpected error during group mailing", exc_info=e)
             finally:
-                group_index = (group_index + 1) % len(groups)
+                group_mail.group_index = (group_mail.group_index + 1) % len(groups)
 
             if group_mail.running:
                 await asyncio.sleep(group_mail.delay)

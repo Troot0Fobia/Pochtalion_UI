@@ -635,8 +635,21 @@ class ClientWrapper:
                 )
 
     async def _handle_event(self, event, is_multiple):
-        chat = await event.get_chat()
-        sender = await event.get_sender()
+        if not self._client.is_connected():
+            return
+
+        try:
+            chat = await event.get_chat()
+        except Exception:
+            return
+
+        try:
+            sender = await event.get_sender()
+        except errors.FloodWaitError as e:
+            await asyncio.sleep(e.seconds + 1)
+            return
+        except Exception:
+            return
 
         if (
             isinstance(chat, (types.Channel, types.Chat))
@@ -682,6 +695,12 @@ class ClientWrapper:
                 "Внимание", f"Сессия {self._session_file} не запущена"
             )
             return
+
+        if not self._client.is_connected():
+            self.main_window.show_notification(
+                "Внимание", f"Сессия {self._session_file} отключена"
+            )
+            return None
 
         filename = message.get("filename", None)
         message_text = message.get("text", None)

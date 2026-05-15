@@ -10,6 +10,7 @@ class GroupMail:
         self.running: bool = False
         self.delay: int = 0
         self.groups: list[str] = []
+        self.group_index: int = 0
         self.sended_count: int = 0
 
     def set_session(self, client_wrapper):
@@ -22,6 +23,8 @@ class GroupMail:
         self.delay = delay
 
     def set_groups(self, groups: list[str]):
+        if groups != self.groups:
+            self.group_index = 0
         self.groups = groups
 
     def start(self):
