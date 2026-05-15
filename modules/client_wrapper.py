@@ -651,6 +651,9 @@ class ClientWrapper:
         except Exception:
             return
 
+        if sender is None:
+            return
+
         if (
             isinstance(chat, (types.Channel, types.Chat))
             or isinstance(sender, types.User)

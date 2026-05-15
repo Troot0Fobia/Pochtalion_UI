@@ -9,6 +9,7 @@ from telethon.errors import (
     FloodWaitError,
     ForbiddenError,
     InputUserDeactivatedError,
+    InviteRequestSentError,
     PeerFloodError,
     SlowModeWaitError,
     UserBannedInChannelError,
@@ -134,6 +135,13 @@ class GroupMailer:
             }
             group = groups[group_mail.group_index % len(groups)]
 
+            if group in group_mail.pending_approval:
+                if await session.is_joined(session._client, group):
+                    group_mail.pending_approval.discard(group)
+                else:
+                    group_mail.group_index = (group_mail.group_index + 1) % len(groups)
+                    continue
+
             now = time.time()
             cooldown_until = group_mail.group_cooldowns.get(group, 0)
             if cooldown_until > now:
@@ -173,6 +181,13 @@ class GroupMailer:
                 )
                 group_mail.stop()
                 break
+            except InviteRequestSentError:
+                self.logger.info(f"Join request sent for group {group}, waiting for approval")
+                group_mail.pending_approval.add(group)
+                self.main_window.show_notification(
+                    "Внимание",
+                    f"Отправлена заявка на вступление в группу {group} — ожидаем одобрения",
+                )
             except InputUserDeactivatedError as e:
                 self.logger.error(
                     f"Catched User Deactivated Error, skip group {group}",
