@@ -4,11 +4,14 @@ import random
 import time
 
 from telethon.errors import (
+    ChannelPrivateError,
+    ChatWriteForbiddenError,
     FloodWaitError,
     ForbiddenError,
     InputUserDeactivatedError,
     PeerFloodError,
     SlowModeWaitError,
+    UserBannedInChannelError,
 )
 
 from core.logger import setup_logger
@@ -175,6 +178,13 @@ class GroupMailer:
                     f"Catched User Deactivated Error, skip group {group}",
                     exc_info=e,
                 )
+            except (ChannelPrivateError, ChatWriteForbiddenError, UserBannedInChannelError) as e:
+                self.logger.warning(
+                    f"Banned or write-restricted in group {group}, removing from list",
+                    exc_info=e,
+                )
+                group_mail.groups = [g for g in group_mail.groups if g != group]
+                await session.leaveGroup(group)
             except ForbiddenError as e:
                 self.logger.error(
                     f"Catched Forbidden Error, skip group {group}",

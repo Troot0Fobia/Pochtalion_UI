@@ -930,6 +930,12 @@ class ClientWrapper:
                     str(user_data["user_id"]), json.dumps(user_data)
                 )
 
+    async def leaveGroup(self, group: str) -> None:
+        try:
+            await self._client.delete_dialog(group)
+        except Exception as e:
+            self.logger.warning(f"Failed to leave group {group}: {e}")
+
     async def stop(self) -> None:
         if not self._status:
             return
