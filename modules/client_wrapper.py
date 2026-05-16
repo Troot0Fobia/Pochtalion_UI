@@ -36,6 +36,7 @@ from telethon.tl.functions.messages import CheckChatInviteRequest, ImportChatInv
 from telethon.tl.types import ChatInviteAlready
 
 from core.database import Database
+from core.entity_cache import load_session_entities, save_entity
 from core.paths import PROFILE_PHOTOS, SESSIONS, TMP, USERS_DATA
 from ui.auth_window import AuthWindow
 from ui.qr_login import QRLoginWindow
@@ -66,6 +67,7 @@ class ClientWrapper:
         self.auth_window = AuthWindow(main_window, session_file)
         self._status = 0  # 0 - not running | 1 - running | 2 - processing
         self.is_new = True
+        self._entity_cache = load_session_entities(session_file)
 
     async def start(
         self,
@@ -737,10 +739,22 @@ class ClientWrapper:
                 )
                 return None
         else:
-            if not await self.is_joined(self._client, group):
-                self.logger.info(f"{self._session_file}\tJoining group {group}")
-                await self._client(JoinChannelRequest(group))
-            group_entity = await self._client.get_entity(group)
+            group_key = group.strip().lstrip("@").lower()
+            group_entity = self._entity_cache.get(group_key)
+            if group_entity is None:
+                if not await self.is_joined(self._client, group):
+                    self.logger.info(f"{self._session_file}\tJoining group {group}")
+                    await self._client(JoinChannelRequest(group))
+                entity = await self._client.get_entity(group)
+                save_entity(self._session_file, group_key, entity)
+                if isinstance(entity, types.Channel):
+                    group_entity = types.InputPeerChannel(entity.id, entity.access_hash)
+                elif isinstance(entity, types.Chat):
+                    group_entity = types.InputPeerChat(entity.id)
+                else:
+                    group_entity = entity
+                self._entity_cache[group_key] = group_entity
+                self.logger.info(f"Cached entity for group {group_key} (id={getattr(entity, 'id', '?')})")
 
         if not group_entity:
             self.main_window.show_notification(
