@@ -1300,6 +1300,12 @@ function renderSettings(settings_str) {
             elem.value = value;
         }
     }
+
+    const linksCheckbox = document.getElementById("send-links-to-parsed");
+    const linksSelect   = document.getElementById("send-links-type");
+    if (linksCheckbox && linksSelect) {
+        linksSelect.disabled = !linksCheckbox.checked;
+    }
 }
 
 function changeSettings(elem) {
@@ -1315,9 +1321,17 @@ function changeSettings(elem) {
                 bridge.show_notification("Неверные ключи");
                 return;
             }
+    } else if (elem_type === "select-one") {
+        value = elem.value;
     }
 
     bridge.changeSettings(JSON.stringify({ key, value }));
+}
+
+function toggleLinksSelect(checkbox) {
+    const select = document.getElementById("send-links-type");
+    if (select) select.disabled = !checkbox.checked;
+    changeSettings(checkbox);
 }
 
 async function refreshSessionManager() {

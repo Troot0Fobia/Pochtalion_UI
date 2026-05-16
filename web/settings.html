@@ -57,10 +57,18 @@
                     </label>
                 </div>
                 <div class="row">
-                    <label class="settings-row">
-                        <input type="checkbox" name="send_links_to_parsed" id="send-links-to-parsed" onchange="changeSettings(this)">
-                        <div class="setting-name">Отправлять ссылки на людей с парсинга в сохраненные сообщения</div>
-                    </label>
+                    <div class="settings-row">
+                        <input type="checkbox" name="send_links_to_parsed" id="send-links-to-parsed"
+                               onchange="toggleLinksSelect(this)">
+                        <span class="setting-name">Отправлять ссылки на</span>
+                        <select name="send_links_type" id="send-links-type"
+                                onchange="changeSettings(this)" class="inline-select" disabled>
+                            <option value="messages">сообщения</option>
+                            <option value="username">username</option>
+                            <option value="messages_and_username">сообщения и username</option>
+                        </select>
+                        <span class="setting-name">людей с парсинга в сохранённые сообщения</span>
+                    </div>
                 </div>
             </div>
             <div class="button reset-settings" onclick="resetSettings()">Сбросить настройки</div>

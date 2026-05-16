@@ -6,5 +6,6 @@
     "parse_admins": false,
     "load_chats": false,
     "force_delete_chats": false,
-    "send_links_to_parsed": false
+    "send_links_to_parsed": false,
+    "send_links_type": "messages_and_username"
 }

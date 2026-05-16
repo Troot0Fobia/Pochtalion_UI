@@ -196,6 +196,22 @@ input[type="checkbox"] {
   cursor: pointer; flex-shrink: 0;
 }
 
+.inline-select {
+  background-color: var(--bg-deep);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--transition), opacity var(--transition);
+}
+.inline-select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+.inline-select option { background-color: var(--bg-surface); }
+.inline-select:disabled { opacity: 0.4; cursor: default; }
+
 /* ── TEXTAREA ────────────────────────────────────────── */
 
 textarea {
