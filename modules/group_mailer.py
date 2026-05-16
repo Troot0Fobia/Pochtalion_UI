@@ -20,6 +20,10 @@ from core.paths import SMM_IMAGES
 from models.group_mail import GroupMail
 
 
+_RETRY_DELAYS = (30, 60, 90, 120)  # seconds; total 5 attempts, ~5 min max wait
+_MAX_RETRIES = len(_RETRY_DELAYS) + 1
+
+
 class GroupMailer:
 
     def __init__(self, main_window) -> None:
@@ -211,15 +215,19 @@ class GroupMailer:
                 )
                 group_mail.group_cooldowns[group] = time.time() + e.seconds
             except ConnectionError as e:
-                self.logger.error(
-                    f"Session disconnected, stopping group mailing", exc_info=e
-                )
-                self.main_window.show_notification(
-                    "Внимание",
-                    f"Сессия {session.session_file} отключена — рассылка остановлена",
-                )
-                group_mail.stop()
-                break
+                self.logger.error("Session disconnected, attempting reconnect", exc_info=e)
+                reconnected = await self._retry_on_disconnect(session_id, group_mail, session)
+                if reconnected:
+                    self.main_window.settings_bridge.updateGroupMailingRetry.emit(
+                        session_id, 0, 0, 0
+                    )
+                else:
+                    self.main_window.show_notification(
+                        "Внимание",
+                        f"Сессия {session.session_file} отключена — рассылка остановлена",
+                    )
+                    group_mail.stop()
+                    break
             except Exception as e:
                 self.logger.error("Unexpected error during group mailing", exc_info=e)
             finally:
@@ -231,6 +239,23 @@ class GroupMailer:
         # Loop exited due to internal stop (PeerFlood / no messages).
         # Task cancellation (external stop) raises CancelledError and never reaches here.
         self.main_window.settings_bridge.changeGroupMailingStatus.emit(session_id, False)
+
+    async def _retry_on_disconnect(self, session_id: str, group_mail, session) -> bool:
+        for attempt, delay in enumerate(_RETRY_DELAYS, start=1):
+            self.logger.info(
+                f"Reconnect attempt {attempt}/{_MAX_RETRIES}, waiting {delay}s"
+            )
+            self.main_window.settings_bridge.updateGroupMailingRetry.emit(
+                session_id, attempt, _MAX_RETRIES, delay
+            )
+            await asyncio.sleep(delay)
+            if not group_mail.running:
+                return False
+            if await session.reconnect():
+                self.logger.info(f"Reconnected on attempt {attempt}/{_MAX_RETRIES}")
+                return True
+        self.logger.error("All reconnect attempts exhausted")
+        return False
 
     async def stop_group_mailing(self, session_id: str) -> None:
         group_mail = self.work_sessions.get(session_id)

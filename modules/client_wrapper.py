@@ -947,6 +947,14 @@ class ClientWrapper:
                     str(user_data["user_id"]), json.dumps(user_data)
                 )
 
+    async def reconnect(self) -> bool:
+        try:
+            if not self._client.is_connected():
+                await self._client.connect()
+            return self._client.is_connected()
+        except Exception:
+            return False
+
     async def leaveGroup(self, group: str) -> None:
         try:
             await self._client.delete_dialog(group)
