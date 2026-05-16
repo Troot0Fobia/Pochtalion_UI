@@ -50,6 +50,7 @@ class Parser:
         self.group_data = {}
         is_parse_admins = self.main_window.settings_manager.get_setting("parse_admins")
         self.send_links_to_parsed = self.main_window.settings_manager.get_setting("send_links_to_parsed")
+        self.send_links_type = self.main_window.settings_manager.get_setting("send_links_type") or "messages_and_username"
 
         public_pattern = re.compile(
             r"""
@@ -312,42 +313,54 @@ class Parser:
                     )
 
     async def _send_link_to_saved(self, user_entity, group_entity, client, message_id=None):
-        link = None
+        mode = self.send_links_type
         group_username = getattr(group_entity, "username", None)
 
-        if message_id is not None:
-            if group_username:
-                link = f"https://t.me/{group_username}/{message_id}"
-            else:
-                link = f"https://t.me/c/{group_entity.id}/{message_id}"
-        else:
-            try:
-                async for msg in client.iter_messages(
-                    group_entity, from_user=user_entity, limit=1
-                ):
-                    if group_username:
-                        link = f"https://t.me/{group_username}/{msg.id}"
-                    else:
-                        link = f"https://t.me/c/{group_entity.id}/{msg.id}"
-                    break
-            except Exception:
-                self.logger.warning(
-                    f"Could not fetch messages for user {user_entity.id}", exc_info=True
-                )
-
-        if link is None:
+        if mode == "username":
             username = getattr(user_entity, "username", None)
-            if username:
-                link = f"@{username}"
-
-        if link:
-            try:
-                await client.send_message("me", link)
-            except Exception:
-                self.logger.error(
-                    f"Failed to send link to saved messages for user {user_entity.id}",
-                    exc_info=True,
+            if not username:
+                return
+            link = f"@{username}"
+        else:
+            # "messages" or "messages_and_username"
+            link = None
+            if message_id is not None:
+                link = (
+                    f"https://t.me/{group_username}/{message_id}"
+                    if group_username
+                    else f"https://t.me/c/{group_entity.id}/{message_id}"
                 )
+            else:
+                try:
+                    async for msg in client.iter_messages(
+                        group_entity, from_user=user_entity, limit=1
+                    ):
+                        link = (
+                            f"https://t.me/{group_username}/{msg.id}"
+                            if group_username
+                            else f"https://t.me/c/{group_entity.id}/{msg.id}"
+                        )
+                        break
+                except Exception:
+                    self.logger.warning(
+                        f"Could not fetch messages for user {user_entity.id}", exc_info=True
+                    )
+
+            if link is None and mode == "messages_and_username":
+                username = getattr(user_entity, "username", None)
+                if username:
+                    link = f"@{username}"
+
+            if link is None:
+                return
+
+        try:
+            await client.send_message("me", link)
+        except Exception:
+            self.logger.error(
+                f"Failed to send to saved messages for user {user_entity.id}",
+                exc_info=True,
+            )
 
     async def _join_private_group(self, client, invite_hash):
         result = await client(CheckChatInviteRequest(invite_hash))
