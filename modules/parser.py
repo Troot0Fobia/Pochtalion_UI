@@ -48,6 +48,7 @@ class Parser:
         self.parse_targets = []  # list of {"kind": "public", "value": str} | {"kind": "private", "hash": str}
         self.existing_ids = {}
         self.group_data = {}
+        self._sent_user_ids: set[int] = set()
         is_parse_admins = self.main_window.settings_manager.get_setting("parse_admins")
         self.send_links_to_parsed = self.main_window.settings_manager.get_setting("send_links_to_parsed")
         self.send_links_type = self.main_window.settings_manager.get_setting("send_links_type") or "messages_and_username"
@@ -313,6 +314,9 @@ class Parser:
                     )
 
     async def _send_link_to_saved(self, user_entity, group_entity, client, message_id=None):
+        if user_entity.id in self._sent_user_ids:
+            return
+
         mode = self.send_links_type
         group_username = getattr(group_entity, "username", None)
 
@@ -356,6 +360,7 @@ class Parser:
 
         try:
             await client.send_message("me", link)
+            self._sent_user_ids.add(user_entity.id)
         except Exception:
             self.logger.error(
                 f"Failed to send to saved messages for user {user_entity.id}",
