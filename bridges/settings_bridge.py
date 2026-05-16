@@ -33,6 +33,7 @@ class SettingsBridge(BaseBridge):
     renderMailingGroups = pyqtSignal(str, str)
     changeGroupMailingStatus = pyqtSignal(str, bool)
     updateGroupMailingProgress = pyqtSignal(str, int, str)
+    updateGroupMailingRetry = pyqtSignal(str, int, int, int)
 
     def __init__(self, main_window, database):
         super().__init__(main_window, database)

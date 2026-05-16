@@ -50,6 +50,7 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.renderMailingGroups.connect(renderMailingGroups);
     bridge.changeGroupMailingStatus.connect(changeGroupMailingStatus);
     bridge.updateGroupMailingProgress.connect(updateGroupMailingProgress);
+    bridge.updateGroupMailingRetry.connect(updateGroupMailingRetry);
 });
 
 document.addEventListener("keyup", (event) => {
@@ -490,6 +491,7 @@ async function renderSessions(sessions_json, destination) {
                         </div>
                         <div>Отправлено: <span class="group-mailing-count">0</span></div>
                         <div>Последнее в: <span class="group-mailing-time">—</span></div>
+                        <div class="group-mailing-retry" style="display:none"></div>
                     </div>
                     <div class="buttons">
                         <div class="btn open-groups" onclick="loadMailingGroups(this)">Группы</div>
@@ -514,6 +516,54 @@ function updateGroupMailingProgress(session_id, count, last_time) {
     if (timeEl) timeEl.textContent = last_time;
 }
 
+const _retryTimers = {};
+
+function _formatCountdown(seconds) {
+    const m = String(Math.floor(seconds / 60)).padStart(2, "0");
+    const s = String(seconds % 60).padStart(2, "0");
+    return `${m}:${s}`;
+}
+
+function updateGroupMailingRetry(session_id, attempt, max_attempts, wait_seconds) {
+    const row = document.querySelector(
+        `#mailing-session-container-block .row[data-id="${session_id}"]`,
+    );
+    if (!row) return;
+
+    if (_retryTimers[session_id]) {
+        clearInterval(_retryTimers[session_id]);
+        delete _retryTimers[session_id];
+    }
+
+    const retryEl = row.querySelector(".group-mailing-retry");
+    if (!retryEl) return;
+
+    if (attempt === 0) {
+        retryEl.style.display = "none";
+        retryEl.textContent = "";
+        return;
+    }
+
+    retryEl.style.display = "";
+    let remaining = wait_seconds;
+
+    const update = () => {
+        retryEl.textContent = `Попытка: ${attempt}/${max_attempts} Время: ${_formatCountdown(remaining)}`;
+    };
+    update();
+
+    _retryTimers[session_id] = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+            clearInterval(_retryTimers[session_id]);
+            delete _retryTimers[session_id];
+            retryEl.textContent = `Попытка: ${attempt}/${max_attempts} Подключение...`;
+            return;
+        }
+        update();
+    }, 1000);
+}
+
 function changeGroupMailingStatus(session_id, is_on) {
     const controlButtons = document.querySelector(
         `#mailing-session-container-block .row[data-id="${session_id}"] .buttons`,
@@ -530,6 +580,7 @@ function changeGroupMailingStatus(session_id, is_on) {
             '<div class="btn stop-group-mailing" onclick="toggleControlGroupMailing(false, this)">Стоп</div>',
         );
     } else {
+        updateGroupMailingRetry(session_id, 0, 0, 0);
         controlButtons.querySelector(".stop-group-mailing")?.remove();
         controlButtons.insertAdjacentHTML(
             "beforeend",
