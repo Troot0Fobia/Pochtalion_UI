@@ -609,7 +609,12 @@ async function toggleControlGroupMailing(is_start, elem) {
         }
         await bridge.startGroupMailing(session_id, delay);
         delete elem.dataset.pending;
-    } else await bridge.stopGroupMailing(session_id);
+    } else {
+        if (elem.dataset.pending) return;
+        elem.dataset.pending = "1";
+        await bridge.stopGroupMailing(session_id);
+        delete elem.dataset.pending;
+    }
 }
 
 function makeProgressBar() {
