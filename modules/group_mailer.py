@@ -80,28 +80,32 @@ class GroupMailer:
             )
             return False
 
-        if group_mail.running:
+        if group_mail.running or group_mail.starting:
             return True
 
-        if not group_mail.groups:
-            self.main_window.show_notification("Внимание", "Нет групп для отправки")
-            return False
+        group_mail.starting = True
+        try:
+            if not group_mail.groups:
+                self.main_window.show_notification("Внимание", "Нет групп для отправки")
+                return False
 
-        session = await self.main_window.session_manager.get_or_start_session(
-            int(session_id), group_mail.session_file
-        )
-        if session is None:
-            self.logger.error(
-                f"Failed start session for group mailing ({session_id}:{group_mail.session_file})"
+            session = await self.main_window.session_manager.get_or_start_session(
+                int(session_id), group_mail.session_file
             )
-            return False
+            if session is None:
+                self.logger.error(
+                    f"Failed start session for group mailing ({session_id}:{group_mail.session_file})"
+                )
+                return False
 
-        group_mail.set_session(session)
-        await self._resolve_folder_links(session_id, group_mail, session)
-        group_mail.set_delay(int(delay) if delay else 0)
-        group_mail.set_task(asyncio.create_task(self.group_mail(session_id)))
-        group_mail.start()
-        return True
+            group_mail.set_session(session)
+            await self._resolve_folder_links(session_id, group_mail, session)
+            group_mail.set_delay(int(delay) if delay else 0)
+            group_mail.set_task(asyncio.create_task(self.group_mail(session_id)))
+            group_mail.start()
+            return True
+        finally:
+            group_mail.starting = False
 
     async def _resolve_folder_links(self, session_id: str, group_mail, session) -> None:
         resolved: list[str] = []
