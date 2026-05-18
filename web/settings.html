@@ -279,13 +279,36 @@
             <input type="button" class="button choose-button" value="Подтвердить" onclick="confirmSelectedSessions()">
         </div>
     </div>
-    <div id="mailing-group-modal" class="modal hidden">
+    <div id="mailing-links-modal" class="modal hidden">
         <div class="modal-content">
-            <span class="close-button" onclick="closeMailingGroupsModal()">&times;</span>
-            <h3>Вставьте группы для рассылки</h3>
-            <textarea name="mailing-groups" id="mailing-group-data-field"></textarea>
+            <span class="close-button" onclick="closeMailingLinksModal()">&times;</span>
+            <h3>Вставьте ссылки для рассылки</h3>
+            <textarea name="mailing-links" id="mailing-links-data-field"></textarea>
                 <!-- <div class="sessions-list" id="session-list"></div> -->
-            <input type="button" class="button choose-button" value="Подтвердить" onclick="confirmMailingGroups()">
+            <input type="button" class="button choose-button" value="Подтвердить" onclick="confirmMailingLinks()">
+        </div>
+    </div>
+    <div id="links-modal" class="modal hidden">
+        <div class="modal-content links-modal-content">
+            <span class="close-button" onclick="closeLinksModal()">&times;</span>
+            <div class="links-modal-title">
+                <h3>Группы и каналы</h3>
+            </div>
+            <div class="links-search-wrapper">
+                <img src="assets/icons/search.png" class="links-search-icon">
+                <input type="text" class="links-search-input" id="links-search" placeholder="Поиск..." oninput="filterLinks(this.value)">
+            </div>
+            <div class="links-list-wrapper">
+                <div class="links-select-all-row">
+                    <input type="checkbox" id="links-select-all" onchange="toggleAllLinks(this)">
+                    <label for="links-select-all">Выбрать все</label>
+                </div>
+                <div class="links-list" id="links-list"></div>
+            </div>
+            <div class="links-modal-footer">
+                <div class="button accept-btn" onclick="closeLinksModal()">Подтвердить</div>
+                <div class="button cancel-btn" onclick="closeLinksModal()">Отмена</div>
+            </div>
         </div>
     </div>
 </body>

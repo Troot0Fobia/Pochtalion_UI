@@ -47,7 +47,7 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.renderVoiceMessages.connect(renderVoiceMessages);
     bridge.removeVoiceMessageRow.connect(removeVoiceMessageRow);
     bridge.renderObjects.connect(renderObjects);
-    bridge.renderMailingGroups.connect(renderMailingGroups);
+    bridge.renderMailingLinks.connect(renderMailingLinks);
     bridge.changeGroupMailingStatus.connect(changeGroupMailingStatus);
     bridge.updateGroupMailingProgress.connect(updateGroupMailingProgress);
     bridge.updateGroupMailingRetry.connect(updateGroupMailingRetry);
@@ -55,7 +55,7 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
 
 document.addEventListener("keyup", (event) => {
     if (event.key === "Escape") {
-        const groupModal = document.getElementById("mailing-group-modal");
+        const groupModal = document.getElementById("mailing-links-modal");
         if (groupModal && !groupModal.classList.contains("hidden")) {
             return groupModal.classList.add("hidden");
         }
@@ -494,7 +494,8 @@ async function renderSessions(sessions_json, destination) {
                         <div class="group-mailing-retry" style="display:none"></div>
                     </div>
                     <div class="buttons">
-                        <div class="btn open-groups" onclick="loadMailingGroups(this)">Группы</div>
+                        <div class="btn open-groups" onclick="openLinksModal(this)">Группы</div>
+                        <div class="btn open-groups" onclick="loadMailingLinks(this)">Ссылки</div>
                         ${controlButton}
                     </div>
                 `,
@@ -1139,13 +1140,13 @@ function confirmSelectedSessions() {
     }
 }
 
-async function loadMailingGroups(button) {
+async function loadMailingLinks(button) {
     const row = button.closest(".row");
-    await bridge.loadMailingGroups(row.dataset.id);
+    await bridge.loadMailingLinks(row.dataset.id);
 }
 
-function renderMailingGroups(session_id, groups_data_str) {
-    const modal = document.getElementById("mailing-group-modal");
+function renderMailingLinks(session_id, groups_data_str) {
+    const modal = document.getElementById("mailing-links-modal");
     if (!modal) return;
 
     modal.dataset.id = session_id;
@@ -1153,22 +1154,62 @@ function renderMailingGroups(session_id, groups_data_str) {
     modal?.classList.remove("hidden");
 }
 
-async function confirmMailingGroups() {
-    const modal = document.getElementById("mailing-group-modal");
-    if (!modal) return closeMailingGroupsModal();
+async function confirmMailingLinks() {
+    const modal = document.getElementById("mailing-links-modal");
+    if (!modal) return closeMailingLinksModal();
 
     const groups_data = modal.querySelector("textarea").value;
-    await bridge.updateMailingGroups(modal.dataset.id, groups_data);
+    await bridge.updateMailingLinks(modal.dataset.id, groups_data);
 
-    closeMailingGroupsModal();
+    closeMailingLinksModal();
 }
 
-function closeMailingGroupsModal() {
-    const modal = document.getElementById("mailing-group-modal");
+function closeMailingLinksModal() {
+    const modal = document.getElementById("mailing-links-modal");
     if (!modal) return;
 
     modal.dataset.id = "";
     modal.classList.add("hidden");
+}
+
+function openLinksModal(button) {
+    const row = button.closest(".row");
+    const modal = document.getElementById("links-modal");
+    if (!modal) return;
+
+    modal.dataset.id = row.dataset.id;
+    modal.querySelector("#links-search").value = "";
+    filterLinks("");
+    modal.classList.remove("hidden");
+}
+
+function closeLinksModal() {
+    const modal = document.getElementById("links-modal");
+    if (!modal) return;
+
+    modal.dataset.id = "";
+    modal.classList.add("hidden");
+}
+
+function filterLinks(query) {
+    const list = document.getElementById("links-list");
+    if (!list) return;
+
+    const q = query.toLowerCase();
+    list.querySelectorAll(".links-item").forEach(item => {
+        const label = item.querySelector("label");
+        item.style.display =
+            !q || (label && label.textContent.toLowerCase().includes(q)) ? "" : "none";
+    });
+}
+
+function toggleAllLinks(checkbox) {
+    const list = document.getElementById("links-list");
+    if (!list) return;
+
+    list.querySelectorAll("input[type='checkbox']").forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
 }
 
 async function startParsing() {
