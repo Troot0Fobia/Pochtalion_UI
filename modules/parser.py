@@ -174,13 +174,21 @@ class Parser:
                                 ):
                                     continue
                                 await client.get_input_entity(user_entity)
-                                await self._handle_user(
+                                is_new = await self._handle_user(
                                     user_entity, message.id, session_id, wrapper
                                 )
                                 if self.send_links_to_parsed:
-                                    await self._send_link_to_saved(
+                                    link_sent = await self._send_link_to_saved(
                                         user_entity, group_entity, client, comment.id
                                     )
+                                    if not link_sent and is_new and self.parse_to_db:
+                                        ud = dict(self.existing_ids[user_entity.id][3])
+                                        ud["user_id"] = user_entity.id
+                                        await wrapper.process_new_user(
+                                            ud, last_message=None, user_status=4,
+                                            sended=False, source_chat_id=self.group_id,
+                                            source_post_id=message.id,
+                                        )
                                 await asyncio.sleep(PARSE_DELAY)
                         except Exception:
                             # this throw unknown shit like
@@ -211,13 +219,21 @@ class Parser:
                             ):
                                 continue
                             await client.get_input_entity(user_entity)
-                            await self._handle_user(
+                            is_new = await self._handle_user(
                                 user_entity, message.id, session_id, wrapper
                             )
                             if self.send_links_to_parsed:
-                                await self._send_link_to_saved(
+                                link_sent = await self._send_link_to_saved(
                                     user_entity, group_entity, client, message.id
                                 )
+                                if not link_sent and is_new and self.parse_to_db:
+                                    ud = dict(self.existing_ids[user_entity.id][3])
+                                    ud["user_id"] = user_entity.id
+                                    await wrapper.process_new_user(
+                                        ud, last_message=None, user_status=4,
+                                        sended=False, source_chat_id=self.group_id,
+                                        source_post_id=message.id,
+                                    )
                             await asyncio.sleep(PARSE_DELAY)
                         except Exception:
                             self.logger.error(
@@ -232,13 +248,21 @@ class Parser:
                             ):
                                 continue
                             await client.get_input_entity(user_entity)
-                            await self._handle_user(
+                            is_new = await self._handle_user(
                                 user_entity, None, session_id, wrapper
                             )
                             if self.send_links_to_parsed:
-                                await self._send_link_to_saved(
+                                link_sent = await self._send_link_to_saved(
                                     user_entity, group_entity, client
                                 )
+                                if not link_sent and is_new and self.parse_to_db:
+                                    ud = dict(self.existing_ids[user_entity.id][3])
+                                    ud["user_id"] = user_entity.id
+                                    await wrapper.process_new_user(
+                                        ud, last_message=None, user_status=4,
+                                        sended=False, source_chat_id=self.group_id,
+                                        source_post_id=None,
+                                    )
                             await asyncio.sleep(PARSE_DELAY)
                         except Exception:
                             self.logger.error(
@@ -290,7 +314,7 @@ class Parser:
 
         return True
 
-    async def _handle_user(self, user_entity, message_id, session_id, wrapper):
+    async def _handle_user(self, user_entity, message_id, session_id, wrapper) -> bool:
         self.logger.debug(f"Received user_entity of type {type(user_entity)}")
         if (
             isinstance(user_entity, types.User)
@@ -313,7 +337,7 @@ class Parser:
                     session_id,
                     user_data,
                 )
-                if self.parse_to_db:
+                if self.parse_to_db and not self.send_links_to_parsed:
                     user_data["user_id"] = user_entity.id
                     await wrapper.process_new_user(
                         user_data,
@@ -323,10 +347,12 @@ class Parser:
                         source_chat_id=self.group_id,
                         source_post_id=message_id,
                     )
+                return True
+        return False
 
-    async def _send_link_to_saved(self, user_entity, group_entity, client, message_id=None):
+    async def _send_link_to_saved(self, user_entity, group_entity, client, message_id=None) -> bool:
         if user_entity.id in self._sent_user_ids:
-            return
+            return True
 
         mode = self.send_links_type
         group_username = getattr(group_entity, "username", None)
@@ -334,7 +360,7 @@ class Parser:
         if mode == "username":
             username = getattr(user_entity, "username", None)
             if not username:
-                return
+                return False
             link = f"@{username}"
         else:
             # "messages" or "messages_and_username"
@@ -367,16 +393,18 @@ class Parser:
                     link = f"@{username}"
 
             if link is None:
-                return
+                return False
 
         try:
             await client.send_message("me", link)
             self._sent_user_ids.add(user_entity.id)
+            return True
         except Exception:
             self.logger.error(
                 f"Failed to send to saved messages for user {user_entity.id}",
                 exc_info=True,
             )
+            return False
 
     async def _expand_folder_links(self) -> None:
         if not self._folder_links or not self.session_wrappers:
