@@ -14,6 +14,7 @@ class GroupMail:
         self.group_cooldowns: dict[str, float] = {}
         self.pending_approval: set[str] = set()
         self.sended_count: int = 0
+        self.resolved_groups: list[str] | None = None
 
     def set_session(self, client_wrapper):
         self.client_wrapper = client_wrapper
@@ -29,7 +30,11 @@ class GroupMail:
             self.group_index = 0
             self.group_cooldowns.clear()
             self.pending_approval.clear()
+            self.resolved_groups = None
         self.groups = groups
+
+    def set_resolved_groups(self, groups: list[str]):
+        self.resolved_groups = groups
 
     def start(self):
         self.running = True

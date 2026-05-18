@@ -68,6 +68,7 @@ class ClientWrapper:
         self._status = 0  # 0 - not running | 1 - running | 2 - processing
         self.is_new = True
         self._entity_cache = load_session_entities(session_file)
+        self._folder_cache: dict[str, list[str]] = {}
 
     async def start(
         self,
@@ -693,6 +694,82 @@ class ClientWrapper:
             return True
 
     _INVITE_RE = re.compile(r"^(?:https?://)?t\.me/(?:joinchat/|\+)([a-zA-Z0-9_=-]+)$")
+    _ADDLIST_RE = re.compile(r"^(?:https?://)?t\.me/addlist/([a-zA-Z0-9_-]+)$")
+
+    async def resolve_chat_folder(self, link: str) -> list[str]:
+        from telethon.tl.functions.chatlists import CheckChatlistInviteRequest, JoinChatlistInviteRequest
+        from telethon.tl.types.chatlists import ChatlistInvite, ChatlistInviteAlready
+
+        match = self._ADDLIST_RE.match(link.strip())
+        if not match:
+            return []
+        slug = match.group(1)
+
+        if slug in self._folder_cache:
+            cached = self._folder_cache[slug]
+            self.logger.info(f"Folder {slug} resolved from cache ({len(cached)} groups)")
+            return cached
+
+        def _peer_raw_id(peer) -> int:
+            # PeerChannel/InputPeerChannel → channel_id (positive, matches chat.id)
+            # PeerChat/InputPeerChat → chat_id
+            return getattr(peer, "channel_id", None) or getattr(peer, "chat_id", 0)
+
+        try:
+            result = await self._client(CheckChatlistInviteRequest(slug=slug))
+            # chats contains full entity data for ALL groups in the folder
+            chat_by_id: dict[int, types.Channel | types.Chat] = {c.id: c for c in result.chats}
+
+            # Determine which peers need joining (Peer objects, not InputPeer)
+            if isinstance(result, ChatlistInvite):
+                peers_to_join = result.peers
+            else:  # ChatlistInviteAlready
+                peers_to_join = result.missing_peers
+
+            # Build InputPeer list from the chats map (avoids get_peer_id mark issues)
+            input_peers_to_join = []
+            for peer in peers_to_join:
+                chat = chat_by_id.get(_peer_raw_id(peer))
+                if chat is None:
+                    continue
+                if isinstance(chat, types.Channel):
+                    input_peers_to_join.append(types.InputPeerChannel(chat.id, chat.access_hash))
+                elif isinstance(chat, types.Chat):
+                    input_peers_to_join.append(types.InputPeerChat(chat.id))
+
+            # Join unjoined groups
+            if isinstance(result, ChatlistInvite) and input_peers_to_join:
+                await self._client(JoinChatlistInviteRequest(slug=slug, peers=input_peers_to_join))
+            elif isinstance(result, ChatlistInviteAlready):
+                for inp in input_peers_to_join:
+                    peer_id = getattr(inp, "channel_id", None) or getattr(inp, "chat_id", "?")
+                    try:
+                        await self._client(JoinChannelRequest(inp))
+                    except Exception as e:
+                        self.logger.warning(f"Could not join group {peer_id} from folder: {e}")
+
+            # Build identifiers from ALL chats in the folder (not just peers_to_join)
+            identifiers: list[str] = []
+            for chat in result.chats:
+                if isinstance(chat, types.Channel):
+                    if chat.username:
+                        identifier = f"@{chat.username}"
+                    else:
+                        identifier = f"-100{chat.id}"
+                        self._entity_cache[identifier] = types.InputPeerChannel(chat.id, chat.access_hash)
+                elif isinstance(chat, types.Chat):
+                    identifier = f"-{chat.id}"
+                    self._entity_cache[identifier] = types.InputPeerChat(chat.id)
+                else:
+                    continue
+                identifiers.append(identifier)
+
+            self._folder_cache[slug] = identifiers
+            self.logger.info(f"Resolved folder {slug}: {len(identifiers)} groups")
+            return identifiers
+        except Exception as e:
+            self.logger.error(f"Failed to resolve folder link {link}", exc_info=e)
+            return []
 
     async def sendGroupMessage(self, group: str, message):
         if not self._status:
