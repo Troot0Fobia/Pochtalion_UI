@@ -8,6 +8,7 @@ class GroupMail:
         self.client_wrapper = None
         self.task: Task | None = None
         self.running: bool = False
+        self.starting: bool = False
         self.delay: int = 0
         self.groups: list[str] = []
         self.group_index: int = 0
@@ -37,11 +38,13 @@ class GroupMail:
         self.resolved_groups = groups
 
     def start(self):
+        self.starting = False
         self.running = True
         self.sended_count = 0
 
     def stop(self):
         self.running = False
+        self.starting = False
 
         if self.task:
             self.task.cancel()

@@ -601,11 +601,14 @@ async function toggleControlGroupMailing(is_start, elem) {
     }
 
     if (is_start) {
+        if (elem.dataset.pending) return;
+        elem.dataset.pending = "1";
         let delay = row.querySelector(".group-mailing-delay")?.value;
         if (!delay) {
             delay = 0;
         }
         await bridge.startGroupMailing(session_id, delay);
+        delete elem.dataset.pending;
     } else await bridge.stopGroupMailing(session_id);
 }
 
