@@ -30,7 +30,7 @@ class SettingsBridge(BaseBridge):
     renderVoiceMessages = pyqtSignal(str)
     removeVoiceMessageRow = pyqtSignal(str)
     renderObjects = pyqtSignal(str, str, str, str, bool)
-    renderMailingGroups = pyqtSignal(str, str)
+    renderMailingLinks = pyqtSignal(str, str)
     changeGroupMailingStatus = pyqtSignal(str, bool)
     updateGroupMailingProgress = pyqtSignal(str, int, str)
     updateGroupMailingRetry = pyqtSignal(str, int, int, int)
@@ -64,12 +64,12 @@ class SettingsBridge(BaseBridge):
         self.renderSessions.emit(json.dumps(sessions), destination)
 
     @asyncSlot(str)
-    async def loadMailingGroups(self, session_id: str) -> None:
+    async def loadMailingLinks(self, session_id: str) -> None:
         groups = self.main_window.group_mailer.get_session_groups(session_id)
-        self.renderMailingGroups.emit(session_id, groups)
+        self.renderMailingLinks.emit(session_id, groups)
 
     @asyncSlot(str, str)
-    async def updateMailingGroups(self, session_id: str, groups_data: str) -> None:
+    async def updateMailingLinks(self, session_id: str, groups_data: str) -> None:
         self.main_window.group_mailer.update_groups(session_id, groups_data)
 
     @asyncSlot(str, str)
