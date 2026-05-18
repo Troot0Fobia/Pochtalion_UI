@@ -42,6 +42,12 @@ class GroupMailer:
             )
             return
 
+        if group_mail.running:
+            self.main_window.show_notification(
+                "Внимание", "Нельзя изменять список групп во время рассылки"
+            )
+            return
+
         groups = [g for g in groups_str.splitlines() if g.strip()]
         group_mail.set_groups(groups)
 
@@ -91,10 +97,27 @@ class GroupMailer:
             return False
 
         group_mail.set_session(session)
+        await self._resolve_folder_links(session_id, group_mail, session)
         group_mail.set_delay(int(delay) if delay else 0)
         group_mail.set_task(asyncio.create_task(self.group_mail(session_id)))
         group_mail.start()
         return True
+
+    async def _resolve_folder_links(self, session_id: str, group_mail, session) -> None:
+        resolved: list[str] = []
+        folder_count = 0
+        for line in group_mail.groups:
+            if session._ADDLIST_RE.match(line.strip()):
+                folder_count += 1
+                groups_from_folder = await session.resolve_chat_folder(line)
+                resolved.extend(groups_from_folder)
+            else:
+                resolved.append(line)
+        if folder_count:
+            group_mail.set_resolved_groups(resolved)
+            self.logger.info(
+                f"[{session_id}] Resolved {folder_count} folder link(s) → {len(resolved)} groups total"
+            )
 
     async def group_mail(self, session_id: str):
         group_mail = self.work_sessions.get(session_id)
@@ -110,7 +133,7 @@ class GroupMailer:
             return
 
         while group_mail.running:
-            groups = group_mail.groups
+            groups = group_mail.resolved_groups if group_mail.resolved_groups is not None else group_mail.groups
             if not groups:
                 self.main_window.show_notification(
                     "Внимание", "Нет групп для отправки"
@@ -202,7 +225,10 @@ class GroupMailer:
                     f"Banned or write-restricted in group {group}, removing from list",
                     exc_info=e,
                 )
-                group_mail.groups = [g for g in group_mail.groups if g != group]
+                if group_mail.resolved_groups is not None:
+                    group_mail.resolved_groups = [g for g in group_mail.resolved_groups if g != group]
+                else:
+                    group_mail.groups = [g for g in group_mail.groups if g != group]
                 await session.leaveGroup(group)
             except ForbiddenError as e:
                 self.logger.error(
