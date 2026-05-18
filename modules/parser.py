@@ -65,9 +65,16 @@ class Parser:
         invite_pattern = re.compile(
             r"^https?://t\.me/(?:joinchat/|\+)([a-zA-Z0-9_=-]+)$"
         )
+        addlist_pattern = re.compile(
+            r"^(?:https?://)?t\.me/addlist/([a-zA-Z0-9_-]+)$"
+        )
+        self._folder_links: list[str] = []
 
         for link in parser_data["parse_links"].splitlines():
             link = link.strip()
+            if re.match(addlist_pattern, link):
+                self._folder_links.append(link)
+                continue
             invite_matched = re.match(invite_pattern, link)
             if invite_matched:
                 self.parse_targets.append({"kind": "private", "hash": invite_matched.group(1)})
@@ -81,7 +88,7 @@ class Parser:
 
         self.logger.debug(f"Received targets {self.parse_targets}")
         if (
-            not self.parse_targets
+            not self.parse_targets and not self._folder_links
             or not self.session_files
             or self.is_parse_channel
             and not self.count_of_posts.isdigit()
@@ -100,6 +107,7 @@ class Parser:
         self.session_wrappers = []
         self.group_id = None
         await self.start_sessions()
+        await self._expand_folder_links()
 
         self._session_user_ids = {
             wrapper.session_user_id
@@ -126,6 +134,9 @@ class Parser:
                 if target["kind"] == "private":
                     group_entity = await self._join_private_group(client, target["hash"])
                     parse_username = f"private:{target['hash'][:8]}"
+                elif target["kind"] == "numeric":
+                    group_entity = await client.get_entity(target["value"])
+                    parse_username = str(target["value"])
                 else:
                     parse_username = target["value"]
                     group_entity = await client.get_entity(parse_username)
@@ -366,6 +377,35 @@ class Parser:
                 f"Failed to send to saved messages for user {user_entity.id}",
                 exc_info=True,
             )
+
+    async def _expand_folder_links(self) -> None:
+        if not self._folder_links or not self.session_wrappers:
+            return
+
+        first_wrapper = self.session_wrappers[0][0]
+        new_targets: list[dict] = []
+
+        for link in self._folder_links:
+            identifiers = await first_wrapper.resolve_chat_folder(link)
+            if not identifiers:
+                self.logger.warning(f"Folder link {link} resolved to 0 groups, skipping")
+                continue
+
+            # All other sessions also join the groups from the folder
+            for wrapper, _, _ in self.session_wrappers[1:]:
+                await wrapper.resolve_chat_folder(link)
+
+            for identifier in identifiers:
+                if identifier.startswith("@"):
+                    new_targets.append({"kind": "public", "value": identifier.lstrip("@")})
+                else:
+                    # Private group: already joined, use numeric ID for get_entity()
+                    new_targets.append({"kind": "numeric", "value": int(identifier)})
+
+        self.parse_targets.extend(new_targets)
+        self.logger.info(
+            f"Expanded {len(self._folder_links)} folder link(s) → {len(new_targets)} additional targets"
+        )
 
     async def _join_private_group(self, client, invite_hash):
         result = await client(CheckChatInviteRequest(invite_hash))
