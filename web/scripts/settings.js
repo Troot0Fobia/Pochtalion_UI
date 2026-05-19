@@ -1183,6 +1183,7 @@ async function openLinksModal(button) {
     const session_file = row.querySelector(".session-name").innerText;
 
     modal.dataset.id = session_id;
+    modal.dataset.file = session_file;
     modal.dataset.fetchedIds = "[]";
     document.getElementById("links-list").innerHTML = "";
     document.getElementById("links-search").value = "";
@@ -1202,11 +1203,40 @@ function sessionGroupsStatus(session_id, status) {
     if (statusEl) statusEl.textContent = status;
 }
 
+function _getGroupColor(name) {
+    const palette = ["#4d6af5","#e05c5c","#3faa6e","#c97b3f","#9b59b6","#2980b9","#16a085","#d35400"];
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+    return palette[Math.abs(h) % palette.length];
+}
+
+function _buildGroupPhoto(g, sessionFile) {
+    if (g.photo_type === "image") {
+        return `<img src="../assets/group_photos/${sessionFile}/${g.photo}" alt="">`;
+    }
+    const color = _getGroupColor(g.title);
+    const label = g.photo_type === "gif"
+        ? `<span style="font-size:10px;font-weight:700;letter-spacing:0.5px">GIF</span>`
+        : g.title.charAt(0).toUpperCase();
+    return `<div class="links-item-placeholder" style="background:${color}">${label}</div>`;
+}
+
+function toggleLinksItem(item) {
+    const cb = item.querySelector("input[type='checkbox']");
+    if (!cb) return;
+    cb.checked = !cb.checked;
+    item.classList.toggle("selected", cb.checked);
+    const allCbs = [...document.querySelectorAll("#links-list input[type='checkbox']")];
+    document.getElementById("links-select-all").checked =
+        allCbs.length > 0 && allCbs.every(c => c.checked);
+}
+
 function renderSessionGroups(session_id, groups_json) {
     const modal = document.getElementById("links-modal");
     if (!modal || modal.dataset.id !== String(session_id)) return;
 
     const groups = JSON.parse(groups_json);
+    const sessionFile = modal.dataset.file || "";
     modal.dataset.fetchedIds = JSON.stringify(groups.map(g => g.identifier));
 
     const list = document.getElementById("links-list");
@@ -1214,12 +1244,17 @@ function renderSessionGroups(session_id, groups_json) {
     const fragment = document.createDocumentFragment();
     groups.forEach(g => {
         const item = document.createElement("div");
-        item.className = "links-item";
+        item.className = "links-item" + (g.selected ? " selected" : "");
+        item.onclick = () => toggleLinksItem(item);
         item.innerHTML = `
-            <label>
-                <input type="checkbox" value="${g.identifier}" ${g.selected ? "checked" : ""}>
-                ${g.title}
-            </label>
+            <div class="links-item-photo">
+                <div class="links-item-photo-inner">
+                    ${_buildGroupPhoto(g, sessionFile)}
+                </div>
+                <div class="links-item-check">✓</div>
+            </div>
+            <span class="links-item-name">${g.title}</span>
+            <input type="checkbox" value="${g.identifier}" ${g.selected ? "checked" : ""} hidden>
         `;
         fragment.appendChild(item);
     });
@@ -1262,9 +1297,9 @@ function filterLinks(query) {
 
     const q = query.toLowerCase();
     list.querySelectorAll(".links-item").forEach(item => {
-        const label = item.querySelector("label");
+        const nameEl = item.querySelector(".links-item-name");
         item.style.display =
-            !q || (label && label.textContent.toLowerCase().includes(q)) ? "" : "none";
+            !q || (nameEl && nameEl.textContent.toLowerCase().includes(q)) ? "" : "none";
     });
 }
 
@@ -1272,8 +1307,10 @@ function toggleAllLinks(checkbox) {
     const list = document.getElementById("links-list");
     if (!list) return;
 
-    list.querySelectorAll("input[type='checkbox']").forEach(cb => {
-        cb.checked = checkbox.checked;
+    list.querySelectorAll(".links-item").forEach(item => {
+        const cb = item.querySelector("input[type='checkbox']");
+        if (cb) cb.checked = checkbox.checked;
+        item.classList.toggle("selected", checkbox.checked);
     });
 }
 
