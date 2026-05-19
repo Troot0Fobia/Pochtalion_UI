@@ -295,7 +295,7 @@ input[type="button"][disabled] {
 /* Blue */
 #save-results-to-computer, #add-results-to-database,
 .choose-button, #auth-button, .add-session-button,
-.edit-btn, #add-smm-message, #refresh-session-manager, .open-groups {
+.edit-btn, #add-smm-message, #refresh-session-manager, .open-groups, .parse-groups-btn {
   background-color: var(--accent-dim);
   color: #a5b4fc;
 }
@@ -303,7 +303,7 @@ input[type="button"][disabled] {
 #add-results-to-database:not([disabled]):hover,
 .choose-button:hover, #auth-button:hover, .add-session-button:hover,
 .edit-btn:hover, #add-smm-message:hover, #refresh-session-manager:hover,
-.open-groups:hover { background-color: var(--accent); color: #fff; }
+.open-groups:hover, .parse-groups-btn:hover { background-color: var(--accent); color: #fff; }
 
 .reset-settings { align-self: flex-start; }
 
@@ -687,6 +687,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 .sessions { display: flex; flex-direction: column; width: 100%; gap: 14px; }
 .sessions-header { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .sessions-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.session-row-item { display: flex; align-items: center; justify-content: space-between; }
+.parse-groups-btn { font-size: 11px; padding: 3px 8px !important; flex-shrink: 0; border: none; }
 .session-info { display: flex; flex-direction: row; gap: 12px; flex-wrap: wrap; align-items: center; }
 .group-mailing-info { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
 
@@ -700,6 +702,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
   backdrop-filter: blur(2px);
 }
 .modal.hidden { display: none; }
+#links-modal { z-index: 1001; }
 
 .modal-content {
   background-color: var(--bg-surface);
@@ -744,7 +747,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 .links-modal-status {
   font-size: 12px;
   color: var(--text-secondary);
-  margin-left: 8px;
+  /* margin-left: 8px; */
 }
 
 .links-search-wrapper {
@@ -771,7 +774,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
   color: var(--text-primary);
   font-family: inherit;
   font-size: 13px;
-  padding: 11px 14px 11px 38px;
+  padding: 11px 14px 11px 38px !important;
 }
 
 .links-search-input::placeholder { color: var(--text-secondary); }
