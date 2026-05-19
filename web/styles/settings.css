@@ -882,6 +882,16 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 
 .links-item.selected .links-item-check { display: flex; }
 
+.links-item-info {
+  display: flex; align-items: center; gap: 5px;
+  flex: 1; min-width: 0;
+}
+
+.links-item-type-icon {
+  width: 14px; height: 14px; flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
 .links-item-name {
   flex: 1;
   overflow: hidden;
