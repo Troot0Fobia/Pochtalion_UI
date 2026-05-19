@@ -51,6 +51,8 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.changeGroupMailingStatus.connect(changeGroupMailingStatus);
     bridge.updateGroupMailingProgress.connect(updateGroupMailingProgress);
     bridge.updateGroupMailingRetry.connect(updateGroupMailingRetry);
+    bridge.sessionGroupsStatus.connect(sessionGroupsStatus);
+    bridge.renderSessionGroups.connect(renderSessionGroups);
 });
 
 document.addEventListener("keyup", (event) => {
@@ -1172,15 +1174,78 @@ function closeMailingLinksModal() {
     modal.classList.add("hidden");
 }
 
-function openLinksModal(button) {
+async function openLinksModal(button) {
     const row = button.closest(".row");
     const modal = document.getElementById("links-modal");
     if (!modal) return;
 
-    modal.dataset.id = row.dataset.id;
-    modal.querySelector("#links-search").value = "";
+    const session_id = row.dataset.id;
+    const session_file = row.querySelector(".session-name").innerText;
+
+    modal.dataset.id = session_id;
+    modal.dataset.fetchedIds = "[]";
+    document.getElementById("links-list").innerHTML = "";
+    document.getElementById("links-search").value = "";
+    document.getElementById("links-select-all").checked = false;
     filterLinks("");
+    const statusEl = document.getElementById("links-modal-status");
+    if (statusEl) statusEl.textContent = "Загрузка...";
     modal.classList.remove("hidden");
+
+    await bridge.loadSessionGroups(session_id, session_file);
+}
+
+function sessionGroupsStatus(session_id, status) {
+    const modal = document.getElementById("links-modal");
+    if (!modal || modal.dataset.id !== String(session_id)) return;
+    const statusEl = document.getElementById("links-modal-status");
+    if (statusEl) statusEl.textContent = status;
+}
+
+function renderSessionGroups(session_id, groups_json) {
+    const modal = document.getElementById("links-modal");
+    if (!modal || modal.dataset.id !== String(session_id)) return;
+
+    const groups = JSON.parse(groups_json);
+    modal.dataset.fetchedIds = JSON.stringify(groups.map(g => g.identifier));
+
+    const list = document.getElementById("links-list");
+    list.innerHTML = "";
+    const fragment = document.createDocumentFragment();
+    groups.forEach(g => {
+        const item = document.createElement("div");
+        item.className = "links-item";
+        item.innerHTML = `
+            <label>
+                <input type="checkbox" value="${g.identifier}" ${g.selected ? "checked" : ""}>
+                ${g.title}
+            </label>
+        `;
+        fragment.appendChild(item);
+    });
+    list.appendChild(fragment);
+
+    const allChecked = groups.length > 0 && groups.every(g => g.selected);
+    document.getElementById("links-select-all").checked = allChecked;
+
+    const statusEl = document.getElementById("links-modal-status");
+    if (statusEl) statusEl.textContent = "";
+}
+
+async function confirmLinksSelection() {
+    const modal = document.getElementById("links-modal");
+    if (!modal) return closeLinksModal();
+
+    const session_id = modal.dataset.id;
+    const fetchedIds = JSON.parse(modal.dataset.fetchedIds || "[]");
+    const checked = [...document.querySelectorAll("#links-list input[type='checkbox']:checked")]
+        .map(cb => cb.value);
+
+    await bridge.updateSessionGroups(session_id, JSON.stringify({
+        fetched: fetchedIds,
+        selected: checked,
+    }));
+    closeLinksModal();
 }
 
 function closeLinksModal() {

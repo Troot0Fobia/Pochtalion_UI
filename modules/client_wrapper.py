@@ -306,6 +306,25 @@ class ClientWrapper:
             )
             self.main_window.show_notification("Ошибка", "Ошибка получения диалогов")
 
+    async def get_groups_and_channels(self) -> list[dict]:
+        result = []
+        async for dialog in self._client.iter_dialogs():
+            entity = dialog.entity
+            if not isinstance(entity, (types.Chat, types.Channel)):
+                continue
+            if isinstance(entity, types.Channel):
+                identifier = f"@{entity.username}" if entity.username else f"-100{entity.id}"
+                group_key = entity.username.lower() if entity.username else f"-100{entity.id}"
+                input_entity = types.InputPeerChannel(entity.id, entity.access_hash)
+            else:
+                identifier = f"-{entity.id}"
+                group_key = f"-{entity.id}"
+                input_entity = types.InputPeerChat(entity.id)
+            self._entity_cache[group_key] = input_entity
+            save_entity(self._session_file, group_key, entity)
+            result.append({"title": entity.title, "identifier": identifier})
+        return result
+
     async def fetch_voice_dialogs(self) -> list[dict]:
         try:
             async with self._client.takeout(users=True) as takeout:
