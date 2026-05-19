@@ -342,11 +342,17 @@ class ClientWrapper:
             if photo_filename:
                 photo_type = "gif" if photo_filename.endswith(".mp4") else "image"
 
+            entity_type = (
+                "channel"
+                if isinstance(entity, types.Channel) and entity.broadcast
+                else "group"
+            )
             result.append({
                 "title": entity.title,
                 "identifier": identifier,
                 "photo": photo_filename,
                 "photo_type": photo_type,
+                "entity_type": entity_type,
             })
         return result
 
