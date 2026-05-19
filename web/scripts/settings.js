@@ -428,6 +428,9 @@ async function renderSessions(sessions_json, destination) {
         row.className = "row";
         row.dataset.id = session.session_id;
         row.innerHTML = `
+            <div class="session-avatar-wrap">
+                <div class="session-avatar-inner">${_buildSessionAvatar(session)}</div>
+            </div>
             <div class="row-content">
                 <div class="session-info">
                     Сессия: <span class="session-name">${session.session_file}</span> Номер телефона: <span class="session-phone">${session.phone_number}</span>
@@ -1081,23 +1084,33 @@ function renderChooseSessions(sessions_str) {
 
     sessions.forEach((session) => {
         const div = document.createElement("div");
-        div.className = "session-row-item";
+        const checked = isChecked(session.session_id) === "checked";
+        div.className = "session-row-item" + (checked ? " selected" : "");
         const showGroupsBtn = openedSettingsTabName === "parsing";
         const groupCount = (sessionGroupSelections[session.session_id] || []).length;
         const groupBtnLabel = groupCount > 0 ? `Группы (${groupCount})` : "Группы";
         div.innerHTML = `
-            <label>
+            <label class="choose-session-label">
+                <div class="session-avatar-wrap session-avatar-sm">
+                    <div class="session-avatar-inner">${_buildSessionAvatar(session)}</div>
+                    <div class="session-avatar-check">✓</div>
+                </div>
                 <input
                     type="checkbox"
                     value="${session.session_id}"
                     class="session-checkbox"
                     data-file="${session.session_file}"
                     ${isChecked(session.session_id)}
+                    hidden
                 >
-                ${session.session_file}
+                <span>${session.session_file}</span>
             </label>
             ${showGroupsBtn ? `<button class="btn parse-groups-btn" data-session-id="${session.session_id}" onclick="openParseGroupsModal(${session.session_id}, '${session.session_file}')">${groupBtnLabel}</button>` : ""}
         `;
+        const cb = div.querySelector(".session-checkbox");
+        cb.addEventListener("change", () => {
+            div.classList.toggle("selected", cb.checked);
+        });
         sessionList.appendChild(div);
     });
 
@@ -1228,6 +1241,15 @@ function _buildEntityTypeIcon(entityType) {
         return `<svg class="links-item-type-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.61-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.62zM20.4 5.6c-.4-.54-.8-1.07-1.2-1.6-.96.74-2.24 1.65-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.74 2.24-1.65 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>`;
     }
     return `<svg class="links-item-type-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>`;
+}
+
+function _buildSessionAvatar(session) {
+    if (session.avatar) {
+        return `<img src="../assets/session_photos/${session.session_file}/${session.avatar}" alt="">`;
+    }
+    const color = _getGroupColor(session.session_file || "?");
+    const label = (session.session_file || "?").charAt(0).toUpperCase();
+    return `<div class="session-avatar-placeholder" style="background:${color}">${label}</div>`;
 }
 
 function _buildGroupPhoto(g, sessionFile) {
