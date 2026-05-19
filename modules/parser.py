@@ -86,6 +86,25 @@ class Parser:
                     "value": public_matched.group("group_username") or public_matched.group("username"),
                 })
 
+        session_groups = parser_data.get("session_groups", {})
+        for session_id_str, identifiers in session_groups.items():
+            for identifier in identifiers:
+                identifier = identifier.strip()
+                if not identifier:
+                    continue
+                if identifier.startswith("@"):
+                    self.parse_targets.append({
+                        "kind": "public",
+                        "value": identifier[1:].lower(),
+                        "session_id": session_id_str,
+                    })
+                elif identifier.startswith("-") and identifier[1:].isdigit():
+                    self.parse_targets.append({
+                        "kind": "numeric",
+                        "value": int(identifier),
+                        "session_id": session_id_str,
+                    })
+
         self.logger.debug(f"Received targets {self.parse_targets}")
         if (
             not self.parse_targets and not self._folder_links
@@ -126,9 +145,21 @@ class Parser:
                 break
 
             target = self.parse_targets.pop()
-            wrapper, _, session_id = self.session_wrappers[index % sessions_count]
+            if "session_id" in target:
+                constraint = str(target["session_id"])
+                matched = next(
+                    (w for w, _, sid in self.session_wrappers if str(sid) == constraint),
+                    None,
+                )
+                if matched is None:
+                    self.logger.warning(f"Session {constraint} not found, skipping {target}")
+                    continue
+                wrapper = matched
+                session_id = constraint
+            else:
+                wrapper, _, session_id = self.session_wrappers[index % sessions_count]
+                index += 1
             client = wrapper.client
-            index += 1
 
             try:
                 if target["kind"] == "private":
