@@ -652,12 +652,12 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 }
 .smm-add-btn:hover { color: #818cf8; }
 
-.smm-slider { display: flex; flex-direction: row; overflow: hidden; transition: transform 0.4s ease; flex: 1; }
+.smm-slider { display: flex; flex-direction: row; overflow: hidden; transition: transform 0.4s ease; flex: 1; width: 200%; }
 
 .smm-dialogs-window,
 .smm-voices-window {
   display: flex; gap: 8px; flex-direction: column;
-  width: min(310px, 90vw);
+  width: 50%;
   padding: 14px;
   overflow: hidden auto;
   position: relative; flex-shrink: 0;
