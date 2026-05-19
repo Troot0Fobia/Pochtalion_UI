@@ -10,7 +10,7 @@ import puremagic
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from qasync import asyncSlot
 
-from core.paths import (PROFILE_PHOTOS, SESSIONS, SMM_IMAGES, SMM_VOICES, USERS_DATA)
+from core.paths import (PROFILE_PHOTOS, SESSION_PHOTOS, SESSIONS, SMM_IMAGES, SMM_VOICES, USERS_DATA)
 from ui.confirm_delete_session import ConfirmDelete
 
 from .base_bridge import BaseBridge
@@ -62,6 +62,11 @@ class SettingsBridge(BaseBridge):
                     s["groupMailing"] = group_mailer.is_session_mailing(session_id)
                 else:
                     s["groupMailing"] = False
+
+        for s in sessions:
+            photo_dir = SESSION_PHOTOS / s["session_file"]
+            photos = list(photo_dir.glob("avatar.*")) if photo_dir.exists() else []
+            s["avatar"] = photos[0].name if photos else None
 
         self.renderSessions.emit(json.dumps(sessions), destination)
 
@@ -373,6 +378,10 @@ class SettingsBridge(BaseBridge):
         if not sessions:
             self.main_window.show_notification("Внимание", "Нет загруженных сессий")
             return
+        for s in sessions:
+            photo_dir = SESSION_PHOTOS / s["session_file"]
+            photos = list(photo_dir.glob("avatar.*")) if photo_dir.exists() else []
+            s["avatar"] = photos[0].name if photos else None
         self.renderChooseSessions.emit(json.dumps(sessions))
 
     @asyncSlot(str)

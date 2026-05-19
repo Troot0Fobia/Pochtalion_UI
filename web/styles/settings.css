@@ -259,6 +259,7 @@ input[type="button"].button {
   white-space: nowrap;
   cursor: pointer;
   transition: filter var(--transition), transform var(--transition);
+  outline: none;
 }
 .button:hover { filter: brightness(1.18); }
 .button:active { transform: scale(0.97); }
@@ -688,9 +689,76 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 .sessions-header { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .sessions-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .session-row-item { display: flex; align-items: center; justify-content: space-between; }
+.choose-session-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .parse-groups-btn { font-size: 11px; padding: 3px 8px !important; flex-shrink: 0; border: none; }
 .session-info { display: flex; flex-direction: row; gap: 12px; flex-wrap: wrap; align-items: center; }
 .group-mailing-info { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+
+/* ── SESSION AVATARS ─────────────────────────────────── */
+
+.session-avatar-wrap {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  align-self: center;
+  margin-right: 10px;
+}
+
+.session-avatar-wrap.session-avatar-sm {
+  width: 32px;
+  height: 32px;
+  margin-right: 0;
+}
+
+.session-avatar-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid transparent;
+  box-sizing: border-box;
+  transition: border-color var(--transition);
+}
+
+.session-avatar-inner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.session-avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+}
+
+.session-avatar-check {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-surface);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: white;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.session-row-item.selected .session-avatar-inner { border-color: var(--accent); }
+.session-row-item.selected .session-avatar-check { display: flex; }
 
 /* ── MODAL OVERLAY (session/group select) ────────────── */
 

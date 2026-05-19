@@ -37,7 +37,7 @@ from telethon.tl.types import ChatInviteAlready
 
 from core.database import Database
 from core.entity_cache import load_session_entities, save_entity
-from core.paths import GROUP_PHOTOS, PROFILE_PHOTOS, SESSIONS, TMP, USERS_DATA
+from core.paths import GROUP_PHOTOS, PROFILE_PHOTOS, SESSION_PHOTOS, SESSIONS, TMP, USERS_DATA
 from ui.auth_window import AuthWindow
 from ui.qr_login import QRLoginWindow
 
@@ -156,6 +156,8 @@ class ClientWrapper:
                 )
         self._register_handlers()
 
+        await self.download_session_avatar(me)
+
         if (
             self.main_window.settings_manager.get_setting("fetch_sessions_old_dialogs")
             and not is_module
@@ -163,6 +165,20 @@ class ClientWrapper:
             await self.fetch_dialogs()
         self._status = 1
         return True
+
+    async def download_session_avatar(self, me) -> None:
+        photo_dir = SESSION_PHOTOS / self._session_file
+        if photo_dir.exists():
+            for f in photo_dir.iterdir():
+                f.unlink(missing_ok=True)
+        else:
+            photo_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            downloaded = await self._client.download_profile_photo(
+                me, file=str(photo_dir / "avatar")
+            )
+        except Exception:
+            pass
 
     async def login_qr(self):
         await self._client.connect()
