@@ -140,11 +140,6 @@
                     <textarea name="parse-links" id="parse-links"></textarea>
                 </div>
                 <div class="column">
-                    <div class="select-type select-parse-type">
-                        <span class="active-type" id="parse-group" onclick="changeParsingType('group')">Парсить группу</span>
-                        <div>/</div>
-                        <span id="parse-channel" onclick="changeParsingType('channel')">Парсить канал</span>
-                    </div>
                     <div class="parse-group-settings" id="parse-group-settings">
                         <div class="select-type channel-parse-type">
                             <span class="active-type" id="parse-group-participants" onclick="changeGroupParseSettings('participants')">Парсить открытых участников</span>
@@ -153,8 +148,8 @@
                         </div>
                         <div id="messages-parse-settings">
                             <label for="messages-parse-count">Количество сообщений</label>
-                            <input type="text" class="input-number" name="messages-parse-count" maxlength="3" placeholder="0" id="messages-parse-count"
-                                oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 3);">
+                            <input type="text" class="input-number" name="messages-parse-count" maxlength="5" placeholder="0" id="messages-parse-count"
+                                oninput="let v=this.value.replace(/[^0-9]/g,''); if(+v>20000)v='20000'; this.value=v;">
                         </div>
                     </div>
                     <div class="parse-channel-settings" id="parse-channel-settings">

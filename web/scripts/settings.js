@@ -1031,23 +1031,6 @@ function changeMessageType(type) {
     }
 }
 
-function changeParsingType(type) {
-    const select_block = document.querySelector(".select-parse-type");
-    if (type === "channel") {
-        select_block.querySelector("#parse-group").classList.remove("active-type");
-        select_block.querySelector("#parse-channel").classList.add("active-type");
-        document.getElementById("parse-group-settings").style.display = "none";
-        document.getElementById("parse-channel-settings").style.display = "flex";
-    } else if (type === "group") {
-        select_block
-            .querySelector("#parse-channel")
-            .classList.remove("active-type");
-        select_block.querySelector("#parse-group").classList.add("active-type");
-        document.getElementById("parse-channel-settings").style.display = "none";
-        document.getElementById("parse-group-settings").style.display = "flex";
-    }
-}
-
 function changeGroupParseSettings(type) {
     const select_block = document.querySelector(".parse-group-settings");
     if (type === "messages") {
@@ -1359,9 +1342,6 @@ function toggleAllLinks(checkbox) {
 
 async function startParsing() {
     const parse_links = document.getElementById("parse-links").value.trim();
-    const is_parse_channel = document
-        .getElementById("parse-channel")
-        .classList.contains("active-type");
     const count_of_posts = document.getElementById("posts-parse-count").value;
     const is_parse_messages = document
         .getElementById("parse-group-messages")
@@ -1380,8 +1360,7 @@ async function startParsing() {
         !selectedParseSessions ||
         Object.keys(selectedParseSessions).length === 0 ||
         (!parse_links && !hasSessionGroups) ||
-        (is_parse_channel && !count_of_posts) ||
-        (!is_parse_channel && is_parse_messages && !count_of_messages)
+        (is_parse_messages && !count_of_messages)
     ) {
         bridge.show_notification("Введите корректные данные");
         return;
@@ -1389,7 +1368,6 @@ async function startParsing() {
 
     const parse_data = {
         parse_links,
-        is_parse_channel,
         count_of_posts,
         is_parse_messages,
         count_of_messages,

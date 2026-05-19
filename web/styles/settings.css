@@ -395,7 +395,7 @@ input[type="button"][disabled] {
 /* ── PARSING SETTINGS ────────────────────────────────── */
 
 .parse-group-settings { display: flex; flex-direction: column; gap: 10px; }
-.parse-channel-settings { display: none; }
+.parse-channel-settings { display: flex; flex-direction: column; gap: 10px; }
 #messages-parse-settings { display: none; align-items: center; gap: 10px; }
 
 /* ── ACTION BUTTONS ──────────────────────────────────── */
