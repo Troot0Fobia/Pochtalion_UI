@@ -293,6 +293,7 @@
             <span class="close-button" onclick="closeLinksModal()">&times;</span>
             <div class="links-modal-title">
                 <h3>Группы и каналы</h3>
+                <span id="links-modal-status" class="links-modal-status"></span>
             </div>
             <div class="links-search-wrapper">
                 <img src="assets/icons/search.png" class="links-search-icon">
@@ -306,7 +307,7 @@
                 <div class="links-list" id="links-list"></div>
             </div>
             <div class="links-modal-footer">
-                <div class="button accept-btn" onclick="closeLinksModal()">Подтвердить</div>
+                <div class="button accept-btn" onclick="confirmLinksSelection()">Подтвердить</div>
                 <div class="button cancel-btn" onclick="closeLinksModal()">Отмена</div>
             </div>
         </div>
