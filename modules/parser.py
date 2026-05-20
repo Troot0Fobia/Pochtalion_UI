@@ -362,6 +362,35 @@ class Parser:
             if not username:
                 return False
             link = f"@{username}"
+        elif mode == "usernames_and_messages":
+            username = getattr(user_entity, "username", None)
+            if username:
+                link = f"@{username}"
+            else:
+                link = None
+                if message_id is not None:
+                    link = (
+                        f"https://t.me/{group_username}/{message_id}"
+                        if group_username
+                        else f"https://t.me/c/{group_entity.id}/{message_id}"
+                    )
+                else:
+                    try:
+                        async for msg in client.iter_messages(
+                            group_entity, from_user=user_entity, limit=1
+                        ):
+                            link = (
+                                f"https://t.me/{group_username}/{msg.id}"
+                                if group_username
+                                else f"https://t.me/c/{group_entity.id}/{msg.id}"
+                            )
+                            break
+                    except Exception:
+                        self.logger.warning(
+                            f"Could not fetch messages for user {user_entity.id}", exc_info=True
+                        )
+                if link is None:
+                    return False
         else:
             # "messages" or "messages_and_username"
             link = None
