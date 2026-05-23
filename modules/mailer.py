@@ -16,7 +16,8 @@ from telethon.errors import (
     UsernameNotOccupiedError,
 )
 from telethon.errors.rpcerrorlist import MsgIdInvalidError
-from telethon.types import User
+from telethon.tl.functions.messages import CheckChatInviteRequest, ImportChatInviteRequest
+from telethon.tl.types import ChatInviteAlready, User
 
 from core.logger import setup_logger
 from core.paths import SMM_IMAGES, SMM_VOICES
@@ -53,6 +54,7 @@ class Mailer:
         self.session_files = mail_data["selected_sessions"]
         self.session_wrappers = []
         self.mail_data = []
+        self._inaccessible: set[tuple[int, int]] = set()  # (session_id, chat_id)
 
         if self.is_send_text_messages:
             self.smm_messages = await self.main_window.database.get_smm_messages()
@@ -268,15 +270,28 @@ class Mailer:
                     exc_info=True,
                 )
 
+        if (session_id, source_chat_id) in self._inaccessible:
+            return None
+
         source_data = await self.main_window.database.get_parse_source(source_chat_id)
         if not source_data:
             return None
 
+        chat_identifier = source_data.get("chat_username") or source_chat_id
+        chat_title = source_data.get("chat_title", str(source_chat_id))
+
         try:
-            chat_entity = await session_client.get_entity(source_data["chat_username"])
+            chat_entity = await session_client.get_entity(chat_identifier)
+        except ChannelPrivateError:
+            chat_entity = await self._try_join_private_group(
+                session_client, session_id, source_chat_id,
+                source_data.get("invite_hash"), chat_title,
+            )
+            if chat_entity is None:
+                return None
         except UsernameNotOccupiedError:
             self.logger.error(
-                f"Chat {source_data['chat_username']} was deleted. Skip it...",
+                f"Chat {chat_identifier} was deleted. Skip it...",
                 exc_info=True,
             )
             return None
@@ -362,6 +377,46 @@ class Mailer:
                 pass
 
         self.logger.info("Entity was not received")
+        return None
+
+    def _get_session_file(self, session_id: int) -> str:
+        for si in self.session_wrappers:
+            if si.session_id == session_id:
+                return si.wrapper.session_file
+        return str(session_id)
+
+    async def _mark_group_inaccessible(self, session_id: int, chat_id: int, chat_title: str):
+        self._inaccessible.add((session_id, chat_id))
+        accessible = []
+        sm = self.main_window.session_manager
+        if sm:
+            for sf, wrapper in sm.sessions.items():
+                try:
+                    await wrapper.client.get_entity(chat_id)
+                    accessible.append(sf)
+                except Exception:
+                    pass
+        session_file = self._get_session_file(session_id)
+        accessible_str = ", ".join(accessible) if accessible else "нет доступных сессий"
+        self.main_window.show_notification(
+            "Нет доступа к группе",
+            f"Сессия '{session_file}' не может получить доступ к группе '{chat_title}'.\n"
+            f"Пользователи из этой группы будут пропущены для данной сессии.\n"
+            f"Сессии с доступом: {accessible_str}",
+        )
+
+    async def _try_join_private_group(self, session_client, session_id: int, chat_id: int, invite_hash: str | None, chat_title: str):
+        if invite_hash:
+            try:
+                result = await session_client(CheckChatInviteRequest(invite_hash))
+                if isinstance(result, ChatInviteAlready):
+                    return result.chat
+                join_result = await session_client(ImportChatInviteRequest(invite_hash))
+                if join_result.chats:
+                    return join_result.chats[0]
+            except Exception as e:
+                self.logger.error(f"Cannot join group {chat_id} via hash: {e}", exc_info=True)
+        await self._mark_group_inaccessible(session_id, chat_id, chat_title)
         return None
 
     async def stop(self):

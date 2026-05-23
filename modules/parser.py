@@ -186,6 +186,7 @@ class Parser:
                 group_entity.title,
                 getattr(group_entity, "username", None),
                 group_type,
+                target.get("hash"),  # invite_hash; None for public/numeric targets
             )
             await self.main_window.database.add_parse_source(
                 self.group_id, *self.group_data[self.group_id]
