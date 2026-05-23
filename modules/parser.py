@@ -37,7 +37,6 @@ class Parser:
         self.logger.info("Start parsing")
         self.logger.debug(f"Start parsing for data: {parser_data_str}")
         parser_data = json.loads(parser_data_str)
-        self.is_parse_channel = parser_data["is_parse_channel"]
         self.count_of_posts = parser_data["count_of_posts"].strip()
         self.is_parse_messages = parser_data["is_parse_messages"]
         self.count_of_messages = parser_data["count_of_messages"].strip()
@@ -86,14 +85,30 @@ class Parser:
                     "value": public_matched.group("group_username") or public_matched.group("username"),
                 })
 
+        session_groups = parser_data.get("session_groups", {})
+        for session_id_str, identifiers in session_groups.items():
+            for identifier in identifiers:
+                identifier = identifier.strip()
+                if not identifier:
+                    continue
+                if identifier.startswith("@"):
+                    self.parse_targets.append({
+                        "kind": "public",
+                        "value": identifier[1:].lower(),
+                        "session_id": session_id_str,
+                    })
+                elif identifier.startswith("-") and identifier[1:].isdigit():
+                    self.parse_targets.append({
+                        "kind": "numeric",
+                        "value": int(identifier),
+                        "session_id": session_id_str,
+                    })
+
         self.logger.debug(f"Received targets {self.parse_targets}")
         if (
             not self.parse_targets and not self._folder_links
             or not self.session_files
-            or self.is_parse_channel
-            and not self.count_of_posts.isdigit()
-            or not self.is_parse_channel
-            and self.is_parse_messages
+            or self.is_parse_messages
             and not self.count_of_messages.isdigit()
         ):
             self.logger.warning("Incorrect data provided. Returning...")
@@ -126,9 +141,21 @@ class Parser:
                 break
 
             target = self.parse_targets.pop()
-            wrapper, _, session_id = self.session_wrappers[index % sessions_count]
+            if "session_id" in target:
+                constraint = str(target["session_id"])
+                matched = next(
+                    (w for w, _, sid in self.session_wrappers if str(sid) == constraint),
+                    None,
+                )
+                if matched is None:
+                    self.logger.warning(f"Session {constraint} not found, skipping {target}")
+                    continue
+                wrapper = matched
+                session_id = constraint
+            else:
+                wrapper, _, session_id = self.session_wrappers[index % sessions_count]
+                index += 1
             client = wrapper.client
-            index += 1
 
             try:
                 if target["kind"] == "private":
@@ -157,7 +184,7 @@ class Parser:
                 self.group_id, *self.group_data[self.group_id]
             )
 
-            if group_type == "broadcast" and self.is_parse_channel:
+            if group_type == "broadcast":
                 try:
                     async for message in client.iter_messages(
                         group_entity, self.count_of_posts or None
@@ -204,10 +231,7 @@ class Parser:
                     self.logger.error(
                         "Unexpected error while parsing broadcast", exc_info=True
                     )
-            elif (
-                group_type in ("megagroup", "gigagroup", "chat")
-                and not self.is_parse_channel
-            ):
+            elif group_type in ("megagroup", "gigagroup", "chat"):
                 if self.is_parse_messages:
                     async for message in client.iter_messages(
                         group_entity, self.count_of_messages or None
@@ -270,27 +294,9 @@ class Parser:
                                 exc_info=True,
                             )
             else:
-                if group_type == "broadcast" and not self.is_parse_channel:
-                    self.main_window.show_notification(
-                        "Внимание",
-                        (
-                            f"Несоответствие типа группы и настроек.\n"
-                            f"Группа @{parse_username} является каналом\n"
-                            f"Выбрано парсить группу"
-                        ),
-                    )
-                elif (
-                    group_type in ("megagroup", "gigagroup", "chat")
-                    and self.is_parse_channel
-                ):
-                    self.main_window.show_notification(
-                        "Внимание",
-                        (
-                            f"Несоответствие типа группы и настроек.\n"
-                            f"Группа @{parse_username} является группой\n"
-                            f"Выбрано парсить канал"
-                        ),
-                    )
+                self.logger.warning(
+                    f"Unsupported entity type '{group_type}' for {parse_username}, skipping"
+                )
 
         await self.stop()
 

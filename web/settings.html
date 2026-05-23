@@ -141,11 +141,6 @@
                     <textarea name="parse-links" id="parse-links"></textarea>
                 </div>
                 <div class="column">
-                    <div class="select-type select-parse-type">
-                        <span class="active-type" id="parse-group" onclick="changeParsingType('group')">Парсить группу</span>
-                        <div>/</div>
-                        <span id="parse-channel" onclick="changeParsingType('channel')">Парсить канал</span>
-                    </div>
                     <div class="parse-group-settings" id="parse-group-settings">
                         <div class="select-type channel-parse-type">
                             <span class="active-type" id="parse-group-participants" onclick="changeGroupParseSettings('participants')">Парсить открытых участников</span>
@@ -154,8 +149,8 @@
                         </div>
                         <div id="messages-parse-settings">
                             <label for="messages-parse-count">Количество сообщений</label>
-                            <input type="text" class="input-number" name="messages-parse-count" maxlength="3" placeholder="0" id="messages-parse-count"
-                                oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 3);">
+                            <input type="text" class="input-number" name="messages-parse-count" maxlength="5" placeholder="0" id="messages-parse-count"
+                                oninput="let v=this.value.replace(/[^0-9]/g,''); if(+v>20000)v='20000'; this.value=v;">
                         </div>
                     </div>
                     <div class="parse-channel-settings" id="parse-channel-settings">
@@ -280,13 +275,37 @@
             <input type="button" class="button choose-button" value="Подтвердить" onclick="confirmSelectedSessions()">
         </div>
     </div>
-    <div id="mailing-group-modal" class="modal hidden">
+    <div id="mailing-links-modal" class="modal hidden">
         <div class="modal-content">
-            <span class="close-button" onclick="closeMailingGroupsModal()">&times;</span>
-            <h3>Вставьте группы для рассылки</h3>
-            <textarea name="mailing-groups" id="mailing-group-data-field"></textarea>
+            <span class="close-button" onclick="closeMailingLinksModal()">&times;</span>
+            <h3>Вставьте ссылки для рассылки</h3>
+            <textarea name="mailing-links" id="mailing-links-data-field"></textarea>
                 <!-- <div class="sessions-list" id="session-list"></div> -->
-            <input type="button" class="button choose-button" value="Подтвердить" onclick="confirmMailingGroups()">
+            <input type="button" class="button choose-button" value="Подтвердить" onclick="confirmMailingLinks()">
+        </div>
+    </div>
+    <div id="links-modal" class="modal hidden">
+        <div class="modal-content links-modal-content">
+            <span class="close-button" onclick="closeLinksModal()">&times;</span>
+            <div class="links-modal-title">
+                <h3>Группы и каналы</h3>
+                <span id="links-modal-status" class="links-modal-status"></span>
+            </div>
+            <div class="links-search-wrapper">
+                <img src="assets/icons/search.png" class="links-search-icon">
+                <input type="text" class="links-search-input" id="links-search" placeholder="Поиск..." oninput="filterLinks(this.value)">
+            </div>
+            <div class="links-list-wrapper">
+                <div class="links-select-all-row">
+                    <input type="checkbox" id="links-select-all" onchange="toggleAllLinks(this)">
+                    <label for="links-select-all">Выбрать все</label>
+                </div>
+                <div class="links-list" id="links-list"></div>
+            </div>
+            <div class="links-modal-footer">
+                <div class="button accept-btn" onclick="confirmLinksSelection()">Подтвердить</div>
+                <div class="button cancel-btn" onclick="closeLinksModal()">Отмена</div>
+            </div>
         </div>
     </div>
 </body>

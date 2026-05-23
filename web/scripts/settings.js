@@ -3,6 +3,7 @@ let temp_text = "";
 let temp_photo = "";
 let selectedParseSessions = {};
 let selectedMailSessions = {};
+let sessionGroupSelections = {};
 let sessionsList = [];
 let openedSettingsTabName = undefined;
 let currentVoicePlayer = null;
@@ -47,17 +48,23 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.renderVoiceMessages.connect(renderVoiceMessages);
     bridge.removeVoiceMessageRow.connect(removeVoiceMessageRow);
     bridge.renderObjects.connect(renderObjects);
-    bridge.renderMailingGroups.connect(renderMailingGroups);
+    bridge.renderMailingLinks.connect(renderMailingLinks);
     bridge.changeGroupMailingStatus.connect(changeGroupMailingStatus);
     bridge.updateGroupMailingProgress.connect(updateGroupMailingProgress);
     bridge.updateGroupMailingRetry.connect(updateGroupMailingRetry);
+    bridge.sessionGroupsStatus.connect(sessionGroupsStatus);
+    bridge.renderSessionGroups.connect(renderSessionGroups);
 });
 
 document.addEventListener("keyup", (event) => {
     if (event.key === "Escape") {
-        const groupModal = document.getElementById("mailing-group-modal");
+        const groupModal = document.getElementById("links-modal");
         if (groupModal && !groupModal.classList.contains("hidden")) {
             return groupModal.classList.add("hidden");
+        }
+        const linksModal = document.getElementById("mailing-links-modal");
+        if (linksModal && !groupModal.classList.contains("hidden")) {
+            return linksModal.classList.add("hidden");
         }
         const sessionModal = document.getElementById("session-modal");
         if (sessionModal && !sessionModal.classList.contains("hidden")) {
@@ -421,6 +428,9 @@ async function renderSessions(sessions_json, destination) {
         row.className = "row";
         row.dataset.id = session.session_id;
         row.innerHTML = `
+            <div class="session-avatar-wrap">
+                <div class="session-avatar-inner">${_buildSessionAvatar(session)}</div>
+            </div>
             <div class="row-content">
                 <div class="session-info">
                     Сессия: <span class="session-name">${session.session_file}</span> Номер телефона: <span class="session-phone">${session.phone_number}</span>
@@ -494,7 +504,8 @@ async function renderSessions(sessions_json, destination) {
                         <div class="group-mailing-retry" style="display:none"></div>
                     </div>
                     <div class="buttons">
-                        <div class="btn open-groups" onclick="loadMailingGroups(this)">Группы</div>
+                        <div class="btn open-groups" onclick="openLinksModal(this)">Группы</div>
+                        <div class="btn open-groups" onclick="loadMailingLinks(this)">Ссылки</div>
                         ${controlButton}
                     </div>
                 `,
@@ -1023,23 +1034,6 @@ function changeMessageType(type) {
     }
 }
 
-function changeParsingType(type) {
-    const select_block = document.querySelector(".select-parse-type");
-    if (type === "channel") {
-        select_block.querySelector("#parse-group").classList.remove("active-type");
-        select_block.querySelector("#parse-channel").classList.add("active-type");
-        document.getElementById("parse-group-settings").style.display = "none";
-        document.getElementById("parse-channel-settings").style.display = "flex";
-    } else if (type === "group") {
-        select_block
-            .querySelector("#parse-channel")
-            .classList.remove("active-type");
-        select_block.querySelector("#parse-group").classList.add("active-type");
-        document.getElementById("parse-channel-settings").style.display = "none";
-        document.getElementById("parse-group-settings").style.display = "flex";
-    }
-}
-
 function changeGroupParseSettings(type) {
     const select_block = document.querySelector(".parse-group-settings");
     if (type === "messages") {
@@ -1090,18 +1084,33 @@ function renderChooseSessions(sessions_str) {
 
     sessions.forEach((session) => {
         const div = document.createElement("div");
+        const checked = isChecked(session.session_id) === "checked";
+        div.className = "session-row-item" + (checked ? " selected" : "");
+        const showGroupsBtn = openedSettingsTabName === "parsing";
+        const groupCount = (sessionGroupSelections[session.session_id] || []).length;
+        const groupBtnLabel = groupCount > 0 ? `Группы (${groupCount})` : "Группы";
         div.innerHTML = `
-            <label>
+            <label class="choose-session-label">
+                <div class="session-avatar-wrap session-avatar-sm">
+                    <div class="session-avatar-inner">${_buildSessionAvatar(session)}</div>
+                    <div class="session-avatar-check">✓</div>
+                </div>
                 <input
                     type="checkbox"
                     value="${session.session_id}"
                     class="session-checkbox"
                     data-file="${session.session_file}"
                     ${isChecked(session.session_id)}
+                    hidden
                 >
-                ${session.session_file}
+                <span>${session.session_file}</span>
             </label>
+            ${showGroupsBtn ? `<button class="btn parse-groups-btn" data-session-id="${session.session_id}" onclick="openParseGroupsModal(${session.session_id}, '${session.session_file}')">${groupBtnLabel}</button>` : ""}
         `;
+        const cb = div.querySelector(".session-checkbox");
+        cb.addEventListener("change", () => {
+            div.classList.toggle("selected", cb.checked);
+        });
         sessionList.appendChild(div);
     });
 
@@ -1139,13 +1148,13 @@ function confirmSelectedSessions() {
     }
 }
 
-async function loadMailingGroups(button) {
+async function loadMailingLinks(button) {
     const row = button.closest(".row");
-    await bridge.loadMailingGroups(row.dataset.id);
+    await bridge.loadMailingLinks(row.dataset.id);
 }
 
-function renderMailingGroups(session_id, groups_data_str) {
-    const modal = document.getElementById("mailing-group-modal");
+function renderMailingLinks(session_id, groups_data_str) {
+    const modal = document.getElementById("mailing-links-modal");
     if (!modal) return;
 
     modal.dataset.id = session_id;
@@ -1153,29 +1162,218 @@ function renderMailingGroups(session_id, groups_data_str) {
     modal?.classList.remove("hidden");
 }
 
-async function confirmMailingGroups() {
-    const modal = document.getElementById("mailing-group-modal");
-    if (!modal) return closeMailingGroupsModal();
+async function confirmMailingLinks() {
+    const modal = document.getElementById("mailing-links-modal");
+    if (!modal) return closeMailingLinksModal();
 
     const groups_data = modal.querySelector("textarea").value;
-    await bridge.updateMailingGroups(modal.dataset.id, groups_data);
+    await bridge.updateMailingLinks(modal.dataset.id, groups_data);
 
-    closeMailingGroupsModal();
+    closeMailingLinksModal();
 }
 
-function closeMailingGroupsModal() {
-    const modal = document.getElementById("mailing-group-modal");
+function closeMailingLinksModal() {
+    const modal = document.getElementById("mailing-links-modal");
     if (!modal) return;
 
     modal.dataset.id = "";
     modal.classList.add("hidden");
 }
 
+async function openParseGroupsModal(sessionId, sessionFile) {
+    const modal = document.getElementById("links-modal");
+    if (!modal) return;
+
+    modal.dataset.id = String(sessionId);
+    modal.dataset.file = sessionFile;
+    modal.dataset.context = "parsing";
+    modal.dataset.fetchedIds = "[]";
+    document.getElementById("links-list").innerHTML = "";
+    document.getElementById("links-search").value = "";
+    document.getElementById("links-select-all").checked = false;
+    filterLinks("");
+    const statusEl = document.getElementById("links-modal-status");
+    if (statusEl) statusEl.textContent = "Загрузка...";
+    modal.classList.remove("hidden");
+
+    await bridge.loadSessionGroups(String(sessionId), sessionFile);
+}
+
+async function openLinksModal(button) {
+    const row = button.closest(".row");
+    const modal = document.getElementById("links-modal");
+    if (!modal) return;
+
+    const session_id = row.dataset.id;
+    const session_file = row.querySelector(".session-name").innerText;
+
+    modal.dataset.id = session_id;
+    modal.dataset.file = session_file;
+    modal.dataset.context = "mailing";
+    modal.dataset.fetchedIds = "[]";
+    document.getElementById("links-list").innerHTML = "";
+    document.getElementById("links-search").value = "";
+    document.getElementById("links-select-all").checked = false;
+    filterLinks("");
+    const statusEl = document.getElementById("links-modal-status");
+    if (statusEl) statusEl.textContent = "Загрузка...";
+    modal.classList.remove("hidden");
+
+    await bridge.loadSessionGroups(session_id, session_file);
+}
+
+function sessionGroupsStatus(session_id, status) {
+    const modal = document.getElementById("links-modal");
+    if (!modal || modal.dataset.id !== String(session_id)) return;
+    const statusEl = document.getElementById("links-modal-status");
+    if (statusEl) statusEl.textContent = status;
+}
+
+function _getGroupColor(name) {
+    const palette = ["#4d6af5","#e05c5c","#3faa6e","#c97b3f","#9b59b6","#2980b9","#16a085","#d35400"];
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+    return palette[Math.abs(h) % palette.length];
+}
+
+function _buildEntityTypeIcon(entityType) {
+    if (entityType === "channel") {
+        return `<svg class="links-item-type-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.61-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.62zM20.4 5.6c-.4-.54-.8-1.07-1.2-1.6-.96.74-2.24 1.65-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.74 2.24-1.65 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>`;
+    }
+    return `<svg class="links-item-type-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>`;
+}
+
+function _buildSessionAvatar(session) {
+    if (session.avatar) {
+        return `<img src="../assets/session_photos/${session.session_file}/${session.avatar}" alt="">`;
+    }
+    const color = _getGroupColor(session.session_file || "?");
+    const label = (session.session_file || "?").charAt(0).toUpperCase();
+    return `<div class="session-avatar-placeholder" style="background:${color}">${label}</div>`;
+}
+
+function _buildGroupPhoto(g, sessionFile) {
+    if (g.photo_type === "image") {
+        return `<img src="../assets/group_photos/${sessionFile}/${g.photo}" alt="">`;
+    }
+    const color = _getGroupColor(g.title);
+    const label = g.photo_type === "gif"
+        ? `<span style="font-size:10px;font-weight:700;letter-spacing:0.5px">GIF</span>`
+        : g.title.charAt(0).toUpperCase();
+    return `<div class="links-item-placeholder" style="background:${color}">${label}</div>`;
+}
+
+function toggleLinksItem(item) {
+    const cb = item.querySelector("input[type='checkbox']");
+    if (!cb) return;
+    cb.checked = !cb.checked;
+    item.classList.toggle("selected", cb.checked);
+    const allCbs = [...document.querySelectorAll("#links-list input[type='checkbox']")];
+    document.getElementById("links-select-all").checked =
+        allCbs.length > 0 && allCbs.every(c => c.checked);
+}
+
+function renderSessionGroups(session_id, groups_json) {
+    const modal = document.getElementById("links-modal");
+    if (!modal || modal.dataset.id !== String(session_id)) return;
+
+    const groups = JSON.parse(groups_json);
+    if (modal.dataset.context === "parsing") {
+        const prevSelected = new Set(sessionGroupSelections[session_id] || []);
+        groups.forEach(g => { g.selected = prevSelected.has(g.identifier); });
+    }
+    const sessionFile = modal.dataset.file || "";
+    modal.dataset.fetchedIds = JSON.stringify(groups.map(g => g.identifier));
+
+    const list = document.getElementById("links-list");
+    list.innerHTML = "";
+    const fragment = document.createDocumentFragment();
+    groups.forEach(g => {
+        const item = document.createElement("div");
+        item.className = "links-item" + (g.selected ? " selected" : "");
+        item.onclick = () => toggleLinksItem(item);
+        item.innerHTML = `
+            <div class="links-item-photo">
+                <div class="links-item-photo-inner">
+                    ${_buildGroupPhoto(g, sessionFile)}
+                </div>
+                <div class="links-item-check">✓</div>
+            </div>
+            <div class="links-item-info">
+                ${_buildEntityTypeIcon(g.entity_type)}
+                <span class="links-item-name">${g.title}</span>
+            </div>
+            <input type="checkbox" value="${g.identifier}" ${g.selected ? "checked" : ""} hidden>
+        `;
+        fragment.appendChild(item);
+    });
+    list.appendChild(fragment);
+
+    const allChecked = groups.length > 0 && groups.every(g => g.selected);
+    document.getElementById("links-select-all").checked = allChecked;
+
+    const statusEl = document.getElementById("links-modal-status");
+    if (statusEl) statusEl.textContent = "";
+}
+
+async function confirmLinksSelection() {
+    const modal = document.getElementById("links-modal");
+    if (!modal) return closeLinksModal();
+
+    const session_id = modal.dataset.id;
+    const context = modal.dataset.context;
+    const fetchedIds = JSON.parse(modal.dataset.fetchedIds || "[]");
+    const checked = [...document.querySelectorAll("#links-list input[type='checkbox']:checked")]
+        .map(cb => cb.value);
+
+    if (context === "parsing") {
+        sessionGroupSelections[session_id] = checked;
+        const btn = document.querySelector(`.parse-groups-btn[data-session-id="${session_id}"]`);
+        if (btn) btn.textContent = checked.length > 0 ? `Группы (${checked.length})` : "Группы";
+        closeLinksModal();
+        return;
+    }
+
+    await bridge.updateSessionGroups(session_id, JSON.stringify({
+        fetched: fetchedIds,
+        selected: checked,
+    }));
+    closeLinksModal();
+}
+
+function closeLinksModal() {
+    const modal = document.getElementById("links-modal");
+    if (!modal) return;
+
+    modal.dataset.id = "";
+    modal.classList.add("hidden");
+}
+
+function filterLinks(query) {
+    const list = document.getElementById("links-list");
+    if (!list) return;
+
+    const q = query.toLowerCase();
+    list.querySelectorAll(".links-item").forEach(item => {
+        const nameEl = item.querySelector(".links-item-name");
+        item.style.display =
+            !q || (nameEl && nameEl.textContent.toLowerCase().includes(q)) ? "" : "none";
+    });
+}
+
+function toggleAllLinks(checkbox) {
+    const list = document.getElementById("links-list");
+    if (!list) return;
+
+    list.querySelectorAll(".links-item").forEach(item => {
+        const cb = item.querySelector("input[type='checkbox']");
+        if (cb) cb.checked = checkbox.checked;
+        item.classList.toggle("selected", checkbox.checked);
+    });
+}
+
 async function startParsing() {
     const parse_links = document.getElementById("parse-links").value.trim();
-    const is_parse_channel = document
-        .getElementById("parse-channel")
-        .classList.contains("active-type");
     const count_of_posts = document.getElementById("posts-parse-count").value;
     const is_parse_messages = document
         .getElementById("parse-group-messages")
@@ -1184,12 +1382,17 @@ async function startParsing() {
         "messages-parse-count",
     ).value;
 
+    const session_groups = {};
+    for (const [sid, groups] of Object.entries(sessionGroupSelections)) {
+        if (groups.length > 0) session_groups[sid] = groups;
+    }
+    const hasSessionGroups = Object.values(session_groups).some(g => g.length > 0);
+
     if (
         !selectedParseSessions ||
-        selectedParseSessions.length === 0 ||
-        !parse_links ||
-        (is_parse_channel && !count_of_posts) ||
-        (!is_parse_channel && is_parse_messages && !count_of_messages)
+        Object.keys(selectedParseSessions).length === 0 ||
+        (!parse_links && !hasSessionGroups) ||
+        (is_parse_messages && !count_of_messages)
     ) {
         bridge.show_notification("Введите корректные данные");
         return;
@@ -1197,11 +1400,11 @@ async function startParsing() {
 
     const parse_data = {
         parse_links,
-        is_parse_channel,
         count_of_posts,
         is_parse_messages,
         count_of_messages,
         selected_sessions: selectedParseSessions,
+        session_groups,
     };
     await bridge.startParsing(JSON.stringify(parse_data));
 }
