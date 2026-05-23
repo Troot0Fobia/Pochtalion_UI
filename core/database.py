@@ -83,10 +83,16 @@ class Database:
                 chat_id INTEGER PRIMARY KEY,
                 chat_title TEXT NOT NULL,
                 chat_username TEXT DEFAULT NULL,
-                chat_type TEXT NOT NULL
+                chat_type TEXT NOT NULL,
+                invite_hash TEXT DEFAULT NULL
             )
         """
         )
+        try:
+            await db.execute("ALTER TABLE parse_source ADD COLUMN invite_hash TEXT DEFAULT NULL")
+            await db.commit()
+        except Exception:
+            pass
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -601,15 +607,17 @@ class Database:
     # ## ====================== Methods for parse_source ======================= ###
 
     async def add_parse_source(
-        self, chat_id: int, chat_title: str, chat_username: str, chat_type: str
+        self, chat_id: int, chat_title: str, chat_username: str, chat_type: str, invite_hash: str | None = None
     ) -> None:
         async with self._lock:
             await self._db.execute(
                 """
-                INSERT OR IGNORE INTO parse_source (chat_id, chat_title, chat_username, chat_type)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO parse_source (chat_id, chat_title, chat_username, chat_type, invite_hash)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(chat_id) DO UPDATE SET
+                    invite_hash = COALESCE(excluded.invite_hash, parse_source.invite_hash)
             """,
-                (chat_id, chat_title, chat_username, chat_type),
+                (chat_id, chat_title, chat_username, chat_type, invite_hash),
             )
             await self._db.commit()
 
@@ -617,7 +625,7 @@ class Database:
         async with self._lock:
             async with self._db.execute(
                 """
-                SELECT chat_title, chat_username, chat_type
+                SELECT chat_title, chat_username, chat_type, invite_hash
                 FROM parse_source
                 WHERE chat_id = ?
             """,
@@ -629,6 +637,7 @@ class Database:
                         "chat_title": row["chat_title"],
                         "chat_username": row["chat_username"],
                         "chat_type": row["chat_type"],
+                        "invite_hash": row["invite_hash"],
                     }
                 else:
                     return {}
