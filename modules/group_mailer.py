@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import random
+import re
 import time
 
 from telethon.errors import (
@@ -22,6 +23,32 @@ from models.group_mail import GroupMail
 
 _RETRY_DELAYS = (30, 60, 90, 120)  # seconds; total 5 attempts, ~5 min max wait
 _MAX_RETRIES = len(_RETRY_DELAYS) + 1
+
+# Patterns for group identifier normalisation
+_INVITE_RE = re.compile(r"^(?:https?://)?t\.me/(?:joinchat/|\+)[a-zA-Z0-9_=\-]+$")
+_ADDLIST_RE = re.compile(r"^(?:https?://)?t\.me/addlist/", re.IGNORECASE)
+_TGME_USERNAME_RE = re.compile(r"^(?:https?://)?t\.me/([a-zA-Z][a-zA-Z0-9_]{2,})$", re.IGNORECASE)
+
+
+def _normalize_group(raw: str) -> str:
+    """Return a canonical identifier for a group/channel string.
+
+    Numeric IDs, invite links, and folder links pass through unchanged.
+    Public t.me/username URLs and bare usernames are collapsed to @username.
+    """
+    s = raw.strip()
+    if not s:
+        return s
+    if s.startswith("-"):            # numeric peer ID
+        return s
+    if _INVITE_RE.match(s):          # joinchat / + private invite
+        return s
+    if _ADDLIST_RE.match(s):         # t.me/addlist/ folder link
+        return s
+    m = _TGME_USERNAME_RE.match(s)
+    if m:                            # https://t.me/username or t.me/username
+        return f"@{m.group(1).lower()}"
+    return f"@{s.lstrip('@').lower()}"  # @Username or bare username
 
 
 class GroupMailer:
@@ -48,7 +75,13 @@ class GroupMailer:
             )
             return
 
-        groups = [g for g in groups_str.splitlines() if g.strip()]
+        seen: set[str] = set()
+        groups: list[str] = []
+        for raw in groups_str.splitlines():
+            normalized = _normalize_group(raw)
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                groups.append(normalized)
         group_mail.set_groups(groups)
 
     def get_session_groups(self, session_id: str) -> str:

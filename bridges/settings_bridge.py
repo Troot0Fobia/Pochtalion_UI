@@ -10,7 +10,7 @@ import puremagic
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from qasync import asyncSlot
 
-from core.paths import (PROFILE_PHOTOS, SESSIONS, SMM_IMAGES, SMM_VOICES, USERS_DATA)
+from core.paths import (PROFILE_PHOTOS, SESSION_PHOTOS, SESSIONS, SMM_IMAGES, SMM_VOICES, USERS_DATA)
 from ui.confirm_delete_session import ConfirmDelete
 
 from .base_bridge import BaseBridge
@@ -30,10 +30,12 @@ class SettingsBridge(BaseBridge):
     renderVoiceMessages = pyqtSignal(str)
     removeVoiceMessageRow = pyqtSignal(str)
     renderObjects = pyqtSignal(str, str, str, str, bool)
-    renderMailingGroups = pyqtSignal(str, str)
+    renderMailingLinks = pyqtSignal(str, str)
     changeGroupMailingStatus = pyqtSignal(str, bool)
     updateGroupMailingProgress = pyqtSignal(str, int, str)
     updateGroupMailingRetry = pyqtSignal(str, int, int, int)
+    sessionGroupsStatus = pyqtSignal(str, str)
+    renderSessionGroups = pyqtSignal(str, str)
 
     def __init__(self, main_window, database):
         super().__init__(main_window, database)
@@ -61,16 +63,60 @@ class SettingsBridge(BaseBridge):
                 else:
                     s["groupMailing"] = False
 
+        for s in sessions:
+            photo_dir = SESSION_PHOTOS / s["session_file"]
+            photos = list(photo_dir.glob("avatar.*")) if photo_dir.exists() else []
+            s["avatar"] = photos[0].name if photos else None
+
         self.renderSessions.emit(json.dumps(sessions), destination)
 
     @asyncSlot(str)
-    async def loadMailingGroups(self, session_id: str) -> None:
+    async def loadMailingLinks(self, session_id: str) -> None:
         groups = self.main_window.group_mailer.get_session_groups(session_id)
-        self.renderMailingGroups.emit(session_id, groups)
+        self.renderMailingLinks.emit(session_id, groups)
 
     @asyncSlot(str, str)
-    async def updateMailingGroups(self, session_id: str, groups_data: str) -> None:
+    async def updateMailingLinks(self, session_id: str, groups_data: str) -> None:
         self.main_window.group_mailer.update_groups(session_id, groups_data)
+
+    @asyncSlot(str, str)
+    async def loadSessionGroups(self, session_id_str: str, session_file: str) -> None:
+        session_manager = self.main_window.session_manager
+        if session_manager is None:
+            return
+        if session_file not in session_manager.sessions:
+            self.sessionGroupsStatus.emit(session_id_str, "Запуск сессии...")
+        wrapper = await session_manager.get_or_start_session(int(session_id_str), session_file)
+        if not wrapper:
+            self.sessionGroupsStatus.emit(session_id_str, "Ошибка запуска сессии")
+            return
+        self.sessionGroupsStatus.emit(session_id_str, "Получение групп и каналов...")
+        try:
+            groups = await wrapper.get_groups_and_channels()
+            current = set(
+                g for g in
+                self.main_window.group_mailer.get_session_groups(session_id_str).splitlines()
+                if g.strip()
+            )
+            for g in groups:
+                g["selected"] = g["identifier"] in current
+            self.renderSessionGroups.emit(session_id_str, json.dumps(groups))
+        except Exception as e:
+            self.logger.error(f"Error loading session groups: {e}", exc_info=True)
+            self.sessionGroupsStatus.emit(session_id_str, "Ошибка получения групп")
+
+    @asyncSlot(str, str)
+    async def updateSessionGroups(self, session_id_str: str, data_json: str) -> None:
+        data = json.loads(data_json)
+        fetched_set = set(data["fetched"])
+        selected_set = set(data["selected"])
+        current = [
+            g for g in
+            self.main_window.group_mailer.get_session_groups(session_id_str).splitlines()
+            if g.strip()
+        ]
+        merged = [g for g in current if g not in fetched_set] + list(selected_set)
+        self.main_window.group_mailer.update_groups(session_id_str, "\n".join(merged))
 
     @asyncSlot(str, str)
     async def startGroupMailing(self, session_id: str, delay: str) -> None:
@@ -332,6 +378,10 @@ class SettingsBridge(BaseBridge):
         if not sessions:
             self.main_window.show_notification("Внимание", "Нет загруженных сессий")
             return
+        for s in sessions:
+            photo_dir = SESSION_PHOTOS / s["session_file"]
+            photos = list(photo_dir.glob("avatar.*")) if photo_dir.exists() else []
+            s["avatar"] = photos[0].name if photos else None
         self.renderChooseSessions.emit(json.dumps(sessions))
 
     @asyncSlot(str)
