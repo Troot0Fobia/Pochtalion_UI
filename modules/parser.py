@@ -1,7 +1,7 @@
 import asyncio
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from telethon.tl import types
@@ -11,6 +11,12 @@ from telethon.tl.types import (
     ChannelParticipantAdmin,
     ChannelParticipantCreator,
     ChatInviteAlready,
+    UserStatusEmpty,
+    UserStatusLastMonth,
+    UserStatusLastWeek,
+    UserStatusOffline,
+    UserStatusOnline,
+    UserStatusRecently,
 )
 
 from core.logger import setup_logger
@@ -51,6 +57,7 @@ class Parser:
         is_parse_admins = self.main_window.settings_manager.get_setting("parse_admins")
         self.send_links_to_parsed = self.main_window.settings_manager.get_setting("send_links_to_parsed")
         self.send_links_type = self.main_window.settings_manager.get_setting("send_links_type") or "messages_and_username"
+        self.last_seen_filter = self.main_window.settings_manager.get_setting("parse_last_seen_filter") or "any"
 
         public_pattern = re.compile(
             r"""
@@ -318,7 +325,31 @@ class Parser:
         ):
             return False
 
+        if not self._passes_last_seen_filter(user_entity):
+            return False
+
         return True
+
+    def _passes_last_seen_filter(self, user_entity) -> bool:
+        if self.last_seen_filter == "any":
+            return True
+        status = getattr(user_entity, "status", None)
+        if status is None or isinstance(status, UserStatusEmpty):
+            return False
+        if isinstance(status, (UserStatusOnline, UserStatusRecently, UserStatusLastWeek)):
+            return True
+        if isinstance(status, UserStatusLastMonth):
+            return self.last_seen_filter == "this_month"
+        if isinstance(status, UserStatusOffline):
+            was_online = getattr(status, "was_online", None)
+            if was_online is None:
+                return False
+            delta = datetime.now(timezone.utc) - was_online
+            if self.last_seen_filter == "this_week":
+                return delta.days <= 7
+            if self.last_seen_filter == "this_month":
+                return delta.days <= 30
+        return False
 
     async def _handle_user(self, user_entity, message_id, session_id, wrapper) -> bool:
         self.logger.debug(f"Received user_entity of type {type(user_entity)}")
