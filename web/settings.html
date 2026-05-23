@@ -45,6 +45,17 @@
                     </label>
                 </div>
                 <div class="row">
+                    <div class="settings-row">
+                        <div class="setting-name">Парсить пользователей, которые заходили</div>
+                        <select name="parse_last_seen_filter" id="parse-last-seen-filter"
+                                onchange="changeSettings(this)" class="inline-select">
+                            <option value="any">Когда угодно</option>
+                            <option value="this_month">В этом месяце и чаще</option>
+                            <option value="this_week">На этой неделе и чаще</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
                     <label class="settings-row">
                         <input type="checkbox" name="load_chats" id="load-chats" onchange="changeSettings(this)">
                         <div class="setting-name">Загружать чаты при старте</div>
