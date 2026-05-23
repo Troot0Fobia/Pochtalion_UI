@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Pochtalion
+Comment=Telegram bulk messaging tool
+Exec=/ABSOLUTE/PATH/TO/run.sh
+Icon=/ABSOLUTE/PATH/TO/icon.ico
+Terminal=false
+StartupNotify=true
+Categories=Network;InstantMessaging;
