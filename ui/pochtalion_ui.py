@@ -110,6 +110,7 @@ class Pochtalion_UI(QMainWindow):
         self.main_layout.setContentsMargins(QMargins(0, 0, 0, 0))
         self.main_layout.setSpacing(0)
         self.setCentralWidget(self.main_widget)
+        self.stack.setCurrentWidget(self.settings_window)
 
         self.sidebar_window.loadFinished.connect(
             lambda _: asyncio.create_task(self.loadSidebar())
