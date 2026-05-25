@@ -577,7 +577,7 @@ class Parser:
                     _,
                     user_data,
                 ) in self.existing_ids.items():
-                    group_title, group_username, group_type = self.group_data[group_id]
+                    group_title, group_username, group_type, *_ = self.group_data[group_id]
                     writer.writerow(
                         {
                             "user_id": user_id,
@@ -698,51 +698,77 @@ class Parser:
         # await self.finish_sessions()
 
     async def sendUpdate(self):
+        _consecutive_errors = 0
         while self._running:
-            group_title, group_username, group_type = self.group_data.get(
-                self.group_id, ("Unknown", "Unknown", "Unknown")
-            )
-            total_seconds = (datetime.now() - self.start_time).total_seconds()
-            H = int(total_seconds // 3600)
-            M = int((total_seconds // 60) % 60)
-            S = int(total_seconds % 60)
-            elapsed_time = f"{H:02}:{M:02}:{S:02}"
-
-            self.main_window.settings_bridge.renderParsingProgressData.emit(
-                json.dumps(
-                    {
-                        "status": "парсинг",
-                        "total_count": len(self.existing_ids),
-                        "chat": f"{group_title} @{group_username} {group_type}",
-                        "elapsed_time": elapsed_time,
-                    }
+            try:
+                group_title, group_username, group_type, *_ = self.group_data.get(
+                    self.group_id, ("Unknown", "Unknown", "Unknown", None)
                 )
-            )
+                total_seconds = (datetime.now() - self.start_time).total_seconds()
+                H = int(total_seconds // 3600)
+                M = int((total_seconds // 60) % 60)
+                S = int(total_seconds % 60)
+                elapsed_time = f"{H:02}:{M:02}:{S:02}"
+
+                self.main_window.settings_bridge.renderParsingProgressData.emit(
+                    json.dumps(
+                        {
+                            "status": "парсинг",
+                            "total_count": len(self.existing_ids),
+                            "chat": f"{group_title} @{group_username} {group_type}",
+                            "elapsed_time": elapsed_time,
+                        }
+                    )
+                )
+                _consecutive_errors = 0
+            except Exception:
+                _consecutive_errors += 1
+                self.logger.error(
+                    "sendUpdate error (consecutive: %d)", _consecutive_errors, exc_info=True
+                )
+                if _consecutive_errors >= 5:
+                    self.logger.error("sendUpdate failed 5 times in a row, stopping parser")
+                    self._running = False
+                    self.main_window.settings_bridge.finishParsing.emit()
+                    return
 
             await asyncio.sleep(UPDATE_DELAY)
 
     async def sendUpdateSaveToDB(self):
         parsed_count = len(self.existing_ids)
+        _consecutive_errors = 0
         while self.saving:
-            group_title, group_username, group_type = self.group_data.get(
-                self.group_id, ("Unknown", "Unknown", "Unknown")
-            )
-            total_seconds = (datetime.now() - self.start_time).total_seconds()
-            H = int(total_seconds // 3600)
-            M = int((total_seconds // 60) % 60)
-            S = int(total_seconds % 60)
-            elapsed_time = f"{H:02}:{M:02}:{S:02}"
-
-            self.main_window.settings_bridge.renderParsingProgressData.emit(
-                json.dumps(
-                    {
-                        "status": "сохранение",
-                        "total_count": f"{self.saved_count}/{parsed_count}",
-                        "chat": f"{group_title} @{group_username} {group_type}",
-                        "elapsed_time": elapsed_time,
-                    }
+            try:
+                group_title, group_username, group_type, *_ = self.group_data.get(
+                    self.group_id, ("Unknown", "Unknown", "Unknown", None)
                 )
-            )
+                total_seconds = (datetime.now() - self.start_time).total_seconds()
+                H = int(total_seconds // 3600)
+                M = int((total_seconds // 60) % 60)
+                S = int(total_seconds % 60)
+                elapsed_time = f"{H:02}:{M:02}:{S:02}"
+
+                self.main_window.settings_bridge.renderParsingProgressData.emit(
+                    json.dumps(
+                        {
+                            "status": "сохранение",
+                            "total_count": f"{self.saved_count}/{parsed_count}",
+                            "chat": f"{group_title} @{group_username} {group_type}",
+                            "elapsed_time": elapsed_time,
+                        }
+                    )
+                )
+                _consecutive_errors = 0
+            except Exception:
+                _consecutive_errors += 1
+                self.logger.error(
+                    "sendUpdateSaveToDB error (consecutive: %d)", _consecutive_errors, exc_info=True
+                )
+                if _consecutive_errors >= 5:
+                    self.logger.error("sendUpdateSaveToDB failed 5 times in a row, stopping parser")
+                    self.saving = False
+                    self.main_window.settings_bridge.finishParsing.emit()
+                    return
 
             await asyncio.sleep(UPDATE_DELAY)
 
