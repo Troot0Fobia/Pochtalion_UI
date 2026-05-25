@@ -82,6 +82,8 @@ class ClientWrapper:
             )
             return False
         self._status = 2
+        _auth_path = "phone" if phone_number else ("qr" if force_auth else "silent_check")
+        self.logger.info("%s\tStarting: auth_path=%s", self._session_file, _auth_path)
         try:
             if phone_number:
                 start_func = self._client.start(
@@ -234,7 +236,7 @@ class ClientWrapper:
             except Exception as e:
                 qr_login.update_status("Unexpected error occured")
                 self.logger.error(
-                    f"Error occured while auth with qr code: {e}", exc_info=True
+                    "%s\tError during QR auth", self._session_file, exc_info=True
                 )
                 break
 
@@ -306,11 +308,11 @@ class ClientWrapper:
                         await self._process_new_messages(messages, user_id)
         except TakeoutInitDelayError as e:
             self.logger.error(
-                f"Takeout rate limit. Must wait {e.seconds}: {e}", exc_info=True
+                "%s\tTakeout rate limit, must wait %ds", self._session_file, e.seconds, exc_info=True
             )
         except Exception as e:
             self.logger.error(
-                f"Unexpected error ocurred while retrieving dialogs: {e}", exc_info=True
+                "%s\tUnexpected error while retrieving dialogs", self._session_file, exc_info=True
             )
             self.main_window.show_notification("Ошибка", "Ошибка получения диалогов")
 
@@ -384,15 +386,14 @@ class ClientWrapper:
                 return dialogs
         except TakeoutInitDelayError as e:
             self.logger.error(
-                f"Takeout rate limit. Must wait {e.seconds}: {e}", exc_info=True
+                "%s\tTakeout rate limit, must wait %ds", self._session_file, e.seconds, exc_info=True
             )
             self.main_window.show_notification(
-                "Вниманhие", f"Частые запросы. Нужно подождать {e.seconds}"
+                "Внимание", f"Частые запросы. Нужно подождать {e.seconds}"
             )
         except Exception as e:
             self.logger.error(
-                f"Unexpected error ocurred while retrieving voice dialogs: {e}",
-                exc_info=True,
+                "%s\tUnexpected error while retrieving voice dialogs", self._session_file, exc_info=True
             )
             self.main_window.show_notification("Ошибка", "Ошибка получения диалогов")
 
@@ -429,8 +430,8 @@ class ClientWrapper:
 
         except Exception as e:
             self.logger.error(
-                f"Unexpected error occured while retrieving voices from dialog {user_id}: {e}",
-                exc_info=True,
+                "%s\tUnexpected error while retrieving voices from dialog %s",
+                self._session_file, user_id, exc_info=True,
             )
             self.main_window.show_notification("Ошибка", "Ошибка получения голосовых")
 
@@ -862,7 +863,9 @@ class ClientWrapper:
                         return None
                     group_entity = join_result.chats[0]
             except Exception as e:
-                self.logger.error(f"Failed to join private group {group}", exc_info=e)
+                self.logger.error(
+                    "%s\tFailed to join private group %s", self._session_file, group, exc_info=e
+                )
                 self.main_window.show_notification(
                     "Внимание", f"Не удалось вступить в приватную группу\n{group}"
                 )
