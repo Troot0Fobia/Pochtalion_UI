@@ -263,7 +263,6 @@ class ClientWrapper:
                     if not dialog.is_user:
                         continue
 
-                    self.logger.debug(f"{self.session_file}\t{dialog}")
                     user_id = dialog.id
                     messages = []
                     last_id = 0
@@ -273,14 +272,8 @@ class ClientWrapper:
                         last_id = await self.database.get_last_sync_message_id(
                             self._session_id, user_id
                         )
-                        self.logger.debug(
-                            f"{self.session_file}\tLast message id from existed user {last_id}"
-                        )
                     else:
                         last_id = getattr(dialog.message, "id", 10) - 10
-                        self.logger.debug(
-                            f"{self.session_file}\tLast message id from new user {last_id}"
-                        )
 
                     await self.process_new_user(
                         dialog.entity,
@@ -294,7 +287,6 @@ class ClientWrapper:
                     async for message in self._client.iter_messages(
                         dialog, min_id=last_id, reverse=True
                     ):
-                        self.logger.debug(f"{self.session_file}\t{message}")
                         if message.grouped_id:
                             if current_group_id == message.grouped_id:
                                 messages.append(message)
@@ -542,12 +534,6 @@ class ClientWrapper:
                 source_post_id=source_post_id,
             )
         if await self.database.add_user_to_session(user_id, self._session_id):
-            self.logger.debug(
-                (
-                    f"{self.session_file}\tActive session while processing new user "
-                    f"{self.main_window.active_session} and current session id: {self._session_id}"
-                )
-            )
             if self.main_window.active_session["session_id"] == self._session_id:
                 if isinstance(user_entity, types.InputPeerUser):
                     first_name, last_name, profile_photo = (

@@ -6,7 +6,7 @@ from core.paths import LOGS
 
 def setup_logger(name: str, filename: str) -> logging.Logger:
     logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
 
     formatter = logging.Formatter(
         "[%(asctime)s] %(levelname)s - %(name)s - %(message)s"

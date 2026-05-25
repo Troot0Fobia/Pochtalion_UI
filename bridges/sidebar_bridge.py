@@ -23,14 +23,10 @@ class SidebarBridge(BaseBridge):
 
     @pyqtSlot()
     def openSettings(self):
-        self.logger.info(f"{self.__class__.__name__}\tUser open settings window")
         self.main_window.openSettings()
 
     @asyncSlot(str, str)
     async def selectDialog(self, dialog_id, user_data):
-        self.logger.info(
-            f"{self.__class__.__name__}\tUser changed dialog to {dialog_id}"
-        )
         if self.main_window.current_chat == int(dialog_id):
             self.main_window.openChatWindow()
             self.main_window.current_chat = None
@@ -53,9 +49,6 @@ class SidebarBridge(BaseBridge):
     @asyncSlot(str)
     async def changeSession(self, session_str):
         session = json.loads(session_str)
-        self.logger.info(
-            f"{self.__class__.__name__}\tUser changed session to {session['session_file']}"
-        )
         self.main_window.active_session = session
 
         if self.main_window.settings_manager.get_setting("load_chats"):
@@ -92,7 +85,6 @@ class SidebarBridge(BaseBridge):
 
     @pyqtSlot()
     def fetchNotifications(self):
-        self.logger.info(f"{self.__class__.__name__}\tUser fetch message notifications")
         message_notifications = (
             self.main_window.notification_manager.get_unread_messages()
         )
