@@ -24,7 +24,10 @@ class SessionsManager:
     ) -> ClientWrapper | None:
         if session_file in self.sessions and self.sessions[session_file].status():
             return None
-        self.logger.info(f"Starting session {session_file}")
+        self.logger.info(
+            "Starting session %s (is_module=%s, force_auth=%s, has_phone=%s)",
+            session_file, is_module, force_auth, bool(phone_number),
+        )
         try:
             wrapper = ClientWrapper(
                 session_id,

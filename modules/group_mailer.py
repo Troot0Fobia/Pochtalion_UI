@@ -134,6 +134,13 @@ class GroupMailer:
             group_mail.set_session(session)
             await self._resolve_folder_links(session_id, group_mail, session)
             group_mail.set_delay(int(delay) if delay else 0)
+            self.logger.info(
+                "[%s] Mailing config: session=%s, groups=%d, delay=%ds",
+                session_id,
+                group_mail.session_file,
+                len(group_mail.groups),
+                int(delay) if delay else 0,
+            )
             group_mail.set_task(asyncio.create_task(self.group_mail(session_id)))
             group_mail.start()
             return True
@@ -292,7 +299,12 @@ class GroupMailer:
                     group_mail.stop()
                     break
             except Exception as e:
-                self.logger.error("Unexpected error during group mailing", exc_info=e)
+                self.logger.error(
+                    "Unexpected error during group mailing, group=%s, session=%s",
+                    group,
+                    session.session_file,
+                    exc_info=e,
+                )
             finally:
                 group_mail.group_index = (group_mail.group_index + 1) % len(groups)
 
