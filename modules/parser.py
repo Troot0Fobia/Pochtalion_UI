@@ -41,7 +41,6 @@ class Parser:
 
     async def start(self, parser_data_str):
         self.logger.info("Start parsing")
-        self.logger.debug(f"Start parsing for data: {parser_data_str}")
         parser_data = json.loads(parser_data_str)
         self.count_of_posts = parser_data["count_of_posts"].strip()
         self.is_parse_messages = parser_data["is_parse_messages"]
@@ -111,7 +110,6 @@ class Parser:
                         "session_id": session_id_str,
                     })
 
-        self.logger.debug(f"Received targets {self.parse_targets}")
         if (
             not self.parse_targets and not self._folder_links
             or not self.session_files
@@ -122,7 +120,6 @@ class Parser:
             self.main_window.show_notification("Внимание", "Некорректные данные")
             return
 
-        self.logger.debug("All data correct. Starting...")
         self.count_of_messages = int(self.count_of_messages or 0)
         self.count_of_posts = int(self.count_of_posts or 0)
         self._running = True
@@ -138,7 +135,6 @@ class Parser:
         }
 
         sessions_count = len(self.session_wrappers)
-        self.logger.debug(f"Sessions started {sessions_count}")
         index = 0
         self.start_time = datetime.now()
         self.update_task = asyncio.create_task(self.sendUpdate())
@@ -353,15 +349,11 @@ class Parser:
         return False
 
     async def _handle_user(self, user_entity, message_id, session_id, wrapper) -> bool:
-        self.logger.debug(f"Received user_entity of type {type(user_entity)}")
         if (
             isinstance(user_entity, types.User)
             and not user_entity.bot
             and not user_entity.deleted
         ):
-            self.logger.debug(
-                f"Received new user with id {user_entity.id}. Processing..."
-            )
             if user_entity.id not in self.existing_ids.keys():
                 user_data = {
                     "first_name": getattr(user_entity, "first_name", None),
@@ -515,14 +507,10 @@ class Parser:
         session_manager = self.main_window.session_manager
         if session_manager is None or self.session_files is None:
             return
-        self.logger.debug(f"Starting sessions: {self.session_files}")
         for session_id, session_file in self.session_files.items():
             session_wrapper = session_manager.get_wrapper(session_file)
             was_started = False
             if not session_wrapper:
-                self.logger.debug(
-                    f"Session {session_file} was not started. Starting..."
-                )
                 session_wrapper = await session_manager.start_session(
                     session_id, session_file, is_module=True
                 )
@@ -616,12 +604,6 @@ class Parser:
             session_id,
             user_data,
         ) in self.existing_ids.items():
-            self.logger.debug(
-                (
-                    f"Processing user to save in db {user_id}, session_id {session_id},"
-                    f"session_wrappers {self.session_wrappers}"
-                )
-            )
             if last_session_id != session_id:
                 s_wrapper = next(
                     (
@@ -631,12 +613,7 @@ class Parser:
                     ),
                     None,
                 )
-                self.logger.debug(f"Received new wrapper for saving {s_wrapper}")
                 last_session_id = session_id
-            else:
-                self.logger.debug(
-                    "Does not received new wrapper, because previous is actual"
-                )
             user_data["user_id"] = user_id
             if s_wrapper:
                 await s_wrapper.process_new_user(
