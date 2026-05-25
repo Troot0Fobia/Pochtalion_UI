@@ -207,7 +207,7 @@ class SettingsBridge(BaseBridge):
                         )
         except Exception as e:
             self.logger.error(
-                f"Error occured while receiving session '{session_file}' dialogs: {e}",
+                f"Error occurred while receiving session '{session_file}' dialogs: {e}",
                 exc_info=True,
             )
 
@@ -233,7 +233,7 @@ class SettingsBridge(BaseBridge):
                     )
         except Exception as e:
             self.logger.error(
-                f"Error occured while receiving dialog '{dialog_id_str}' voices: {e}",
+                f"Error occurred while receiving dialog '{dialog_id_str}' voices: {e}",
                 exc_info=True,
             )
 

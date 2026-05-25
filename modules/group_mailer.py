@@ -234,7 +234,7 @@ class GroupMailer:
                     )
             except FloodWaitError as e:
                 self.logger.error(
-                    f"Catched Flood Wait Error, wait for {e.seconds}", exc_info=e
+                    f"Caught Flood Wait Error, wait for {e.seconds}", exc_info=e
                 )
                 self.main_window.show_notification(
                     "Внимание",
@@ -243,7 +243,7 @@ class GroupMailer:
                 await asyncio.sleep(e.seconds + 10)
             except PeerFloodError as e:
                 self.logger.error(
-                    f"Catched PeerFlood Error, stopping mailing for session {session.session_file}",
+                    f"Caught PeerFlood Error, stopping mailing for session {session.session_file}",
                     exc_info=e,
                 )
                 self.main_window.show_notification(
@@ -261,7 +261,7 @@ class GroupMailer:
                 )
             except InputUserDeactivatedError as e:
                 self.logger.error(
-                    f"Catched User Deactivated Error, skip group {group}",
+                    f"Caught User Deactivated Error, skip group {group}",
                     exc_info=e,
                 )
             except (ChannelPrivateError, ChatWriteForbiddenError, UserBannedInChannelError) as e:
@@ -276,7 +276,7 @@ class GroupMailer:
                 await session.leaveGroup(group)
             except ForbiddenError as e:
                 self.logger.error(
-                    f"Catched Forbidden Error, skip group {group}",
+                    f"Caught Forbidden Error, skip group {group}",
                     exc_info=e,
                 )
             except SlowModeWaitError as e:

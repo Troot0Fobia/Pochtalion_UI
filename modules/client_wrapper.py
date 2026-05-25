@@ -118,7 +118,7 @@ class ClientWrapper:
             return False
         except ApiIdPublishedFloodError as e:
             self.logger.warning(
-                f"{self.session_file}\tAPI id is catched flood error: {e}"
+                f"{self.session_file}\tAPI id caught flood error: {e}"
             )
             self.auth_window.close()
             self.main_window.show_notification("Ошибка", "API id поймал флуд")
@@ -234,7 +234,7 @@ class ClientWrapper:
                 await self._client.sign_in(password=password)
                 break
             except Exception as e:
-                qr_login.update_status("Unexpected error occured")
+                qr_login.update_status("Unexpected error occurred")
                 self.logger.error(
                     "%s\tError during QR auth", self._session_file, exc_info=True
                 )
@@ -511,7 +511,7 @@ class ClientWrapper:
                 )
             except Exception as e:
                 self.logger.error(
-                    f"Unexpected error occured while donwloading users profile photo. User id: {user_id}: {e}",
+                    f"Unexpected error occurred while downloading users profile photo. User id: {user_id}: {e}",
                     exc_info=True,
                 )
 
@@ -682,7 +682,7 @@ class ClientWrapper:
                 await self._handle_event(event, is_multiple=False)
             except Exception as e:
                 self.logger.error(
-                    f"{self.session_file}\tError occured while handle single message event: {e}",
+                    f"{self.session_file}\tError occurred while handle single message event: {e}",
                     exc_info=True,
                 )
 
@@ -692,7 +692,7 @@ class ClientWrapper:
                 await self._handle_event(event, is_multiple=True)
             except Exception as e:
                 self.logger.error(
-                    f"{self.session_file}\tError occured while handle multiple message event: {e}",
+                    f"{self.session_file}\tError occurred while handle multiple message event: {e}",
                     exc_info=True,
                 )
 

@@ -201,7 +201,7 @@ class Mailer:
                     await self.main_window.database.set_user_to_sended(user_id)
             except FloodWaitError as e:
                 self.logger.error(
-                    f"Catched Flood Wait Error, wait for {e.seconds}", exc_info=True
+                    f"Caught Flood Wait Error, wait for {e.seconds}", exc_info=True
                 )
                 self.main_window.show_notification(
                     "Внимание",
@@ -210,7 +210,7 @@ class Mailer:
                 await asyncio.sleep(e.seconds + 10)
             except PeerFloodError as e:
                 self.logger.error(
-                    f"Catched Flood Error, stop mailing for this session {session_info.wrapper.session_file}: {e}",
+                    f"Caught Flood Error, stop mailing for this session {session_info.wrapper.session_file}: {e}",
                     exc_info=True,
                 )
                 await self.finish_session(session_info.session_id)
@@ -221,13 +221,13 @@ class Mailer:
                 continue
             except InputUserDeactivatedError as e:
                 self.logger.error(
-                    f"Catched User Deactivated Error, skip this user {user_id}: {e}",
+                    f"Caught User Deactivated Error, skip this user {user_id}: {e}",
                     exc_info=True,
                 )
                 continue
             except ForbiddenError as e:
                 self.logger.error(
-                    f"Catched Forbidden Error, skip this user {user_id}: {e}",
+                    f"Caught Forbidden Error, skip this user {user_id}: {e}",
                     exc_info=True,
                 )
                 continue
@@ -304,7 +304,7 @@ class Mailer:
             return None
         except Exception as e:
             self.logger.error(
-                f"Unexpected error was occured. Skip user {user_id}: {e}", exc_info=True
+                f"Unexpected error occurred. Skip user {user_id}: {e}", exc_info=True
             )
             return None
 
@@ -328,7 +328,7 @@ class Mailer:
                 )
             except Exception as e:
                 self.logger.error(
-                    f"Unexpected error occured. Skip channel {source_data['chat_username']}: {e}",
+                    f"Unexpected error occurred. Skip channel {source_data['chat_username']}: {e}",
                     exc_info=True,
                 )
                 return None
@@ -362,7 +362,7 @@ class Mailer:
                 return None
             except Exception as e:
                 self.logger.error(
-                    f"Unexpected error occured. Skip group {source_data['chat_username']}: {e}",
+                    f"Unexpected error occurred. Skip group {source_data['chat_username']}: {e}",
                     exc_info=True,
                 )
                 return None
