@@ -122,6 +122,23 @@ class Parser:
 
         self.count_of_messages = int(self.count_of_messages or 0)
         self.count_of_posts = int(self.count_of_posts or 0)
+        self.logger.info(
+            "Parse config: targets=%d, folder_links=%d, sessions=%d | "
+            "parse_to_db=%s, send_links=%s, send_links_type=%s | "
+            "by_messages=%s, count_posts=%d, count_msgs=%d | "
+            "last_seen=%s, parse_admins=%s",
+            len(self.parse_targets),
+            len(self._folder_links),
+            len(self.session_files),
+            self.parse_to_db,
+            self.send_links_to_parsed,
+            self.send_links_type,
+            self.is_parse_messages,
+            self.count_of_posts,
+            self.count_of_messages,
+            self.last_seen_filter,
+            is_parse_admins,
+        )
         self._running = True
         self.session_wrappers = []
         self.group_id = None
@@ -189,6 +206,21 @@ class Parser:
             )
 
             if group_type == "broadcast":
+                _strategy = "broadcast→comments"
+            elif self.is_parse_messages:
+                _strategy = f"messages (limit={self.count_of_messages or 'all'})"
+            else:
+                _strategy = "participants"
+            self.logger.info(
+                "Parsing '%s' (@%s, %s) via session %s | strategy: %s",
+                group_entity.title,
+                getattr(group_entity, "username", None) or "no_username",
+                group_type,
+                wrapper.session_file,
+                _strategy,
+            )
+
+            if group_type == "broadcast":
                 try:
                     async for message in client.iter_messages(
                         group_entity, self.count_of_posts or None
@@ -233,7 +265,10 @@ class Parser:
                         await asyncio.sleep(PARSE_DELAY)
                 except Exception:
                     self.logger.error(
-                        "Unexpected error while parsing broadcast", exc_info=True
+                        "Unexpected error while parsing broadcast '%s' (@%s)",
+                        group_entity.title,
+                        getattr(group_entity, "username", None) or "no_username",
+                        exc_info=True,
                     )
             elif group_type in ("megagroup", "gigagroup", "chat"):
                 if self.is_parse_messages:
@@ -265,7 +300,10 @@ class Parser:
                             await asyncio.sleep(PARSE_DELAY)
                         except Exception:
                             self.logger.error(
-                                "Unexpected error while parsing group by messages",
+                                "Unexpected error while parsing '%s' (@%s) by messages, msg_id=%s",
+                                group_entity.title,
+                                getattr(group_entity, "username", None) or "no_username",
+                                getattr(message, "id", "?"),
                                 exc_info=True,
                             )
                 else:
@@ -294,7 +332,10 @@ class Parser:
                             await asyncio.sleep(PARSE_DELAY)
                         except Exception:
                             self.logger.error(
-                                "Unexpected error while parsing group by open participants",
+                                "Unexpected error while parsing '%s' (@%s) by participants, user_id=%s",
+                                group_entity.title,
+                                getattr(group_entity, "username", None) or "no_username",
+                                getattr(user_entity, "id", "?"),
                                 exc_info=True,
                             )
             else:
