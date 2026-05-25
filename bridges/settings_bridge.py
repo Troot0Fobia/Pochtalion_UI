@@ -102,7 +102,10 @@ class SettingsBridge(BaseBridge):
                 g["selected"] = g["identifier"] in current
             self.renderSessionGroups.emit(session_id_str, json.dumps(groups))
         except Exception as e:
-            self.logger.error(f"Error loading session groups: {e}", exc_info=True)
+            self.logger.error(
+                "Error loading groups for session '%s' (%s): %s",
+                session_file, session_id_str, e, exc_info=True,
+            )
             self.sessionGroupsStatus.emit(session_id_str, "Ошибка получения групп")
 
     @asyncSlot(str, str)
@@ -145,9 +148,7 @@ class SettingsBridge(BaseBridge):
                 "Ошибка",
                 f"Файл голосового сообщения не найден по пути {voice_path.absolute()}",
             )
-            self.logger.error(
-                f"Provided path for saving voice message {voice_path.absolute()} does not exist"
-            )
+            self.logger.warning("Voice message file not found: %s", voice_path.absolute())
         elif not name:
             self.main_window.show_notification(
                 "Ошибка", "Название сообщения не может быть пустым"
@@ -293,6 +294,10 @@ class SettingsBridge(BaseBridge):
             res = ConfirmDelete.ask()
 
         if res != -1:
+            self.logger.info(
+                "Deleting session '%s' (mode=%s)",
+                session_name, "delete_users" if res == 1 else "keep_users",
+            )
             try:
                 if session_manager := self.main_window.session_manager:
                     await session_manager.stop_session(session_name)

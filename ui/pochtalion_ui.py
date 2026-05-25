@@ -123,7 +123,7 @@ class Pochtalion_UI(QMainWindow):
             if not session_id or not session_file:
                 self.show_notification("Внимание", f"Не удалось получить сессию")
                 self.logger.warning(
-                    f"Failed receive session data when init group_mailer:\n{session}"
+                    "Skipping session with missing id or file during startup: %s", session
                 )
                 continue
 
@@ -168,7 +168,7 @@ class Pochtalion_UI(QMainWindow):
             )
         except ValueError as e:
             self.show_notification("Внимание", "API ключи неверные")
-            self.logger.error(f"User entered incorrect api keys: {e}", exc_info=True)
+            self.logger.error("Invalid API keys format", exc_info=True)
 
     @property
     def session_manager(self):

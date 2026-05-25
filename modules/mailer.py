@@ -45,8 +45,7 @@ class Mailer:
         sent_count: int = 0
 
     async def start(self, mail_data_str):
-        self.logger.info("Mailing starting. Processing info")
-        self.logger.debug(f"Mailing starting. Processing info: {mail_data_str}")
+        self.logger.info("Mailing starting")
         mail_data = json.loads(mail_data_str)
         self.is_mail_from_usernames = mail_data["is_parse_usernames"]
         self.is_send_text_messages = mail_data["is_send_text"]
@@ -102,6 +101,15 @@ class Mailer:
             return
 
         self.delay_between_messages = int(self.delay_between_messages or 0)
+        self.logger.info(
+            "Mailing config: sessions=%d, users=%d, delay=%ds, from_usernames=%s, msg_type=%s, smm_msgs=%d",
+            len(self.session_files),
+            len(self.mail_data),
+            self.delay_between_messages,
+            self.is_mail_from_usernames,
+            "text" if self.is_send_text_messages else "voice",
+            len(self.smm_messages),
+        )
         self._running = True
         await self.start_sessions()
 
@@ -169,7 +177,6 @@ class Mailer:
                     user_id, session_info.session_id
                 )
 
-            self.logger.debug(f"Received entity for mailing {user_id}")
             try:
                 if self.is_send_text_messages:
                     if smm_message["photo"]:
@@ -226,7 +233,8 @@ class Mailer:
                 continue
             except Exception:
                 self.logger.error(
-                    "Unexpected error during message sending", exc_info=True
+                    "Unexpected error during message sending, session=%s, user_id=%s",
+                    session_info.wrapper.session_file, user_id, exc_info=True,
                 )
                 continue
 
@@ -240,10 +248,6 @@ class Mailer:
         await self.stop()
 
     async def get_user_entity(self, user_data, session_client, session_id):
-        self.logger.info(f"Trying get entity from user {user_data['user_id']}")
-        self.logger.debug(
-            f"Trying get entity from user {user_data} for session {session_id}"
-        )
         user_id = user_data["user_id"]
         username = user_data["username"]
         source_chat_id = user_data["source_chat_id"]
@@ -254,10 +258,13 @@ class Mailer:
         except ValueError:
             pass
         except AuthKeyUnregisteredError:
-            self.logger.error(f"Unknown error for session {session_id}", exc_info=True)
+            self.logger.error("Auth key unregistered for session %s", session_id, exc_info=True)
             return None
         except Exception:
-            self.logger.error("Unexpected error", exc_info=True)
+            self.logger.error(
+                "Unexpected error resolving entity for user %s, session %s",
+                user_id, session_id, exc_info=True,
+            )
             return None
 
         if username:
@@ -303,7 +310,6 @@ class Mailer:
 
         user_entity = None
 
-        self.logger.info(f"Received chat entity {chat_entity.id}")
         if source_data["chat_type"] == "broadcast" and source_post_id is not None:
             try:
                 async for comment in session_client.iter_messages(
@@ -312,9 +318,6 @@ class Mailer:
                     sender = await comment.get_sender()  # InputPeerUser
                     if isinstance(sender, User) and sender.id == user_id:
                         user_entity = sender
-                        self.logger.debug(
-                            f"Received from broadcast user entity with id: {sender.id}"
-                        )
                         break
             except MsgIdInvalidError:
                 self.logger.warning(
@@ -339,16 +342,10 @@ class Mailer:
                         sender = await message.get_sender()
                         if isinstance(sender, User) and sender.id == user_id:
                             user_entity = sender
-                            self.logger.debug(
-                                f"Received from group from message {message.id} user entity with id: {sender.id}"
-                            )
                 else:
                     async for user in session_client.iter_participants(chat_entity):
                         if user.id == user_id:
                             user_entity = user
-                            self.logger.debug(
-                                f"Received from open particitpants user entity with id: {user.id}"
-                            )
                             break
             except MsgIdInvalidError:
                 self.logger.warning(
@@ -376,7 +373,6 @@ class Mailer:
             except ValueError:
                 pass
 
-        self.logger.info("Entity was not received")
         return None
 
     def _get_session_file(self, session_id: int) -> str:
@@ -458,20 +454,13 @@ class Mailer:
         session = next(
             (s for s in self.session_wrappers if s.session_id == session_id), None
         )
-        self.logger.debug(
-            f"Finish session cause of Flood limit {session_id}\n{session}"
-        )
         if session and session.was_started:
-            self.logger.debug("Session was started from module")
             await self.main_window.session_manager.stop_session(
                 session.wrapper.session_file
             )
-
-        self.logger.debug(f"Before change wrappers {self.session_wrappers}")
         self.session_wrappers = [
             s for s in self.session_wrappers if s.session_id != session_id
         ]
-        self.logger.debug(f"After change wrappers {self.session_wrappers}")
         self.sessions_count = len(self.session_wrappers)
 
     async def sendUpdate(self):
