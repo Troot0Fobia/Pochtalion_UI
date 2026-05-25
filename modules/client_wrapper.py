@@ -320,50 +320,56 @@ class ClientWrapper:
         photo_dir = GROUP_PHOTOS / self._session_file
         photo_dir.mkdir(parents=True, exist_ok=True)
         result = []
-        async for dialog in self._client.iter_dialogs():
-            entity = dialog.entity
-            if not isinstance(entity, (types.Chat, types.Channel)):
-                continue
-            if isinstance(entity, types.Channel):
-                identifier = f"@{entity.username}" if entity.username else f"-100{entity.id}"
-                group_key = entity.username.lower() if entity.username else f"-100{entity.id}"
-                input_entity = types.InputPeerChannel(entity.id, entity.access_hash)
-            else:
-                identifier = f"-{entity.id}"
-                group_key = f"-{entity.id}"
-                input_entity = types.InputPeerChat(entity.id)
-            self._entity_cache[group_key] = input_entity
-            save_entity(self._session_file, group_key, entity)
+        try:
+            async for dialog in self._client.iter_dialogs():
+                entity = dialog.entity
+                if not isinstance(entity, (types.Chat, types.Channel)):
+                    continue
+                if isinstance(entity, types.Channel):
+                    identifier = f"@{entity.username}" if entity.username else f"-100{entity.id}"
+                    group_key = entity.username.lower() if entity.username else f"-100{entity.id}"
+                    input_entity = types.InputPeerChannel(entity.id, entity.access_hash)
+                else:
+                    identifier = f"-{entity.id}"
+                    group_key = f"-{entity.id}"
+                    input_entity = types.InputPeerChat(entity.id)
+                self._entity_cache[group_key] = input_entity
+                save_entity(self._session_file, group_key, entity)
 
-            photo_filename = None
-            photo_type = None
-            existing = list(photo_dir.glob(f"{entity.id}.*"))
-            if existing:
-                photo_filename = existing[0].name
-            else:
-                try:
-                    downloaded = await self._client.download_profile_photo(
-                        entity, file=str(photo_dir / str(entity.id))
-                    )
-                    if downloaded:
-                        photo_filename = Path(downloaded).name
-                except Exception:
-                    pass
-            if photo_filename:
-                photo_type = "gif" if photo_filename.endswith(".mp4") else "image"
+                photo_filename = None
+                photo_type = None
+                existing = list(photo_dir.glob(f"{entity.id}.*"))
+                if existing:
+                    photo_filename = existing[0].name
+                else:
+                    try:
+                        downloaded = await self._client.download_profile_photo(
+                            entity, file=str(photo_dir / str(entity.id))
+                        )
+                        if downloaded:
+                            photo_filename = Path(downloaded).name
+                    except Exception:
+                        pass
+                if photo_filename:
+                    photo_type = "gif" if photo_filename.endswith(".mp4") else "image"
 
-            entity_type = (
-                "channel"
-                if isinstance(entity, types.Channel) and entity.broadcast
-                else "group"
+                entity_type = (
+                    "channel"
+                    if isinstance(entity, types.Channel) and entity.broadcast
+                    else "group"
+                )
+                result.append({
+                    "title": entity.title,
+                    "identifier": identifier,
+                    "photo": photo_filename,
+                    "photo_type": photo_type,
+                    "entity_type": entity_type,
+                })
+        except Exception:
+            self.logger.error(
+                "%s\tUnexpected error while fetching groups and channels",
+                self._session_file, exc_info=True,
             )
-            result.append({
-                "title": entity.title,
-                "identifier": identifier,
-                "photo": photo_filename,
-                "photo_type": photo_type,
-                "entity_type": entity_type,
-            })
         return result
 
     async def fetch_voice_dialogs(self) -> list[dict]:
@@ -1020,6 +1026,7 @@ class ClientWrapper:
             )
             return
 
+        self.logger.info("%s\tDeleting dialog %s", self._session_file, dialog_id)
         await self._client.delete_dialog(
             await self._client.get_input_entity(dialog_id), revoke=True
         )

@@ -32,7 +32,7 @@ class ChatBridge(BaseBridge):
             return
         except PeerFloodError as e:
             self.logger.error(
-                f"{self.__class__.__name__}\tCatched Frool Error, session: {session_file}: {e}",
+                f"{self.__class__.__name__}\tCatched Flood Error, session: {session_file}: {e}",
                 exc_info=True,
             )
             error_message += "Получен флуд"

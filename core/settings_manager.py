@@ -64,7 +64,6 @@ class SettingsManager:
             self.settings = json.load(f)
 
     def update_settings(self, key, value):
-        self.logger.debug(f"User changes settings '{key}': {value}")
         if self.settings is None:
             return
         self.settings[key] = value
