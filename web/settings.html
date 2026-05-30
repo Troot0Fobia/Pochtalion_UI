@@ -110,6 +110,14 @@
                             <div>/</div>
                             <span id="voice-message" onclick="changeMessageType('voice')">Голосовые сообщения</span>
                         </div>
+                        <div class="timing-settings" id="mailing-order-block">
+                            <label for="mailing-order">Порядок рассылки</label>
+                            <select class="inline-select" id="mailing-order">
+                                <option value="oldest_first" selected>Сначала старым</option>
+                                <option value="newest_first">Сначала новым</option>
+                                <option value="random">Рандомно</option>
+                            </select>
+                        </div>
                         <div class="timing-settings">
                             <label for="delay-between-mailing">Задержка между сообщениями, сек</label>
                             <input type="text" class="input-number" maxlength="6" placeholder="0" id="delay-between-mailing-messages"

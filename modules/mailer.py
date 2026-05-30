@@ -50,6 +50,7 @@ class Mailer:
         self.is_mail_from_usernames = mail_data["is_parse_usernames"]
         self.is_send_text_messages = mail_data["is_send_text"]
         self.delay_between_messages = mail_data["delay"]
+        self.mailing_order = mail_data.get("order", "oldest_first")
         self.session_files = mail_data["selected_sessions"]
         self.session_wrappers = []
         self.mail_data = []
@@ -80,6 +81,10 @@ class Mailer:
                     self.mail_data.append({"username": matched.group("username")})
         else:
             self.mail_data = await self.main_window.database.get_users_for_sending()
+            if self.mailing_order == "oldest_first":
+                self.mail_data.reverse()
+            elif self.mailing_order == "random":
+                random.shuffle(self.mail_data)
 
         if not self.session_files:
             self.logger.info("User doesn't provide sessions")
