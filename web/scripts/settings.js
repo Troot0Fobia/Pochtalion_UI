@@ -1011,6 +1011,7 @@ function changeMailingType(type) {
         select_block
             .querySelector("#mailing-usernames")
             .classList.add("active-type");
+        document.getElementById("mailing-order-block").style.display = "none";
     } else if (type === "db") {
         select_block
             .querySelector("#mailing-usernames")
@@ -1018,6 +1019,7 @@ function changeMailingType(type) {
         select_block
             .querySelector("#mailing-database")
             .classList.add("active-type");
+        document.getElementById("mailing-order-block").style.display = "";
     }
 }
 
@@ -1458,6 +1460,7 @@ async function startMailing() {
         .getElementById("mailing-data-field")
         .value.trim();
     const delay = document.getElementById("delay-between-mailing-messages").value;
+    const order = document.getElementById("mailing-order").value;
 
     if (is_parse_usernames && !mailing_data) {
         bridge.show_notification("Введите данные для рассылки");
@@ -1469,6 +1472,7 @@ async function startMailing() {
         is_send_text,
         mailing_data,
         delay,
+        order,
         selected_sessions: selectedMailSessions,
     };
 
