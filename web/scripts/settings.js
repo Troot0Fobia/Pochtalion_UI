@@ -54,10 +54,15 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.updateGroupMailingRetry.connect(updateGroupMailingRetry);
     bridge.sessionGroupsStatus.connect(sessionGroupsStatus);
     bridge.renderSessionGroups.connect(renderSessionGroups);
+    bridge.parsedActionResult.connect(parsedActionResult);
 });
 
 document.addEventListener("keyup", (event) => {
     if (event.key === "Escape") {
+        const confirmModal = document.getElementById("confirm-action-modal");
+        if (confirmModal && !confirmModal.classList.contains("hidden")) {
+            return closeConfirmActionModal();
+        }
         const groupModal = document.getElementById("links-modal");
         if (groupModal && !groupModal.classList.contains("hidden")) {
             return groupModal.classList.add("hidden");
@@ -1555,4 +1560,81 @@ async function refreshSessionManager() {
 
 function resetSettings() {
     bridge.resetSettings();
+}
+
+const _actionButtonIds = { reset: "parsed-reset-btn", delete: "parsed-delete-btn" };
+const _actionButtonTimers = {};
+
+function parsedActionResult(action, success) {
+    const btnId = _actionButtonIds[action];
+    if (!btnId) return;
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+
+    if (_actionButtonTimers[action]) {
+        clearTimeout(_actionButtonTimers[action]);
+        delete _actionButtonTimers[action];
+    }
+
+    btn.classList.remove("btn-action-success", "btn-action-error");
+    btn.dataset.originalText = btn.dataset.originalText || btn.textContent;
+
+    if (success) {
+        btn.classList.add("btn-action-success");
+        btn.textContent = "✓ Успешно";
+    } else {
+        btn.classList.add("btn-action-error");
+        btn.textContent = "✗ Ошибка";
+    }
+
+    _actionButtonTimers[action] = setTimeout(() => {
+        btn.classList.remove("btn-action-success", "btn-action-error");
+        btn.textContent = btn.dataset.originalText;
+        delete _actionButtonTimers[action];
+    }, 4000);
+}
+
+let _confirmActionCallback = null;
+
+function openConfirmActionModal(message, callback) {
+    document.getElementById('confirm-action-message').textContent = message;
+    document.getElementById('confirm-action-modal').classList.remove('hidden');
+    _confirmActionCallback = callback;
+}
+
+function confirmAction() {
+    const callback = _confirmActionCallback;
+    closeConfirmActionModal();
+    if (callback) callback();
+}
+
+function closeConfirmActionModal() {
+    document.getElementById('confirm-action-modal').classList.add('hidden');
+    _confirmActionCallback = null;
+}
+
+function resetParsedToSended() {
+    bridge.isProcessActive(function(active) {
+        if (active) {
+            bridge.show_notification("Невозможно выполнить: активен парсинг или рассылка");
+            return;
+        }
+        openConfirmActionModal(
+            'Все неотправленные спаршенные пользователи будут отмечены как отправленные. Продолжить?',
+            () => bridge.resetParsedToSended()
+        );
+    });
+}
+
+function deleteUnsendedParsed() {
+    bridge.isProcessActive(function(active) {
+        if (active) {
+            bridge.show_notification("Невозможно выполнить: активен парсинг или рассылка");
+            return;
+        }
+        openConfirmActionModal(
+            'Все неотправленные спаршенные пользователи будут удалены из базы данных. Продолжить?',
+            () => bridge.deleteUnsendedParsed()
+        );
+    });
 }

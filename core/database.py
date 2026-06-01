@@ -876,6 +876,18 @@ class Database:
             )
             await self._db.commit()
 
+    async def reset_parsed_to_sended(self) -> int:
+        async with self._lock:
+            cursor = await self._db.execute("UPDATE users SET sended = 1 WHERE sended = 0")
+            await self._db.commit()
+            return cursor.rowcount
+
+    async def delete_unsended_parsed(self) -> int:
+        async with self._lock:
+            cursor = await self._db.execute("DELETE FROM users WHERE sended = 0")
+            await self._db.commit()
+            return cursor.rowcount
+
     async def get_user_photo(self, user_id: int):
         async with self._lock:
             async with self._db.execute(

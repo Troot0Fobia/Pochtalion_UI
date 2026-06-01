@@ -36,6 +36,7 @@ class SettingsBridge(BaseBridge):
     updateGroupMailingRetry = pyqtSignal(str, int, int, int)
     sessionGroupsStatus = pyqtSignal(str, str)
     renderSessionGroups = pyqtSignal(str, str)
+    parsedActionResult = pyqtSignal(str, bool)
 
     def __init__(self, main_window, database):
         super().__init__(main_window, database)
@@ -428,6 +429,36 @@ class SettingsBridge(BaseBridge):
     @pyqtSlot(str)
     def show_notification(self, message):
         self.main_window.show_notification("Внимание", message)
+
+    @pyqtSlot(result='bool')
+    def isProcessActive(self) -> bool:
+        parsing_active = (
+            self.parsing_task is not None and not self.parsing_task.done()
+        ) or (
+            self.main_window.parser is not None and self.main_window.parser.running
+        )
+        mailing_active = self.mailing_task is not None and not self.mailing_task.done()
+        return parsing_active or mailing_active
+
+    @asyncSlot()
+    async def resetParsedToSended(self):
+        try:
+            count = await self.database.reset_parsed_to_sended()
+            self.logger.info("Reset parsed users to sended: %d rows affected", count)
+            self.parsedActionResult.emit("reset", True)
+        except Exception as e:
+            self.logger.error("Failed to reset parsed users to sended: %s", e, exc_info=True)
+            self.parsedActionResult.emit("reset", False)
+
+    @asyncSlot()
+    async def deleteUnsendedParsed(self):
+        try:
+            count = await self.database.delete_unsended_parsed()
+            self.logger.info("Deleted unsended parsed users: %d rows affected", count)
+            self.parsedActionResult.emit("delete", True)
+        except Exception as e:
+            self.logger.error("Failed to delete unsended parsed users: %s", e, exc_info=True)
+            self.parsedActionResult.emit("delete", False)
 
     @asyncSlot(str)
     async def saveParsedData(self, save_type):
