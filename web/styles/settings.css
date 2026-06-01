@@ -1025,3 +1025,106 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
   transition: filter var(--transition);
 }
 .btn:hover { filter: brightness(1.2); }
+
+/* ── SECTION DIVIDER ─────────────────────────────────── */
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 18px 0 14px;
+}
+
+/* ── DANGER ACTIONS ──────────────────────────────────── */
+.danger-action-row .settings-row {
+  justify-content: space-between;
+  cursor: default;
+}
+
+.setting-name-with-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.danger-outline-btn {
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  transition: background var(--transition), color var(--transition), border-color var(--transition), filter var(--transition);
+}
+.danger-outline-btn:hover {
+  background: var(--danger-dim);
+  color: #fca5a5;
+  filter: none;
+}
+.danger-outline-btn.btn-action-success {
+  background: var(--success-dim);
+  border-color: var(--success);
+  color: var(--success);
+  filter: none;
+  cursor: default;
+  pointer-events: none;
+}
+.danger-outline-btn.btn-action-error {
+  background: var(--danger-dim);
+  border-color: var(--danger);
+  color: #fca5a5;
+  filter: none;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ── INFO TOOLTIP ────────────────────────────────────── */
+.info-tooltip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-accent);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-style: italic;
+  font-weight: 700;
+  cursor: default;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.info-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-accent);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 400;
+  white-space: nowrap;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--transition);
+  z-index: 10;
+}
+
+.info-tooltip:hover::after {
+  opacity: 1;
+}
+
+/* ── CONFIRM ACTION MODAL ────────────────────────────── */
+.confirm-action-content {
+  max-width: 400px;
+}
+
+.confirm-action-content p {
+  margin: 12px 0 18px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}

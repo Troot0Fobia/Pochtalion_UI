@@ -84,6 +84,25 @@
                 </div>
             </div>
             <div class="button reset-settings" onclick="resetSettings()">Сбросить настройки</div>
+            <hr class="section-divider">
+            <div class="row danger-action-row">
+                <div class="settings-row">
+                    <div class="setting-name-with-info">
+                        <span class="setting-name">Сбросить всех спаршенных в отправленных</span>
+                        <span class="info-tooltip" data-tooltip="Сброшенные пользователи не могут быть заново спаршены">i</span>
+                    </div>
+                    <div class="button danger-outline-btn" id="parsed-reset-btn" onclick="resetParsedToSended()">Сбросить</div>
+                </div>
+            </div>
+            <div class="row danger-action-row">
+                <div class="settings-row">
+                    <div class="setting-name-with-info">
+                        <span class="setting-name">Удалить всех спаршенных</span>
+                        <span class="info-tooltip" data-tooltip="Удаленные пользователи могут быть спаршены еще раз">i</span>
+                    </div>
+                    <div class="button danger-outline-btn" id="parsed-delete-btn" onclick="deleteUnsendedParsed()">Удалить</div>
+                </div>
+            </div>
         </div>
         <div class="tab-block" id="chatting-tab-block">
             Some blocks for chatting (В разработке...)
@@ -283,6 +302,17 @@
                         <input type="file" id="add-session" accept=".session" style="display: none;" onchange="addSessions(this)">
                     </label>
                 </div>
+            </div>
+        </div>
+    </div>
+    <div id="confirm-action-modal" class="modal hidden">
+        <div class="modal-content confirm-action-content">
+            <span class="close-button" onclick="closeConfirmActionModal()">&times;</span>
+            <h3>Подтверждение</h3>
+            <p id="confirm-action-message"></p>
+            <div class="links-modal-footer">
+                <div class="button accept-btn" onclick="confirmAction()">Подтвердить</div>
+                <div class="button cancel-btn" onclick="closeConfirmActionModal()">Отмена</div>
             </div>
         </div>
     </div>
