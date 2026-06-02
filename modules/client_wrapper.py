@@ -1094,6 +1094,31 @@ class ClientWrapper:
         except Exception:
             return False
 
+    async def check_write_access(self, group: str) -> dict:
+        """Join the group if needed, send a silent test message, delete it immediately."""
+        try:
+            invite_match = self._INVITE_RE.match(group.strip())
+            if invite_match:
+                from telethon.tl.functions.messages import ImportChatInviteRequest
+                invite_hash = invite_match.group(1)
+                result = await self._client(CheckChatInviteRequest(invite_hash))
+                if isinstance(result, ChatInviteAlready):
+                    entity = result.chat
+                else:
+                    join_result = await self._client(ImportChatInviteRequest(invite_hash))
+                    entity = join_result.chats[0]
+            else:
+                if not await self.is_joined(self._client, group):
+                    await self._client(JoinChannelRequest(group))
+                entity = await self._client.get_entity(group)
+
+            msg = await self._client.send_message(entity, ".", silent=True)
+            await self._client.delete_messages(entity, msg.id)
+            return {"ok": True}
+        except Exception as e:
+            self.logger.warning("check_write_access failed for %s: %s", group, e)
+            return {"ok": False, "error": str(e)}
+
     async def leaveGroup(self, group: str) -> None:
         try:
             await self._client.delete_dialog(group)

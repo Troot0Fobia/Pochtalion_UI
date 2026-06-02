@@ -26,6 +26,7 @@ from core.notification_manager import NotificationManager
 from core.paths import TMP, WEB
 from core.settings_manager import SettingsManager
 from modules.group_mailer import GroupMailer
+from modules.pudge_manager import PudgeManager
 from modules.mailer import Mailer
 from modules.parser import Parser
 from modules.sessions_manager import SessionsManager
@@ -60,6 +61,7 @@ class Pochtalion_UI(QMainWindow):
         self.parser = Parser(self)
         self.mailer = Mailer(self)
         self.group_mailer = GroupMailer(self)
+        self.pudge_manager = PudgeManager(self)
         self.logger = setup_logger("Pochtalion.UI", "UI.log")
         self.logger.info("Main UI initialized")
 
@@ -200,6 +202,7 @@ class Pochtalion_UI(QMainWindow):
         await self.parser.stop()
         await self.mailer.stop()
         await self.group_mailer.stop_all()
+        await self.pudge_manager.stop_all()
         await self.notification_manager.stop()
         await self.database.closeConnection()
         if self._session_manager:

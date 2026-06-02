@@ -68,6 +68,14 @@ class Database:
         )
         await db.execute(
             """
+            CREATE TABLE IF NOT EXISTS hook_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                text TEXT NOT NULL
+            )
+        """
+        )
+        await db.execute(
+            """
                 CREATE TABLE IF NOT EXISTS smm_voices (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
@@ -399,6 +407,38 @@ class Database:
             await self._db.commit()
 
             return row["photo"] if row else None
+
+    # ## ===================== Methods for hook messages ======================== ###
+
+    async def get_hook_messages(self) -> list[dict]:
+        messages = []
+        async with self._lock:
+            async with self._db.execute(
+                "SELECT id, text FROM hook_messages ORDER BY id"
+            ) as cursor:
+                async for (id, text) in cursor:
+                    messages.append({"id": id, "text": text})
+        return messages
+
+    async def add_hook_message(self, text: str) -> int:
+        async with self._lock:
+            async with self._db.execute(
+                "INSERT INTO hook_messages (text) VALUES (?)", (text,)
+            ) as cursor:
+                await self._db.commit()
+                return cursor.lastrowid
+
+    async def delete_hook_message(self, id: int) -> None:
+        async with self._lock:
+            await self._db.execute("DELETE FROM hook_messages WHERE id = ?", (id,))
+            await self._db.commit()
+
+    async def update_hook_message(self, id: int, text: str) -> None:
+        async with self._lock:
+            await self._db.execute(
+                "UPDATE hook_messages SET text = ? WHERE id = ?", (text, id)
+            )
+            await self._db.commit()
 
     # ## ===================== Methods for sending voices ======================= ###
     async def add_voice_message(
