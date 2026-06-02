@@ -12,6 +12,14 @@ _ADDLIST_RE = re.compile(r"^(?:https?://)?t\.me/addlist/", re.IGNORECASE)
 _TGME_USERNAME_RE = re.compile(r"^(?:https?://)?t\.me/([a-zA-Z][a-zA-Z0-9_]{2,})$", re.IGNORECASE)
 
 
+def _hook_matches_words(hook: str, text: str) -> bool:
+    words = hook.lower().split()
+    if not words:
+        return False
+    pattern = r"\s+".join(r"(?<!\w)" + re.escape(w) + r"(?!\w)" for w in words)
+    return bool(re.search(pattern, text))
+
+
 def _normalize_group(raw: str) -> str:
     s = raw.strip()
     if not s:
@@ -190,7 +198,7 @@ class PudgeManager:
             if not text:
                 return
 
-            if not any(hook.lower() in text for hook in hook_texts):
+            if not any(_hook_matches_words(hook, text) for hook in hook_texts):
                 return
 
             try:
