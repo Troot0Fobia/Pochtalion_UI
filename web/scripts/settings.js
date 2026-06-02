@@ -621,6 +621,8 @@ function changeGroupMailingStatus(session_id, is_on) {
         return;
     }
 
+    controlButtons.querySelector(".mailing-loader")?.remove();
+
     if (is_on) {
         controlButtons.querySelector(".start-group-mailing")?.remove();
         controlButtons.insertAdjacentHTML(
@@ -639,29 +641,18 @@ function changeGroupMailingStatus(session_id, is_on) {
 
 async function toggleControlGroupMailing(is_start, elem) {
     const row = elem.closest(".row");
-    if (!row) {
-        return;
-    }
+    if (!row) return;
     const session_id = row.dataset.id;
+    if (!session_id) return;
+    if (elem.dataset.pending) return;
 
-    if (!session_id) {
-        return;
-    }
+    elem.outerHTML = `<div class="btn mailing-loader" style="background-color: blue;"><div class="loader"></div></div>`;
 
     if (is_start) {
-        if (elem.dataset.pending) return;
-        elem.dataset.pending = "1";
-        let delay = row.querySelector(".group-mailing-delay")?.value;
-        if (!delay) {
-            delay = 0;
-        }
+        let delay = row.querySelector(".group-mailing-delay")?.value || 0;
         await bridge.startGroupMailing(session_id, delay);
-        delete elem.dataset.pending;
     } else {
-        if (elem.dataset.pending) return;
-        elem.dataset.pending = "1";
         await bridge.stopGroupMailing(session_id);
-        delete elem.dataset.pending;
     }
 }
 
@@ -1472,10 +1463,14 @@ async function startParsing() {
         selected_sessions: selectedParseSessions,
         session_groups,
     };
+    document.getElementById("start-parsing-button").disabled = true;
+    document.getElementById("parsing-status").innerText = "запуск...";
     await bridge.startParsing(JSON.stringify(parse_data));
 }
 
 async function stopParsing() {
+    document.getElementById("stop-parsing-button").disabled = true;
+    document.getElementById("parsing-status").innerText = "остановка...";
     await bridge.stopParsing();
 }
 
@@ -1540,10 +1535,14 @@ async function startMailing() {
         selected_sessions: selectedMailSessions,
     };
 
+    document.getElementById("start-mailing-button").disabled = true;
+    document.getElementById("mailing-status").innerText = "запуск...";
     await bridge.startMailing(JSON.stringify(mail_data));
 }
 
 async function stopMailing() {
+    document.getElementById("stop-mailing-button").disabled = true;
+    document.getElementById("mailing-status").innerText = "остановка...";
     await bridge.stopMailing();
 }
 
@@ -1834,14 +1833,13 @@ async function togglePudge(is_start, btn) {
     if (!row) return;
     const sid = row.dataset.id;
     if (btn.dataset.pending) return;
-    btn.dataset.pending = "1";
+    btn.outerHTML = `<div class="btn pudge-loader" style="background-color: blue;"><div class="loader"></div></div>`;
     if (is_start) {
         await _syncPudgeConfig(sid);
         await bridge.startPudge(sid);
     } else {
         await bridge.stopPudge(sid);
     }
-    delete btn.dataset.pending;
 }
 
 function changePudgeStatus(session_id, is_on) {
@@ -1849,12 +1847,13 @@ function changePudgeStatus(session_id, is_on) {
     if (!row) return;
     const buttons = row.querySelector(".buttons");
     if (!buttons) return;
+    buttons.querySelector(".pudge-loader")?.remove();
+    buttons.querySelector(".start-pudge")?.remove();
+    buttons.querySelector(".stop-pudge")?.remove();
     if (is_on) {
-        buttons.querySelector(".start-pudge")?.remove();
         buttons.insertAdjacentHTML("beforeend",
             `<div class="btn stop-pudge" onclick="togglePudge(false, this)">Стоп</div>`);
     } else {
-        buttons.querySelector(".stop-pudge")?.remove();
         buttons.insertAdjacentHTML("beforeend",
             `<div class="btn start-pudge" onclick="togglePudge(true, this)">Начать</div>`);
     }
