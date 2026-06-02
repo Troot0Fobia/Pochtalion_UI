@@ -37,6 +37,13 @@ class SettingsBridge(BaseBridge):
     sessionGroupsStatus = pyqtSignal(str, str)
     renderSessionGroups = pyqtSignal(str, str)
     parsedActionResult = pyqtSignal(str, bool)
+    renderHookMessages = pyqtSignal(str)
+    changePudgeStatus = pyqtSignal(str, bool)
+    updatePudgeReceivedCount = pyqtSignal(str, int)
+    pudgeCheckResult = pyqtSignal(str, str)
+    renderPudgeSessionGroups = pyqtSignal(str, str)
+    pudgeGroupsStatus = pyqtSignal(str, str)
+    renderPudgeLinks = pyqtSignal(str, str)
 
     def __init__(self, main_window, database):
         super().__init__(main_window, database)
@@ -63,6 +70,16 @@ class SettingsBridge(BaseBridge):
                     s["groupMailing"] = group_mailer.is_session_mailing(session_id)
                 else:
                     s["groupMailing"] = False
+        elif destination == "pudge":
+            pudge_manager = self.main_window.pudge_manager
+            for s in sessions:
+                session_id = str(s["session_id"])
+                if pudge_manager:
+                    if session_id not in pudge_manager.work_sessions:
+                        pudge_manager.add_session(session_id, s["session_file"])
+                    s["pudgeRunning"] = pudge_manager.is_session_running(session_id)
+                else:
+                    s["pudgeRunning"] = False
 
         for s in sessions:
             photo_dir = SESSION_PHOTOS / s["session_file"]
@@ -132,6 +149,113 @@ class SettingsBridge(BaseBridge):
     async def stopGroupMailing(self, session_id: str) -> None:
         await self.main_window.group_mailer.stop_group_mailing(session_id)
         self.changeGroupMailingStatus.emit(session_id, False)
+
+    # ── Pudge ──────────────────────────────────────────────────────────────────
+
+    @asyncSlot()
+    async def loadHookMessages(self) -> None:
+        messages = await self.database.get_hook_messages()
+        self.renderHookMessages.emit(json.dumps(messages))
+
+    @asyncSlot(str)
+    async def addHookMessage(self, text: str) -> None:
+        text = text.strip()
+        if not text:
+            return
+        await self.database.add_hook_message(text)
+        messages = await self.database.get_hook_messages()
+        self.renderHookMessages.emit(json.dumps(messages))
+
+    @asyncSlot(str)
+    async def deleteHookMessage(self, id_str: str) -> None:
+        await self.database.delete_hook_message(int(id_str))
+        messages = await self.database.get_hook_messages()
+        self.renderHookMessages.emit(json.dumps(messages))
+
+    @asyncSlot(str)
+    async def saveHookMessageChanges(self, json_str: str) -> None:
+        data = json.loads(json_str)
+        await self.database.update_hook_message(int(data["id"]), data["text"])
+        messages = await self.database.get_hook_messages()
+        self.renderHookMessages.emit(json.dumps(messages))
+
+    @asyncSlot(str)
+    async def startPudge(self, session_id: str) -> None:
+        started = await self.main_window.pudge_manager.start_pudge(session_id)
+        if started:
+            self.changePudgeStatus.emit(session_id, True)
+
+    @asyncSlot(str)
+    async def stopPudge(self, session_id: str) -> None:
+        await self.main_window.pudge_manager.stop_pudge(session_id)
+        self.changePudgeStatus.emit(session_id, False)
+
+    @asyncSlot(str, str)
+    async def checkPudgeAccess(self, session_id: str, group: str) -> None:
+        result = await self.main_window.pudge_manager.check_write_access(session_id, group)
+        self.pudgeCheckResult.emit(session_id, json.dumps(result))
+
+    @asyncSlot(str, str)
+    async def updatePudgeConfig(self, session_id: str, json_str: str) -> None:
+        data = json.loads(json_str)
+        self.main_window.pudge_manager.update_config(
+            session_id,
+            bool(data.get("send_to_saved", True)),
+            data.get("target_group", ""),
+            [int(i) for i in data.get("hook_ids", [])],
+        )
+
+    @asyncSlot(str, str)
+    async def loadPudgeSessionGroups(self, session_id_str: str, session_file: str) -> None:
+        session_manager = self.main_window.session_manager
+        if session_manager is None:
+            return
+        if session_file not in session_manager.sessions:
+            self.pudgeGroupsStatus.emit(session_id_str, "Запуск сессии...")
+        wrapper = await session_manager.get_or_start_session(int(session_id_str), session_file)
+        if not wrapper:
+            self.pudgeGroupsStatus.emit(session_id_str, "Ошибка запуска сессии")
+            return
+        self.pudgeGroupsStatus.emit(session_id_str, "Получение групп и каналов...")
+        try:
+            groups = await wrapper.get_groups_and_channels()
+            current = set(
+                g for g in
+                self.main_window.pudge_manager.get_session_groups(session_id_str).splitlines()
+                if g.strip()
+            )
+            for g in groups:
+                g["selected"] = g["identifier"] in current
+            self.renderPudgeSessionGroups.emit(session_id_str, json.dumps(groups))
+        except Exception as e:
+            self.logger.error(
+                "Error loading pudge groups for session '%s': %s", session_file, e, exc_info=True
+            )
+            self.pudgeGroupsStatus.emit(session_id_str, "Ошибка получения групп")
+
+    @asyncSlot(str, str)
+    async def updatePudgeGroups(self, session_id_str: str, data_json: str) -> None:
+        data = json.loads(data_json)
+        fetched_set = set(data["fetched"])
+        selected_set = set(data["selected"])
+        current = [
+            g for g in
+            self.main_window.pudge_manager.get_session_groups(session_id_str).splitlines()
+            if g.strip()
+        ]
+        merged = [g for g in current if g not in fetched_set] + list(selected_set)
+        self.main_window.pudge_manager.update_groups(session_id_str, "\n".join(merged))
+
+    @asyncSlot(str)
+    async def loadPudgeLinks(self, session_id: str) -> None:
+        groups = self.main_window.pudge_manager.get_session_groups(session_id)
+        self.renderPudgeLinks.emit(session_id, groups)
+
+    @asyncSlot(str, str)
+    async def updatePudgeLinks(self, session_id: str, groups_data: str) -> None:
+        self.main_window.pudge_manager.update_groups(session_id, groups_data)
+
+    # ── End Pudge ──────────────────────────────────────────────────────────────
 
     @asyncSlot()
     async def loadVoiceMessages(self) -> None:

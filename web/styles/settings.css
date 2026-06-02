@@ -262,51 +262,63 @@ input[type="button"].button {
 .button:hover { filter: brightness(1.18); }
 .button:active { transform: scale(0.97); }
 .button[disabled],
-input[type="button"][disabled] {
+input[type="button"][disabled],
+.button.disabled {
   opacity: 0.38;
   cursor: not-allowed;
+  pointer-events: none;
   filter: none;
   transform: none;
 }
 
+.links-empty-msg {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 24px 16px;
+  font-size: 13px;
+}
+
 /* Green */
 .start-button, .accept-btn, .start-session-btn,
-.add-voice-window .add-button, .start-group-mailing {
+.add-voice-window .add-button, .start-group-mailing, .start-pudge {
   background-color: #15532d;
   color: #86efac;
 }
 .start-button:not([disabled]):hover, .accept-btn:hover,
 .start-session-btn:hover, .add-voice-window .add-button:hover,
-.start-group-mailing:hover { background-color: #166534; color: #fff; }
+.start-group-mailing:hover, .start-pudge:hover { background-color: #166534; color: #fff; }
 
 /* Red */
 .stop-button, .delete-btn, .cancel-btn, .stop-session-btn,
-.reset-settings, .add-voice-window .cancel-button, .stop-group-mailing {
+.reset-settings, .add-voice-window .cancel-button, .stop-group-mailing, .stop-pudge {
   background-color: #7f1d1d;
   color: #fca5a5;
 }
 .stop-button:not([disabled]):hover, .delete-btn:hover, .cancel-btn:hover,
 .stop-session-btn:hover, .reset-settings:hover,
-.add-voice-window .cancel-button:hover, .stop-group-mailing:hover {
+.add-voice-window .cancel-button:hover, .stop-group-mailing:hover, .stop-pudge:hover {
   background-color: #991b1b; color: #fff;
 }
 
 /* Blue */
 #save-results-to-computer, #add-results-to-database,
 .choose-button, #auth-button, .add-session-button,
-.edit-btn, #add-smm-message, #refresh-session-manager, .open-groups, .parse-groups-btn {
+.edit-btn, #add-smm-message, #add-hook-message, #refresh-session-manager,
+.open-groups, .parse-groups-btn, .pudge-check-btn {
   background-color: var(--accent-dim);
   color: #a5b4fc;
 }
 #save-results-to-computer:not([disabled]):hover,
 #add-results-to-database:not([disabled]):hover,
 .choose-button:hover, #auth-button:hover, .add-session-button:hover,
-.edit-btn:hover, #add-smm-message:hover, #refresh-session-manager:hover,
-.open-groups:hover, .parse-groups-btn:hover { background-color: var(--accent); color: #fff; }
+.edit-btn:hover, #add-smm-message:hover, #add-hook-message:hover, #refresh-session-manager:hover,
+.open-groups:hover, .parse-groups-btn:hover, .pudge-check-btn:hover {
+  background-color: var(--accent); color: #fff;
+}
 
 .reset-settings { align-self: flex-start; }
 
-#add-smm-message {
+#add-smm-message, #add-hook-message {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1115,6 +1127,150 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 
 .info-tooltip:hover::after {
   opacity: 1;
+}
+
+/* ── PUDGE SESSION CARD ──────────────────────────────── */
+
+.pudge-config {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pudge-saved-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.pudge-saved-label input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.pudge-group-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pudge-group-input {
+  flex: 1;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 5px 10px;
+  outline: none;
+  transition: border-color var(--transition), opacity var(--transition);
+}
+
+.pudge-group-input:focus {
+  border-color: var(--accent);
+}
+
+.pudge-group-input:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pudge-check-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pudge-received {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ── HOOK MESSAGES TAB ───────────────────────────────── */
+
+.hook-message-input {
+  width: 100%;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.hook-message-input:focus {
+  border-color: var(--accent);
+}
+
+.hook-msg-text {
+  flex: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 4px 8px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.hook-msg-text:not(:disabled) {
+  background: var(--bg-deep);
+  border-color: var(--accent);
+}
+
+/* ── PUDGE HOOKS MODAL ───────────────────────────────── */
+
+.hooks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.hooks-modal-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background var(--transition);
+}
+
+.hooks-modal-item:hover {
+  background: var(--bg-hover);
+}
+
+.hooks-modal-item input[type="checkbox"] {
+  accent-color: var(--accent);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* ── PUDGE LINKS MODAL ───────────────────────────────── */
+
+#pudge-links-modal textarea {
+  width: 100%;
+  min-height: 160px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+  resize: vertical;
+  margin-bottom: 12px;
 }
 
 /* ── CONFIRM ACTION MODAL ────────────────────────────── */

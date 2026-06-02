@@ -10,10 +10,10 @@
     <div class="settings" id="settings">
         <div class="tabs main-tabs">
             <div class="tab active-tab" id="common-tab" onclick="openSettingsTab('common')">Общие</div>
-            <div class="tab" id="chatting-tab" onclick="openSettingsTab('chatting')">Общение</div>
+            <div class="tab" id="pudge-tab" onclick="openSettingsTab('pudge')">Пудж</div>
             <div class="tab" id="mailing-tab" onclick="openSettingsTab('mailing')">Рассылка</div>
             <div class="tab" id="parsing-tab" onclick="openSettingsTab('parsing')">Парсинг</div>
-            <div class="tab" id="smm-tab" onclick="openSettingsTab('smm')">Сообщения для рассылки</div>
+            <div class="tab" id="smm-tab" onclick="openSettingsTab('smm')">Сообщения</div>
             <div class="tab" id="sessions-tab" onclick="openSettingsTab('sessions')">Сессии</div>
         </div>
         <div class="tab-block active-tab-block" id="common-tab-block">
@@ -104,8 +104,10 @@
                 </div>
             </div>
         </div>
-        <div class="tab-block" id="chatting-tab-block">
-            Some blocks for chatting (В разработке...)
+        <div class="tab-block" id="pudge-tab-block">
+            <div id="pudge-session-container-block">
+                <div class="sessions-list"></div>
+            </div>
         </div>
         <div class="tab-block" id="mailing-tab-block">
             <div class="tabs mailing-tabs">
@@ -227,8 +229,9 @@
         </div>
         <div class="tab-block" id="smm-tab-block">
             <div class="tabs smm-tabs">
-                <div class="tab sub-tab text-tab active-tab" id="text-tab" onclick="openSMMSettingsTab('text')">Текстовые сообщения</div>
+                <div class="tab sub-tab text-tab active-tab" id="text-tab" onclick="openSMMSettingsTab('text')">Для рассылки</div>
                 <div class="tab sub-tab voice-tab" id="voice-tab" onclick="openSMMSettingsTab('voice')">Голосовые сообщения</div>
+                <div class="tab sub-tab" id="hooks-tab" onclick="openSMMSettingsTab('hooks')">Сообщения для хуков</div>
             </div>
             <div class="sub-block active-tab-block" id="text-smm-block">
                 <div id="image-preview-overlay" onclick="this.style.display = 'none'">
@@ -286,6 +289,16 @@
                     </div>
                 </div>
             </div>
+            <div class="sub-block" id="hooks-smm-block">
+                <div class="row">
+                    <div class="row-content">
+                        <input type="text" class="hook-message-input" id="newHookMessage" placeholder="Введите текст хука">
+                    </div>
+                </div>
+                <div class="button" id="add-hook-message" onclick="addHookMessage()"><img class="icons" src="assets/icons/add.png" alt="">Добавить</div>
+                <hr>
+                <div class="hook-message-list" id="hook-message-list"></div>
+            </div>
         </div>
         <div class="tab-block" id="sessions-tab-block">
             <div class="sessions">
@@ -331,6 +344,29 @@
             <textarea name="mailing-links" id="mailing-links-data-field"></textarea>
                 <!-- <div class="sessions-list" id="session-list"></div> -->
             <input type="button" class="button choose-button" value="Подтвердить" onclick="confirmMailingLinks()">
+        </div>
+    </div>
+    <div id="pudge-hooks-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-button" onclick="closePudgeHooksModal()">&times;</span>
+            <h3>Выберите хуки</h3>
+            <div class="links-select-all-row" id="hooks-select-all-row">
+                <input type="checkbox" id="hooks-select-all" onchange="toggleAllHooks(this)">
+                <label for="hooks-select-all">Выбрать все</label>
+            </div>
+            <div class="hooks-list" id="pudge-hooks-list"></div>
+            <div class="links-modal-footer">
+                <div class="button accept-btn" onclick="confirmHooksSelection()">Подтвердить</div>
+                <div class="button cancel-btn" onclick="closePudgeHooksModal()">Отмена</div>
+            </div>
+        </div>
+    </div>
+    <div id="pudge-links-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-button" onclick="closePudgeLinksModal()">&times;</span>
+            <h3>Группы для мониторинга</h3>
+            <textarea name="pudge-links" id="pudge-links-data-field" placeholder="Вставьте ссылки на группы/каналы"></textarea>
+            <input type="button" class="button choose-button" value="Подтвердить" onclick="confirmPudgeLinks()">
         </div>
     </div>
     <div id="links-modal" class="modal hidden">

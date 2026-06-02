@@ -6,6 +6,12 @@ let selectedMailSessions = {};
 let sessionGroupSelections = {};
 let sessionsList = [];
 let openedSettingsTabName = undefined;
+
+// Pudge state
+let pudgeConfigs = {};        // session_id → {send_to_saved, target_group, hook_ids}
+let allHookMessages = [];     // full list from DB, used for hooks modal
+let currentPudgeHooksSessionId = null;
+let _pudgeGroupInputTimers = {};
 let currentVoicePlayer = null;
 const stopPlay = () => {
     if (!currentVoicePlayer) {
@@ -55,6 +61,13 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.sessionGroupsStatus.connect(sessionGroupsStatus);
     bridge.renderSessionGroups.connect(renderSessionGroups);
     bridge.parsedActionResult.connect(parsedActionResult);
+    bridge.renderHookMessages.connect(renderHookMessages);
+    bridge.changePudgeStatus.connect(changePudgeStatus);
+    bridge.updatePudgeReceivedCount.connect(updatePudgeReceivedCount);
+    bridge.pudgeCheckResult.connect(handlePudgeCheckResult);
+    bridge.renderPudgeSessionGroups.connect(renderPudgeSessionGroups);
+    bridge.pudgeGroupsStatus.connect(pudgeGroupsStatus);
+    bridge.renderPudgeLinks.connect(renderPudgeLinks);
 });
 
 document.addEventListener("keyup", (event) => {
@@ -74,6 +87,14 @@ document.addEventListener("keyup", (event) => {
         const sessionModal = document.getElementById("session-modal");
         if (sessionModal && !sessionModal.classList.contains("hidden")) {
             return sessionModal.classList.add("hidden");
+        }
+        const pudgeHooksModal = document.getElementById("pudge-hooks-modal");
+        if (pudgeHooksModal && !pudgeHooksModal.classList.contains("hidden")) {
+            return closePudgeHooksModal();
+        }
+        const pudgeLinksModal = document.getElementById("pudge-links-modal");
+        if (pudgeLinksModal && !pudgeLinksModal.classList.contains("hidden")) {
+            return closePudgeLinksModal();
         }
     }
 });
@@ -96,11 +117,12 @@ async function openSettingsTab(tab_name) {
         .querySelectorAll(".tab-block")
         .forEach((elem) => elem.classList.remove("active-tab-block"));
 
-    if (tab_name === "chatting") {
-        document.getElementById("chatting-tab").classList.add("active-tab");
-        document
-            .getElementById("chatting-tab-block")
-            .classList.add("active-tab-block");
+    if (tab_name === "pudge") {
+        document.getElementById("pudge-tab").classList.add("active-tab");
+        document.getElementById("pudge-tab-block").classList.add("active-tab-block");
+        document.querySelector("#pudge-session-container-block .sessions-list").innerHTML = "";
+        await bridge.loadSessions("pudge");
+        await bridge.loadHookMessages();
     } else if (tab_name === "mailing") {
         document.getElementById("mailing-tab").classList.add("active-tab");
         document
@@ -165,6 +187,11 @@ async function openSMMSettingsTab(tab_name) {
             .classList.add("active-tab-block");
         document.getElementById("smm-voice-messages-block").innerHTML = "";
         await bridge.loadVoiceMessages();
+    } else if (tab_name === "hooks") {
+        document.getElementById("hooks-tab").classList.add("active-tab");
+        document.getElementById("hooks-smm-block").classList.add("active-tab-block");
+        document.getElementById("hook-message-list").innerHTML = "";
+        await bridge.loadHookMessages();
     }
 }
 
@@ -406,6 +433,11 @@ function removeVoiceMessageRow(voice_msg_id_str) {
 }
 
 async function renderSessions(sessions_json, destination) {
+    if (destination === "pudge") {
+        renderPudgeSessions(sessions_json);
+        return;
+    }
+
     let container_id = null;
 
     if (destination === "settings") {
@@ -1187,6 +1219,12 @@ function closeMailingLinksModal() {
     modal.classList.add("hidden");
 }
 
+function _setLinksConfirmEnabled(enabled) {
+    const btn = document.querySelector("#links-modal .accept-btn");
+    if (!btn) return;
+    btn.classList.toggle("disabled", !enabled);
+}
+
 async function openParseGroupsModal(sessionId, sessionFile) {
     const modal = document.getElementById("links-modal");
     if (!modal) return;
@@ -1201,6 +1239,7 @@ async function openParseGroupsModal(sessionId, sessionFile) {
     filterLinks("");
     const statusEl = document.getElementById("links-modal-status");
     if (statusEl) statusEl.textContent = "Загрузка...";
+    _setLinksConfirmEnabled(false);
     modal.classList.remove("hidden");
 
     await bridge.loadSessionGroups(String(sessionId), sessionFile);
@@ -1224,6 +1263,7 @@ async function openLinksModal(button) {
     filterLinks("");
     const statusEl = document.getElementById("links-modal-status");
     if (statusEl) statusEl.textContent = "Загрузка...";
+    _setLinksConfirmEnabled(false);
     modal.classList.remove("hidden");
 
     await bridge.loadSessionGroups(session_id, session_file);
@@ -1294,6 +1334,15 @@ function renderSessionGroups(session_id, groups_json) {
 
     const list = document.getElementById("links-list");
     list.innerHTML = "";
+
+    if (groups.length === 0) {
+        list.innerHTML = '<div class="links-empty-msg">Нет групп или каналов</div>';
+        _setLinksConfirmEnabled(false);
+        const statusEl = document.getElementById("links-modal-status");
+        if (statusEl) statusEl.textContent = "";
+        return;
+    }
+
     const fragment = document.createDocumentFragment();
     groups.forEach(g => {
         const item = document.createElement("div");
@@ -1316,11 +1365,12 @@ function renderSessionGroups(session_id, groups_json) {
     });
     list.appendChild(fragment);
 
-    const allChecked = groups.length > 0 && groups.every(g => g.selected);
+    const allChecked = groups.every(g => g.selected);
     document.getElementById("links-select-all").checked = allChecked;
 
     const statusEl = document.getElementById("links-modal-status");
     if (statusEl) statusEl.textContent = "";
+    _setLinksConfirmEnabled(true);
 }
 
 async function confirmLinksSelection() {
@@ -1337,6 +1387,15 @@ async function confirmLinksSelection() {
         sessionGroupSelections[session_id] = checked;
         const btn = document.querySelector(`.parse-groups-btn[data-session-id="${session_id}"]`);
         if (btn) btn.textContent = checked.length > 0 ? `Группы (${checked.length})` : "Группы";
+        closeLinksModal();
+        return;
+    }
+
+    if (context === "pudge") {
+        await bridge.updatePudgeGroups(session_id, JSON.stringify({
+            fetched: fetchedIds,
+            selected: checked,
+        }));
         closeLinksModal();
         return;
     }
@@ -1637,4 +1696,466 @@ function deleteUnsendedParsed() {
             () => bridge.deleteUnsendedParsed()
         );
     });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PUDGE — session rendering
+// ═══════════════════════════════════════════════════════════════════
+
+function renderPudgeSessions(sessions_json) {
+    const container = document.querySelector("#pudge-session-container-block .sessions-list");
+    if (!container) return;
+
+    const sessions = JSON.parse(sessions_json);
+    const fragment = document.createDocumentFragment();
+
+    sessions.forEach((session) => {
+        const sid = String(session.session_id);
+        if (!pudgeConfigs[sid]) {
+            pudgeConfigs[sid] = { send_to_saved: true, target_group: "", hook_ids: [] };
+        }
+
+        const cfg = pudgeConfigs[sid];
+        const isRunning = session.pudgeRunning || false;
+        const controlBtn = isRunning
+            ? `<div class="btn stop-pudge" onclick="togglePudge(false, this)">Стоп</div>`
+            : `<div class="btn start-pudge" onclick="togglePudge(true, this)">Начать</div>`;
+
+        const row = document.createElement("div");
+        row.className = "row";
+        row.dataset.id = sid;
+        row.dataset.file = session.session_file;
+
+        row.innerHTML = `
+            <div class="session-avatar-wrap">
+                <div class="session-avatar-inner">${_buildSessionAvatar(session)}</div>
+            </div>
+            <div class="row-content">
+                <div class="session-info">
+                    Сессия: <span class="session-name">${session.session_file}</span>
+                    Номер телефона: <span class="session-phone">${session.phone_number || "—"}</span>
+                </div>
+                <div class="pudge-config">
+                    <label class="pudge-saved-label">
+                        <input type="checkbox" class="pudge-send-saved" ${cfg.send_to_saved ? "checked" : ""}
+                            onchange="toggleSendToSaved(this)">
+                        отправлять в сохраненные сообщения
+                    </label>
+                    <div class="pudge-group-row">
+                        <input type="text" class="pudge-group-input" placeholder="Ссылка на группу для уведомлений"
+                            value="${cfg.target_group || ""}"
+                            ${cfg.send_to_saved ? "disabled" : ""}
+                            oninput="onPudgeGroupInput(this)">
+                        <div class="btn pudge-check-btn" onclick="checkPudgeAccess(this)">Проверить</div>
+                    </div>
+                    <div class="pudge-received">Получено: <span class="pudge-count">0</span></div>
+                </div>
+                <div class="buttons">
+                    <div class="btn open-groups" onclick="openHooksModal(this)">Хуки</div>
+                    <div class="btn open-groups" onclick="openPudgeGroupsModal(this)">Группа</div>
+                    <div class="btn open-groups" onclick="loadPudgeLinks(this)">Ссылки</div>
+                    ${controlBtn}
+                </div>
+            </div>
+        `;
+        fragment.appendChild(row);
+    });
+    container.appendChild(fragment);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PUDGE — session card interactions
+// ═══════════════════════════════════════════════════════════════════
+
+function _getPudgeRow(elem) {
+    return elem.closest(".row");
+}
+
+function toggleSendToSaved(cb) {
+    const row = _getPudgeRow(cb);
+    if (!row) return;
+    const sid = row.dataset.id;
+    const input = row.querySelector(".pudge-group-input");
+    const isChecked = cb.checked;
+    input.disabled = isChecked;
+    if (!pudgeConfigs[sid]) pudgeConfigs[sid] = { send_to_saved: true, target_group: "", hook_ids: [] };
+    pudgeConfigs[sid].send_to_saved = isChecked;
+    _syncPudgeConfig(sid);
+}
+
+function onPudgeGroupInput(input) {
+    const row = _getPudgeRow(input);
+    if (!row) return;
+    const sid = row.dataset.id;
+    if (!pudgeConfigs[sid]) pudgeConfigs[sid] = { send_to_saved: true, target_group: "", hook_ids: [] };
+    pudgeConfigs[sid].target_group = input.value.trim();
+    clearTimeout(_pudgeGroupInputTimers[sid]);
+    _pudgeGroupInputTimers[sid] = setTimeout(() => _syncPudgeConfig(sid), 600);
+}
+
+async function _syncPudgeConfig(sid) {
+    if (!pudgeConfigs[sid]) return;
+    await bridge.updatePudgeConfig(sid, JSON.stringify(pudgeConfigs[sid]));
+}
+
+async function checkPudgeAccess(btn) {
+    const row = _getPudgeRow(btn);
+    if (!row) return;
+    const sid = row.dataset.id;
+    const cfg = pudgeConfigs[sid] || {};
+    if (cfg.send_to_saved) {
+        bridge.show_notification("Проверка не нужна: включена отправка в сохранённые сообщения");
+        return;
+    }
+    const group = row.querySelector(".pudge-group-input")?.value.trim();
+    if (!group) {
+        bridge.show_notification("Укажите группу для отправки уведомлений");
+        return;
+    }
+    const origText = btn.textContent;
+    btn.textContent = "...";
+    btn.dataset.pending = "1";
+    await bridge.checkPudgeAccess(sid, group);
+    btn.textContent = origText;
+    delete btn.dataset.pending;
+}
+
+function handlePudgeCheckResult(_session_id, json_str) {
+    const result = JSON.parse(json_str);
+    if (result.ok) {
+        bridge.show_notification("✓ Группа проверена — отправка работает");
+    } else {
+        bridge.show_notification("✗ Ошибка: " + (result.error || "Неизвестная ошибка"));
+    }
+}
+
+async function togglePudge(is_start, btn) {
+    const row = _getPudgeRow(btn);
+    if (!row) return;
+    const sid = row.dataset.id;
+    if (btn.dataset.pending) return;
+    btn.dataset.pending = "1";
+    if (is_start) {
+        await _syncPudgeConfig(sid);
+        await bridge.startPudge(sid);
+    } else {
+        await bridge.stopPudge(sid);
+    }
+    delete btn.dataset.pending;
+}
+
+function changePudgeStatus(session_id, is_on) {
+    const row = document.querySelector(`#pudge-session-container-block .row[data-id="${session_id}"]`);
+    if (!row) return;
+    const buttons = row.querySelector(".buttons");
+    if (!buttons) return;
+    if (is_on) {
+        buttons.querySelector(".start-pudge")?.remove();
+        buttons.insertAdjacentHTML("beforeend",
+            `<div class="btn stop-pudge" onclick="togglePudge(false, this)">Стоп</div>`);
+    } else {
+        buttons.querySelector(".stop-pudge")?.remove();
+        buttons.insertAdjacentHTML("beforeend",
+            `<div class="btn start-pudge" onclick="togglePudge(true, this)">Начать</div>`);
+    }
+}
+
+function updatePudgeReceivedCount(session_id, count) {
+    const row = document.querySelector(`#pudge-session-container-block .row[data-id="${session_id}"]`);
+    if (!row) return;
+    const span = row.querySelector(".pudge-count");
+    if (span) span.textContent = String(count);
+}
+
+// ── Pudge groups modal (reuse existing links-modal) ────────────────
+
+async function openPudgeGroupsModal(btn) {
+    const row = _getPudgeRow(btn);
+    if (!row) return;
+    const session_id = row.dataset.id;
+    const session_file = row.dataset.file || row.querySelector(".session-name")?.innerText || "";
+    const modal = document.getElementById("links-modal");
+    if (!modal) return;
+
+    modal.dataset.id = session_id;
+    modal.dataset.file = session_file;
+    modal.dataset.context = "pudge";
+    modal.dataset.fetchedIds = "[]";
+    document.getElementById("links-list").innerHTML = "";
+    document.getElementById("links-search").value = "";
+    document.getElementById("links-select-all").checked = false;
+    filterLinks("");
+    const statusEl = document.getElementById("links-modal-status");
+    if (statusEl) statusEl.textContent = "Загрузка...";
+    _setLinksConfirmEnabled(false);
+    modal.classList.remove("hidden");
+
+    await bridge.loadPudgeSessionGroups(session_id, session_file);
+}
+
+function renderPudgeSessionGroups(session_id, groups_json) {
+    const modal = document.getElementById("links-modal");
+    if (!modal || modal.dataset.id !== String(session_id) || modal.dataset.context !== "pudge") return;
+
+    const groups = JSON.parse(groups_json);
+    const sessionFile = modal.dataset.file || "";
+    modal.dataset.fetchedIds = JSON.stringify(groups.map(g => g.identifier));
+
+    const list = document.getElementById("links-list");
+    list.innerHTML = "";
+
+    if (groups.length === 0) {
+        list.innerHTML = '<div class="links-empty-msg">Нет групп или каналов</div>';
+        _setLinksConfirmEnabled(false);
+        const statusEl = document.getElementById("links-modal-status");
+        if (statusEl) statusEl.textContent = "";
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    groups.forEach(g => {
+        const item = document.createElement("div");
+        item.className = "links-item" + (g.selected ? " selected" : "");
+        item.onclick = () => toggleLinksItem(item);
+        item.innerHTML = `
+            <div class="links-item-photo">
+                <div class="links-item-photo-inner">${_buildGroupPhoto(g, sessionFile)}</div>
+                <div class="links-item-check">✓</div>
+            </div>
+            <div class="links-item-info">
+                ${_buildEntityTypeIcon(g.entity_type)}
+                <span class="links-item-name">${g.title}</span>
+            </div>
+            <input type="checkbox" value="${g.identifier}" ${g.selected ? "checked" : ""} hidden>
+        `;
+        fragment.appendChild(item);
+    });
+    list.appendChild(fragment);
+
+    const allChecked = groups.every(g => g.selected);
+    document.getElementById("links-select-all").checked = allChecked;
+    const statusEl = document.getElementById("links-modal-status");
+    if (statusEl) statusEl.textContent = "";
+    _setLinksConfirmEnabled(true);
+}
+
+function pudgeGroupsStatus(session_id, status) {
+    const modal = document.getElementById("links-modal");
+    if (!modal || modal.dataset.id !== String(session_id) || modal.dataset.context !== "pudge") return;
+    const statusEl = document.getElementById("links-modal-status");
+    if (statusEl) statusEl.textContent = status;
+}
+
+// ── Pudge links modal ──────────────────────────────────────────────
+
+async function loadPudgeLinks(btn) {
+    const row = _getPudgeRow(btn);
+    if (!row) return;
+    await bridge.loadPudgeLinks(row.dataset.id);
+}
+
+function renderPudgeLinks(session_id, groups_data_str) {
+    const modal = document.getElementById("pudge-links-modal");
+    if (!modal) return;
+    modal.dataset.id = session_id;
+    modal.querySelector("textarea").value = groups_data_str;
+    modal.classList.remove("hidden");
+}
+
+async function confirmPudgeLinks() {
+    const modal = document.getElementById("pudge-links-modal");
+    if (!modal) return closePudgeLinksModal();
+    const groups_data = modal.querySelector("textarea").value;
+    await bridge.updatePudgeLinks(modal.dataset.id, groups_data);
+    closePudgeLinksModal();
+}
+
+function closePudgeLinksModal() {
+    const modal = document.getElementById("pudge-links-modal");
+    if (!modal) return;
+    modal.dataset.id = "";
+    modal.classList.add("hidden");
+}
+
+// ── Pudge hooks modal ──────────────────────────────────────────────
+
+function openHooksModal(btn) {
+    const row = _getPudgeRow(btn);
+    if (!row) return;
+    const sid = row.dataset.id;
+    currentPudgeHooksSessionId = sid;
+
+    const cfg = pudgeConfigs[sid] || { hook_ids: [] };
+    const selectedIds = new Set(cfg.hook_ids.map(Number));
+    const list = document.getElementById("pudge-hooks-list");
+    const footer = document.querySelector("#pudge-hooks-modal .links-modal-footer");
+    list.innerHTML = "";
+
+    const selectAllRow = document.getElementById("hooks-select-all-row");
+    const selectAllCb = document.getElementById("hooks-select-all");
+
+    if (allHookMessages.length === 0) {
+        list.innerHTML = '<div class="links-empty-msg">Нет сообщений для хуков.<br>Добавьте их во вкладке «Сообщения → Для хуков».</div>';
+        if (selectAllRow) selectAllRow.style.display = "none";
+        if (footer) footer.innerHTML = `
+            <div class="button accept-btn" onclick="closePudgeHooksModal()">Понятно</div>
+        `;
+    } else {
+        if (selectAllRow) selectAllRow.style.display = "";
+        allHookMessages.forEach(msg => {
+            const item = document.createElement("label");
+            item.className = "hooks-modal-item";
+            item.innerHTML = `
+                <input type="checkbox" value="${msg.id}" ${selectedIds.has(msg.id) ? "checked" : ""}
+                    onchange="_updateHooksSelectAll()">
+                <span>${msg.text}</span>
+            `;
+            list.appendChild(item);
+        });
+        if (footer) footer.innerHTML = `
+            <div class="button accept-btn" onclick="confirmHooksSelection()">Подтвердить</div>
+            <div class="button cancel-btn" onclick="closePudgeHooksModal()">Отмена</div>
+        `;
+        // Sync select-all state with current selection
+        if (selectAllCb) {
+            const allChecked = allHookMessages.every(m => selectedIds.has(m.id));
+            selectAllCb.checked = allChecked;
+        }
+    }
+
+    document.getElementById("pudge-hooks-modal").classList.remove("hidden");
+}
+
+async function confirmHooksSelection() {
+    const sid = currentPudgeHooksSessionId;
+    if (!sid) return closePudgeHooksModal();
+
+    const checked = [...document.querySelectorAll("#pudge-hooks-list input[type='checkbox']:checked")]
+        .map(cb => Number(cb.value));
+
+    if (!pudgeConfigs[sid]) pudgeConfigs[sid] = { send_to_saved: true, target_group: "", hook_ids: [] };
+    pudgeConfigs[sid].hook_ids = checked;
+    await _syncPudgeConfig(sid);
+    closePudgeHooksModal();
+}
+
+function toggleAllHooks(checkbox) {
+    document.querySelectorAll("#pudge-hooks-list input[type='checkbox']").forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+}
+
+function _updateHooksSelectAll() {
+    const cbs = [...document.querySelectorAll("#pudge-hooks-list input[type='checkbox']")];
+    const selectAll = document.getElementById("hooks-select-all");
+    if (selectAll && cbs.length > 0) {
+        selectAll.checked = cbs.every(cb => cb.checked);
+    }
+}
+
+function closePudgeHooksModal() {
+    document.getElementById("pudge-hooks-modal").classList.add("hidden");
+    currentPudgeHooksSessionId = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// HOOK MESSAGES — management in SMM → Для хуков tab
+// ═══════════════════════════════════════════════════════════════════
+
+function renderHookMessages(json_str) {
+    allHookMessages = JSON.parse(json_str);
+
+    const list = document.getElementById("hook-message-list");
+    if (!list) return;
+    list.innerHTML = "";
+
+    const fragment = document.createDocumentFragment();
+    allHookMessages.forEach((msg, index) => {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.dataset.id = msg.id;
+        row.innerHTML = `
+            <div class="row-content">
+                <div class="left-smm-side">
+                    <div class="index">${index + 1}.</div>
+                    <input type="text" class="hook-msg-text" value="${_escapeHtml(msg.text)}" disabled>
+                </div>
+                <div class="buttons">
+                    <div class="btn edit-btn">
+                        <img class="icons" src="assets/icons/edit.png" alt="edit" onclick="editHookMessage(this)">
+                    </div>
+                    <div class="btn delete-btn">
+                        <img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteHookMessage(this)">
+                    </div>
+                </div>
+            </div>
+        `;
+        fragment.appendChild(row);
+    });
+    list.appendChild(fragment);
+}
+
+function _escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+async function addHookMessage() {
+    const input = document.getElementById("newHookMessage");
+    if (!input || !input.value.trim()) return;
+    await bridge.addHookMessage(input.value.trim());
+    input.value = "";
+}
+
+async function deleteHookMessage(btn) {
+    const row = btn.closest(".row");
+    if (!row) return;
+    await bridge.deleteHookMessage(String(row.dataset.id));
+}
+
+function editHookMessage(btn) {
+    const row = btn.closest(".row");
+    if (!row) return;
+    const input = row.querySelector(".hook-msg-text");
+    const buttons = row.querySelector(".buttons");
+    input.dataset.original = input.value;
+    input.disabled = false;
+    input.focus();
+    buttons.innerHTML = `
+        <div class="btn accept-btn">
+            <img class="icons" src="assets/icons/mark.png" alt="save" onclick="saveHookMessageChanges(this)">
+        </div>
+        <div class="btn cancel-btn">
+            <img class="icons" src="assets/icons/cancel.png" alt="cancel" onclick="cancelHookMessageEdit(this)">
+        </div>
+    `;
+}
+
+async function saveHookMessageChanges(btn) {
+    const row = btn.closest(".row");
+    if (!row) return;
+    const input = row.querySelector(".hook-msg-text");
+    const newText = input.value.trim();
+    if (!newText) { cancelHookMessageEdit(btn); return; }
+    await bridge.saveHookMessageChanges(JSON.stringify({ id: row.dataset.id, text: newText }));
+}
+
+function cancelHookMessageEdit(btn) {
+    const row = btn.closest(".row");
+    if (!row) return;
+    const input = row.querySelector(".hook-msg-text");
+    const buttons = row.querySelector(".buttons");
+    input.value = input.dataset.original || input.value;
+    input.disabled = true;
+    buttons.innerHTML = `
+        <div class="btn edit-btn">
+            <img class="icons" src="assets/icons/edit.png" alt="edit" onclick="editHookMessage(this)">
+        </div>
+        <div class="btn delete-btn">
+            <img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteHookMessage(this)">
+        </div>
+    `;
 }
