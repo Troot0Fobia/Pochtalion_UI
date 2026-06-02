@@ -22,7 +22,8 @@ class SessionsManager:
         is_module: bool = False,
         force_auth: bool = False,
     ) -> ClientWrapper | None:
-        if session_file in self.sessions and self.sessions[session_file].status():
+        existing = self.sessions.get(session_file)
+        if existing and existing.status():
             return None
         self.logger.info(
             "Starting session %s (is_module=%s, force_auth=%s, has_phone=%s)",
@@ -38,27 +39,30 @@ class SessionsManager:
                 self.main_window,
                 self.logger,
             )
+            # Register immediately so concurrent calls see this wrapper
+            # and its status (set to 2 inside wrapper.start before any await)
+            self.sessions[session_file] = wrapper
             result = await wrapper.start(phone_number, is_module, force_auth)
             if result == "needs_reauth":
+                del self.sessions[session_file]
                 self.main_window.settings_bridge.sessionChangedState.emit(
                     str(session_id), "needs_reauth"
                 )
                 return None
             if not result:
+                del self.sessions[session_file]
                 self.main_window.settings_bridge.sessionChangedState.emit(
                     str(session_id), "stopped"
                 )
-                if session_file in self.sessions:
-                    del self.sessions[session_file]
                 return None
 
-            self.sessions[session_file] = wrapper
             self.main_window.settings_bridge.sessionChangedState.emit(
                 str(session_id), "started"
             )
             self.logger.info(f"Session {session_file} started")
             return wrapper
         except Exception as e:
+            self.sessions.pop(session_file, None)
             self.logger.error(
                 f"Error while starting session {session_file}: {e}", exc_info=True
             )
