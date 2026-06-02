@@ -382,7 +382,7 @@ class SettingsBridge(BaseBridge):
             "session_id": session_id,
             "is_active": 1,
             "session_file": fileName,
-            "status": 0,
+            "status": 2,  # loading — session_manager.start_session() runs next
         }
         if not self.main_window.active_session:
             self.main_window.active_session = session
