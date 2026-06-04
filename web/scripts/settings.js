@@ -1804,8 +1804,10 @@ function _setPudgeCheckStatus(row, text, state) {
     clearTimeout(el._clearTimer);
     el.textContent = text;
     el.className = "pudge-check-status" + (state ? " pudge-check-status--" + state : "");
+    el.style.display = "block";
     if (state && state !== "pending") {
         el._clearTimer = setTimeout(() => {
+            el.style.display = "none";
             el.textContent = "";
             el.className = "pudge-check-status";
         }, 8000);

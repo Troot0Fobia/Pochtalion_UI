@@ -1190,8 +1190,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 }
 
 .pudge-check-status {
+  display: none;
   font-size: 12px;
-  min-height: 16px;
   transition: color var(--transition);
 }
 .pudge-check-status--pending { color: var(--text-secondary); }
