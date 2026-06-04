@@ -44,6 +44,7 @@ class SettingsBridge(BaseBridge):
     renderPudgeSessionGroups = pyqtSignal(str, str)
     pudgeGroupsStatus = pyqtSignal(str, str)
     renderPudgeLinks = pyqtSignal(str, str)
+    renderPudgeDefaultGroup = pyqtSignal(str)
 
     def __init__(self, main_window, database):
         super().__init__(main_window, database)
@@ -80,6 +81,10 @@ class SettingsBridge(BaseBridge):
                     s["pudgeRunning"] = pudge_manager.is_session_running(session_id)
                 else:
                     s["pudgeRunning"] = False
+            default_group = ""
+            if self.main_window.settings_manager:
+                default_group = (self.main_window.settings_manager.get_setting("pudge_default_group") or "").strip()
+            self.renderPudgeDefaultGroup.emit(default_group)
 
         for s in sessions:
             photo_dir = SESSION_PHOTOS / s["session_file"]
@@ -200,7 +205,7 @@ class SettingsBridge(BaseBridge):
         data = json.loads(json_str)
         self.main_window.pudge_manager.update_config(
             session_id,
-            bool(data.get("send_to_saved", True)),
+            bool(data.get("send_to_saved", False)),
             data.get("target_group", ""),
             [int(i) for i in data.get("hook_ids", [])],
         )

@@ -9,7 +9,7 @@ class PudgeSession:
         self.handler: Any = None                 # registered Telethon event handler
         self.running: bool = False
         self.starting: bool = False
-        self.send_to_saved: bool = True
+        self.send_to_saved: bool = False
         self.target_group: str = ""
         self.hook_ids: list[int] = []            # IDs of selected hook_messages rows
         self.groups: list[str] = []              # normalised group identifiers to monitor

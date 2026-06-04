@@ -82,6 +82,14 @@
                         <span class="setting-name">людей с парсинга в сохранённые сообщения</span>
                     </div>
                 </div>
+                <div class="row">
+                    <div class="settings-row">
+                        <div class="setting-name">Группа по-умолчания для уведомлений Пуджа</div>
+                        <input type="text" name="pudge_default_group" id="pudge-default-group"
+                               onblur="changeSettings(this)"
+                               placeholder="@username, https://t.me/username или https://t.me/+invite">
+                    </div>
+                </div>
             </div>
             <div class="button reset-settings" onclick="resetSettings()">Сбросить настройки</div>
             <hr class="section-divider">

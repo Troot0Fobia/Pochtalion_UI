@@ -8,5 +8,6 @@
     "force_delete_chats": false,
     "send_links_to_parsed": false,
     "send_links_type": "messages_and_username",
-    "parse_last_seen_filter": "any"
+    "parse_last_seen_filter": "any",
+    "pudge_default_group": ""
 }

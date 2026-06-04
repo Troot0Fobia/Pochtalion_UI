@@ -12,6 +12,7 @@ let pudgeConfigs = {};        // session_id → {send_to_saved, target_group, ho
 let allHookMessages = [];     // full list from DB, used for hooks modal
 let currentPudgeHooksSessionId = null;
 let _pudgeGroupInputTimers = {};
+let pudgeDefaultGroup = "";
 let currentVoicePlayer = null;
 const stopPlay = () => {
     if (!currentVoicePlayer) {
@@ -68,6 +69,7 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.renderPudgeSessionGroups.connect(renderPudgeSessionGroups);
     bridge.pudgeGroupsStatus.connect(pudgeGroupsStatus);
     bridge.renderPudgeLinks.connect(renderPudgeLinks);
+    bridge.renderPudgeDefaultGroup.connect(setRenderPudgeDefaultGroup);
 });
 
 document.addEventListener("keyup", (event) => {
@@ -1599,11 +1601,17 @@ function changeSettings(elem) {
                 bridge.show_notification("Неверные ключи");
                 return;
             }
+        else
+            value = elem.value;
     } else if (elem_type === "select-one") {
         value = elem.value;
     }
 
     bridge.changeSettings(JSON.stringify({ key, value }));
+    if (key === "pudge_default_group") {
+        pudgeDefaultGroup = value || "";
+        _updatePudgeGroupPlaceholders();
+    }
 }
 
 function toggleLinksSelect(checkbox) {
@@ -1698,6 +1706,20 @@ function deleteUnsendedParsed() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// PUDGE — default group helpers
+// ═══════════════════════════════════════════════════════════════════
+
+function setRenderPudgeDefaultGroup(group) {
+    pudgeDefaultGroup = group || "";
+    _updatePudgeGroupPlaceholders();
+}
+
+function _updatePudgeGroupPlaceholders() {
+    const ph = pudgeDefaultGroup || "Ссылка на группу для уведомлений";
+    document.querySelectorAll(".pudge-group-input").forEach(inp => { inp.placeholder = ph; });
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // PUDGE — session rendering
 // ═══════════════════════════════════════════════════════════════════
 
@@ -1711,7 +1733,7 @@ function renderPudgeSessions(sessions_json) {
     sessions.forEach((session) => {
         const sid = String(session.session_id);
         if (!pudgeConfigs[sid]) {
-            pudgeConfigs[sid] = { send_to_saved: true, target_group: "", hook_ids: [] };
+            pudgeConfigs[sid] = { send_to_saved: false, target_group: "", hook_ids: [] };
         }
 
         const cfg = pudgeConfigs[sid];
@@ -1743,7 +1765,8 @@ function renderPudgeSessions(sessions_json) {
                 </div>
                 <div class="buttons">
                     <div class="pudge-group-row">
-                        <input type="text" class="pudge-group-input" placeholder="Ссылка на группу для уведомлений"
+                        <input type="text" class="pudge-group-input"
+                            placeholder="${pudgeDefaultGroup || 'Ссылка на группу для уведомлений'}"
                             value="${cfg.target_group || ""}"
                             ${cfg.send_to_saved ? "disabled" : ""}
                             oninput="onPudgeGroupInput(this)">
@@ -1780,7 +1803,7 @@ function toggleSendToSaved(cb) {
     const input = row.querySelector(".pudge-group-input");
     const isChecked = cb.checked;
     input.disabled = isChecked;
-    if (!pudgeConfigs[sid]) pudgeConfigs[sid] = { send_to_saved: true, target_group: "", hook_ids: [] };
+    if (!pudgeConfigs[sid]) pudgeConfigs[sid] = { send_to_saved: false, target_group: "", hook_ids: [] };
     pudgeConfigs[sid].send_to_saved = isChecked;
     _syncPudgeConfig(sid);
 }
@@ -1789,7 +1812,7 @@ function onPudgeGroupInput(input) {
     const row = _getPudgeRow(input);
     if (!row) return;
     const sid = row.dataset.id;
-    if (!pudgeConfigs[sid]) pudgeConfigs[sid] = { send_to_saved: true, target_group: "", hook_ids: [] };
+    if (!pudgeConfigs[sid]) pudgeConfigs[sid] = { send_to_saved: false, target_group: "", hook_ids: [] };
     pudgeConfigs[sid].target_group = input.value.trim();
     clearTimeout(_pudgeGroupInputTimers[sid]);
     _pudgeGroupInputTimers[sid] = setTimeout(() => _syncPudgeConfig(sid), 600);
@@ -1825,7 +1848,7 @@ async function checkPudgeAccess(btn) {
         _setPudgeCheckStatus(row, "Проверка не нужна: включена отправка в сохранённые сообщения", "neutral");
         return;
     }
-    const group = row.querySelector(".pudge-group-input")?.value.trim();
+    const group = row.querySelector(".pudge-group-input")?.value.trim() || pudgeDefaultGroup;
     if (!group) {
         _setPudgeCheckStatus(row, "Укажите группу для отправки уведомлений", "error");
         return;
@@ -2055,7 +2078,7 @@ async function confirmHooksSelection() {
     const checked = [...document.querySelectorAll("#pudge-hooks-list input[type='checkbox']:checked")]
         .map(cb => Number(cb.value));
 
-    if (!pudgeConfigs[sid]) pudgeConfigs[sid] = { send_to_saved: true, target_group: "", hook_ids: [] };
+    if (!pudgeConfigs[sid]) pudgeConfigs[sid] = { send_to_saved: false, target_group: "", hook_ids: [] };
     pudgeConfigs[sid].hook_ids = checked;
     await _syncPudgeConfig(sid);
     closePudgeHooksModal();
