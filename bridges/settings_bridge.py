@@ -147,8 +147,7 @@ class SettingsBridge(BaseBridge):
     @asyncSlot(str, str)
     async def startGroupMailing(self, session_id: str, delay: str) -> None:
         started = await self.main_window.group_mailer.start_group_mailing(session_id, delay)
-        if started:
-            self.changeGroupMailingStatus.emit(session_id, True)
+        self.changeGroupMailingStatus.emit(session_id, started)
 
     @asyncSlot(str)
     async def stopGroupMailing(self, session_id: str) -> None:
@@ -187,8 +186,7 @@ class SettingsBridge(BaseBridge):
     @asyncSlot(str)
     async def startPudge(self, session_id: str) -> None:
         started = await self.main_window.pudge_manager.start_pudge(session_id)
-        if started:
-            self.changePudgeStatus.emit(session_id, True)
+        self.changePudgeStatus.emit(session_id, started)
 
     @asyncSlot(str)
     async def stopPudge(self, session_id: str) -> None:
@@ -599,6 +597,7 @@ class SettingsBridge(BaseBridge):
     @asyncSlot(str)
     async def startMailing(self, mail_data_str):
         if self.main_window.parser.running:
+            self.finishMailing.emit()
             return
         self.mailing_task = asyncio.create_task(
             self.main_window.mailer.start(mail_data_str)
