@@ -97,7 +97,9 @@ class PudgeManager:
                 self.main_window.show_notification("Внимание", "Не выбраны хуки для мониторинга")
                 return False
 
-            if not session.send_to_saved and not session.target_group.strip():
+            default_grp = (self.main_window.settings_manager.get_setting("pudge_default_group") or "").strip()
+            effective_target = session.target_group.strip() or default_grp
+            if not session.send_to_saved and not effective_target:
                 self.main_window.show_notification("Внимание", "Укажите группу для отправки уведомлений")
                 return False
 
@@ -126,7 +128,7 @@ class PudgeManager:
                 session_id,
                 len(session.groups),
                 len(hook_texts),
-                "saved" if session.send_to_saved else session.target_group,
+                "saved" if session.send_to_saved else effective_target,
             )
             return True
         finally:
@@ -210,7 +212,11 @@ class PudgeManager:
                     # chat.id is the raw positive channel/chat id — correct for t.me/c/ links
                     link = f"https://t.me/c/{chat.id}/{event.id}"
 
-                target = "me" if session.send_to_saved else session.target_group.strip()
+                if session.send_to_saved:
+                    target = "me"
+                else:
+                    default_grp = (self.main_window.settings_manager.get_setting("pudge_default_group") or "").strip()
+                    target = session.target_group.strip() or default_grp
                 await wrapper._client.send_message(target, link)
 
                 session.received_count += 1

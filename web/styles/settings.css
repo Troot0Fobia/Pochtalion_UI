@@ -176,6 +176,7 @@ input[type="number"]:focus,
 }
 
 #api-keys { flex: 1; min-width: 0; width: 100%; }
+#pudge-default-group { flex: 1; min-width: 0; }
 
 #auth-phone-input { width: 180px; text-align: right; }
 
@@ -1176,7 +1177,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 
 .pudge-group-input {
   flex: 1;
-  min-width: 180px;
+  min-width: 250px;
   background: var(--bg-deep);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -1204,6 +1205,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 
 .pudge-check-status {
   display: none;
+  width: 100%;
   font-size: 12px;
   transition: color var(--transition);
 }
