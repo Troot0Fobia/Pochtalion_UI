@@ -1747,6 +1747,7 @@ function renderPudgeSessions(sessions_json) {
                             oninput="onPudgeGroupInput(this)">
                         <div class="btn pudge-check-btn" onclick="checkPudgeAccess(this)">Проверить</div>
                     </div>
+                    <div class="pudge-check-status"></div>
                     <div class="pudge-received">Получено: <span class="pudge-count">0</span></div>
                 </div>
                 <div class="buttons">
@@ -1797,34 +1798,52 @@ async function _syncPudgeConfig(sid) {
     await bridge.updatePudgeConfig(sid, JSON.stringify(pudgeConfigs[sid]));
 }
 
+function _setPudgeCheckStatus(row, text, state) {
+    const el = row.querySelector(".pudge-check-status");
+    if (!el) return;
+    clearTimeout(el._clearTimer);
+    el.textContent = text;
+    el.className = "pudge-check-status" + (state ? " pudge-check-status--" + state : "");
+    if (state && state !== "pending") {
+        el._clearTimer = setTimeout(() => {
+            el.textContent = "";
+            el.className = "pudge-check-status";
+        }, 8000);
+    }
+}
+
 async function checkPudgeAccess(btn) {
     const row = _getPudgeRow(btn);
     if (!row) return;
     const sid = row.dataset.id;
     const cfg = pudgeConfigs[sid] || {};
     if (cfg.send_to_saved) {
-        bridge.show_notification("Проверка не нужна: включена отправка в сохранённые сообщения");
+        _setPudgeCheckStatus(row, "Проверка не нужна: включена отправка в сохранённые сообщения", "neutral");
         return;
     }
     const group = row.querySelector(".pudge-group-input")?.value.trim();
     if (!group) {
-        bridge.show_notification("Укажите группу для отправки уведомлений");
+        _setPudgeCheckStatus(row, "Укажите группу для отправки уведомлений", "error");
         return;
     }
-    const origText = btn.textContent;
-    btn.textContent = "...";
+    if (btn.dataset.pending) return;
+    const origHTML = btn.innerHTML;
+    btn.innerHTML = '<div class="loader"></div>';
     btn.dataset.pending = "1";
+    _setPudgeCheckStatus(row, "Проверка...", "pending");
     await bridge.checkPudgeAccess(sid, group);
-    btn.textContent = origText;
+    btn.innerHTML = origHTML;
     delete btn.dataset.pending;
 }
 
-function handlePudgeCheckResult(_session_id, json_str) {
+function handlePudgeCheckResult(session_id, json_str) {
     const result = JSON.parse(json_str);
+    const row = document.querySelector(`#pudge-session-container-block .row[data-id="${session_id}"]`);
+    if (!row) return;
     if (result.ok) {
-        bridge.show_notification("✓ Группа проверена — отправка работает");
+        _setPudgeCheckStatus(row, "✓ Группа проверена — отправка работает", "success");
     } else {
-        bridge.show_notification("✗ Ошибка: " + (result.error || "Неизвестная ошибка"));
+        _setPudgeCheckStatus(row, "✗ " + (result.error || "Неизвестная ошибка"), "error");
     }
 }
 

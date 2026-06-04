@@ -46,6 +46,28 @@ class AuthCanceled(Exception):
     pass
 
 
+def _friendly_write_error(e: Exception) -> str:
+    name = type(e).__name__
+    _MESSAGES = {
+        "ChatWriteForbiddenError":    "Нет прав на отправку сообщений в эту группу",
+        "ChatAdminRequiredError":     "Требуются права администратора",
+        "UserBannedInChannelError":   "Аккаунт заблокирован в этом канале",
+        "ChannelPrivateError":        "Группа или канал недоступны (приватные)",
+        "UsernameNotOccupiedError":   "Группа с таким именем не найдена",
+        "UsernameInvalidError":       "Неверный формат имени группы",
+        "PeerIdInvalidError":         "Неверный идентификатор группы",
+        "InviteHashExpiredError":     "Ссылка-приглашение устарела",
+        "InviteHashInvalidError":     "Неверная ссылка-приглашение",
+        "InviteHashEmptyError":       "Ссылка-приглашение пустая",
+        "UserNotParticipantError":    "Аккаунт не является участником группы",
+        "FloodWaitError":             "Превышен лимит запросов, попробуйте позже",
+        "AuthKeyUnregisteredError":   "Сессия недействительна — требуется повторная авторизация",
+        "UserDeactivatedError":       "Аккаунт деактивирован",
+        "UserDeactivatedBanError":    "Аккаунт заблокирован Telegram",
+    }
+    return _MESSAGES.get(name, "Не удалось выполнить проверку")
+
+
 class ClientWrapper:
 
     def __init__(
@@ -1116,8 +1138,8 @@ class ClientWrapper:
             await self._client.delete_messages(entity, msg.id)
             return {"ok": True}
         except Exception as e:
-            self.logger.warning("check_write_access failed for %s: %s", group, e)
-            return {"ok": False, "error": str(e)}
+            self.logger.warning("check_write_access failed for %s: %s", group, e, exc_info=True)
+            return {"ok": False, "error": _friendly_write_error(e)}
 
     async def leaveGroup(self, group: str) -> None:
         try:

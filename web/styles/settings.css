@@ -869,7 +869,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 16px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
   font-weight: 500;
@@ -892,11 +892,15 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 16px;
+  padding: 8px 10px;
   font-size: 13px;
   cursor: pointer;
   user-select: none;
   transition: background-color var(--transition);
+}
+
+.links-list-wrapper .links-select-all-row {
+    padding: 10px;
 }
 
 .links-item:hover { background: var(--bg-hover); }
@@ -1182,7 +1186,18 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 .pudge-check-btn {
   white-space: nowrap;
   flex-shrink: 0;
+  min-width: 88px;
 }
+
+.pudge-check-status {
+  font-size: 12px;
+  min-height: 16px;
+  transition: color var(--transition);
+}
+.pudge-check-status--pending { color: var(--text-secondary); }
+.pudge-check-status--success { color: #4caf50; }
+.pudge-check-status--error   { color: #f44336; }
+.pudge-check-status--neutral { color: var(--text-secondary); }
 
 .pudge-received {
   font-size: 12px;
@@ -1233,13 +1248,14 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
   max-height: 320px;
   overflow-y: auto;
   margin-bottom: 12px;
+  margin-top: 6px;
 }
 
 .hooks-modal-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 6px 0px;
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
   cursor: pointer;
@@ -1270,7 +1286,6 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
   padding: 8px 10px;
   outline: none;
   resize: vertical;
-  margin-bottom: 12px;
 }
 
 /* ── CONFIRM ACTION MODAL ────────────────────────────── */
