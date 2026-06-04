@@ -67,11 +67,13 @@ class Mailer:
                 "Внимание",
                 f"Нет {'' if self.is_send_text_messages else 'голосовых'} сообщений для рассылки",
             )
+            self.main_window.settings_bridge.finishMailing.emit()
             return
 
         if self.is_mail_from_usernames:
             if not mail_data["mailing_data"]:
                 self.main_window.show_notification("Внимание", "Нет username'ов для рассылки")
+                self.main_window.settings_bridge.finishMailing.emit()
                 return
             for data in mail_data["mailing_data"].splitlines():
                 matched = re.match(
@@ -89,6 +91,7 @@ class Mailer:
         if not self.session_files:
             self.logger.info("User doesn't provide sessions")
             self.main_window.show_notification("Внимание", "Сессии не выбраны")
+            self.main_window.settings_bridge.finishMailing.emit()
             return
 
         if not self.delay_between_messages.isdigit():
@@ -96,6 +99,7 @@ class Mailer:
             self.main_window.show_notification(
                 "Внимание", "Неправильная задержка между сообщениями"
             )
+            self.main_window.settings_bridge.finishMailing.emit()
             return
 
         if not self.mail_data:
@@ -103,6 +107,7 @@ class Mailer:
             self.main_window.show_notification(
                 "Внимание", "Нет пользователей для рассылки"
             )
+            self.main_window.settings_bridge.finishMailing.emit()
             return
 
         self.delay_between_messages = int(self.delay_between_messages or 0)
