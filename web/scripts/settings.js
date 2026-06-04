@@ -1740,6 +1740,8 @@ function renderPudgeSessions(sessions_json) {
                             onchange="toggleSendToSaved(this)">
                         отправлять в сохраненные сообщения
                     </label>
+                </div>
+                <div class="buttons">
                     <div class="pudge-group-row">
                         <input type="text" class="pudge-group-input" placeholder="Ссылка на группу для уведомлений"
                             value="${cfg.target_group || ""}"
@@ -1747,15 +1749,15 @@ function renderPudgeSessions(sessions_json) {
                             oninput="onPudgeGroupInput(this)">
                         <div class="btn pudge-check-btn" onclick="checkPudgeAccess(this)">Проверить</div>
                     </div>
-                    <div class="pudge-check-status"></div>
-                    <div class="pudge-received">Получено: <span class="pudge-count">0</span></div>
+                    <div class="pudge-ctrl-btns">
+                        <div class="btn open-groups" onclick="openHooksModal(this)">Хуки</div>
+                        <div class="btn open-groups" onclick="openPudgeGroupsModal(this)">Группа</div>
+                        <div class="btn open-groups" onclick="loadPudgeLinks(this)">Ссылки</div>
+                        ${controlBtn}
+                    </div>
                 </div>
-                <div class="buttons">
-                    <div class="btn open-groups" onclick="openHooksModal(this)">Хуки</div>
-                    <div class="btn open-groups" onclick="openPudgeGroupsModal(this)">Группа</div>
-                    <div class="btn open-groups" onclick="loadPudgeLinks(this)">Ссылки</div>
-                    ${controlBtn}
-                </div>
+                <div class="pudge-check-status"></div>
+                <div class="pudge-received">Получено: <span class="pudge-count">0</span></div>
             </div>
         `;
         fragment.appendChild(row);
@@ -1866,16 +1868,16 @@ async function togglePudge(is_start, btn) {
 function changePudgeStatus(session_id, is_on) {
     const row = document.querySelector(`#pudge-session-container-block .row[data-id="${session_id}"]`);
     if (!row) return;
-    const buttons = row.querySelector(".buttons");
-    if (!buttons) return;
-    buttons.querySelector(".pudge-loader")?.remove();
-    buttons.querySelector(".start-pudge")?.remove();
-    buttons.querySelector(".stop-pudge")?.remove();
+    const ctrl = row.querySelector(".pudge-ctrl-btns");
+    if (!ctrl) return;
+    ctrl.querySelector(".pudge-loader")?.remove();
+    ctrl.querySelector(".start-pudge")?.remove();
+    ctrl.querySelector(".stop-pudge")?.remove();
     if (is_on) {
-        buttons.insertAdjacentHTML("beforeend",
+        ctrl.insertAdjacentHTML("beforeend",
             `<div class="btn stop-pudge" onclick="togglePudge(false, this)">Стоп</div>`);
     } else {
-        buttons.insertAdjacentHTML("beforeend",
+        ctrl.insertAdjacentHTML("beforeend",
             `<div class="btn start-pudge" onclick="togglePudge(true, this)">Начать</div>`);
     }
 }
