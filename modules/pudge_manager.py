@@ -1,3 +1,4 @@
+import asyncio
 import re
 
 from telethon import events, types, utils
@@ -111,7 +112,19 @@ class PudgeManager:
                 return False
 
             session.set_session(wrapper)
-            await self._resolve_entities(session_id, session, wrapper)
+            try:
+                await asyncio.wait_for(
+                    self._resolve_entities(session_id, session, wrapper),
+                    timeout=60.0,
+                )
+            except asyncio.TimeoutError:
+                self.logger.error("[%s] _resolve_entities timed out after 60s", session_id)
+                self.main_window.show_notification("Ошибка", "Превышено время ожидания при подключении к группам")
+                return False
+
+            if not session.monitored_chat_ids and not session.discussion_chat_ids:
+                self.main_window.show_notification("Внимание", "Не удалось подключиться ни к одной группе")
+                return False
 
             hook_messages = await self.main_window.database.get_hook_messages()
             hook_texts = [m["text"] for m in hook_messages if m["id"] in session.hook_ids]

@@ -1728,6 +1728,16 @@ function renderPudgeSessions(sessions_json) {
     if (!container) return;
 
     const sessions = JSON.parse(sessions_json);
+
+    const liveIds = new Set(sessions.map(s => String(s.session_id)));
+    Object.keys(pudgeConfigs).forEach(sid => {
+        if (!liveIds.has(sid)) {
+            delete pudgeConfigs[sid];
+            clearTimeout(_pudgeGroupInputTimers[sid]);
+            delete _pudgeGroupInputTimers[sid];
+        }
+    });
+
     const fragment = document.createDocumentFragment();
 
     sessions.forEach((session) => {
@@ -1783,6 +1793,7 @@ function renderPudgeSessions(sessions_json) {
                 <div class="pudge-received">Получено: <span class="pudge-count">0</span></div>
             </div>
         `;
+        if (isRunning) _setPudgeLocked(row, true);
         fragment.appendChild(row);
     });
     container.appendChild(fragment);
@@ -1794,6 +1805,16 @@ function renderPudgeSessions(sessions_json) {
 
 function _getPudgeRow(elem) {
     return elem.closest(".row");
+}
+
+function _setPudgeLocked(row, locked) {
+    const checkbox = row.querySelector(".pudge-send-saved");
+    const groupInput = row.querySelector(".pudge-group-input");
+    if (checkbox) checkbox.disabled = locked;
+    if (groupInput) groupInput.disabled = locked || !!(checkbox && checkbox.checked);
+    row.querySelectorAll(".pudge-ctrl-btns .open-groups").forEach(btn => {
+        btn.classList.toggle("disabled", locked);
+    });
 }
 
 function toggleSendToSaved(cb) {
@@ -1893,6 +1914,7 @@ function changePudgeStatus(session_id, is_on) {
     if (!row) return;
     const ctrl = row.querySelector(".pudge-ctrl-btns");
     if (!ctrl) return;
+    _setPudgeLocked(row, is_on);
     ctrl.querySelector(".pudge-loader")?.remove();
     ctrl.querySelector(".start-pudge")?.remove();
     ctrl.querySelector(".stop-pudge")?.remove();
@@ -1915,6 +1937,7 @@ function updatePudgeReceivedCount(session_id, count) {
 // ── Pudge groups modal (reuse existing links-modal) ────────────────
 
 async function openPudgeGroupsModal(btn) {
+    if (btn.classList.contains("disabled")) return;
     const row = _getPudgeRow(btn);
     if (!row) return;
     const session_id = row.dataset.id;
@@ -1994,6 +2017,7 @@ function pudgeGroupsStatus(session_id, status) {
 // ── Pudge links modal ──────────────────────────────────────────────
 
 async function loadPudgeLinks(btn) {
+    if (btn.classList.contains("disabled")) return;
     const row = _getPudgeRow(btn);
     if (!row) return;
     await bridge.loadPudgeLinks(row.dataset.id);
@@ -2025,6 +2049,7 @@ function closePudgeLinksModal() {
 // ── Pudge hooks modal ──────────────────────────────────────────────
 
 function openHooksModal(btn) {
+    if (btn.classList.contains("disabled")) return;
     const row = _getPudgeRow(btn);
     if (!row) return;
     const sid = row.dataset.id;
@@ -2053,7 +2078,7 @@ function openHooksModal(btn) {
             item.innerHTML = `
                 <input type="checkbox" value="${msg.id}" ${selectedIds.has(msg.id) ? "checked" : ""}
                     onchange="_updateHooksSelectAll()">
-                <span>${msg.text}</span>
+                <span>${_escapeHtml(msg.text)}</span>
             `;
             list.appendChild(item);
         });
