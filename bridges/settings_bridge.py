@@ -416,6 +416,23 @@ class SettingsBridge(BaseBridge):
 
     @asyncSlot(str, str)
     async def deleteSession(self, session_id_str, session_name):
+        mw = self.main_window
+        active = []
+        if mw.group_mailer and mw.group_mailer.is_session_mailing(session_id_str):
+            active.append("рассылка")
+        if mw.pudge_manager and mw.pudge_manager.is_session_running(session_id_str):
+            active.append("Пудж")
+        if (mw.parser and mw.parser._running
+                and mw.parser.session_files
+                and session_id_str in mw.parser.session_files):
+            active.append("парсинг")
+        if active:
+            mw.show_notification(
+                "Внимание",
+                f"Нельзя удалить сессию: активно — {', '.join(active)}",
+            )
+            return
+
         if self.main_window.settings_manager.get_setting("force_delete_chats"):
             res = 1
         else:
