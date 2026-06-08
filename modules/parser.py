@@ -686,6 +686,26 @@ class Parser:
         self.main_window.settings_bridge.finishParsing.emit()
         # await self.finish_sessions()
 
+    def _active_settings_tags(self) -> list:
+        tags = []
+        if self.send_links_to_parsed:
+            type_label = {
+                "messages": "сообщения",
+                "username": "username",
+                "messages_and_username": "сообщения и username",
+                "usernames_and_messages": "username и сообщения",
+            }.get(self.send_links_type, self.send_links_type)
+            tags.append(f"Отправка в сохранённые: {type_label}")
+        if not self.parse_to_db:
+            tags.append("Автосохранение в БД: выкл")
+        if self.last_seen_filter == "this_week":
+            tags.append("Фильтр: эта неделя")
+        elif self.last_seen_filter == "this_month":
+            tags.append("Фильтр: этот месяц")
+        if self.main_window.settings_manager.get_setting("parse_admins"):
+            tags.append("Только администраторы")
+        return tags
+
     def _get_channel_type(self, entity) -> str:
         if isinstance(entity, types.Channel):
             if entity.broadcast:
@@ -743,6 +763,7 @@ class Parser:
                             "total_count": len(self.existing_ids),
                             "chat": f"{group_title} @{group_username} {group_type}",
                             "elapsed_time": elapsed_time,
+                            "active_settings": self._active_settings_tags(),
                         }
                     )
                 )
@@ -781,6 +802,7 @@ class Parser:
                             "total_count": f"{self.saved_count}/{parsed_count}",
                             "chat": f"{group_title} @{group_username} {group_type}",
                             "elapsed_time": elapsed_time,
+                            "active_settings": [],
                         }
                     )
                 )
