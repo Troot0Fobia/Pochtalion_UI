@@ -70,6 +70,7 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.pudgeGroupsStatus.connect(pudgeGroupsStatus);
     bridge.renderPudgeLinks.connect(renderPudgeLinks);
     bridge.renderPudgeDefaultGroup.connect(setRenderPudgeDefaultGroup);
+    bridge.loadSettings();
 });
 
 document.addEventListener("keyup", (event) => {
