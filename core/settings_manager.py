@@ -62,6 +62,11 @@ class SettingsManager:
     def _load(self):
         with self.settings_file_path.open("r", encoding="utf-8") as f:
             self.settings = json.load(f)
+        missing = {k: v for k, v in self.default_settings.items() if k not in self.settings}
+        if missing:
+            self.settings.update(missing)
+            self.save_settings()
+            self.logger.info("Merged %d new default setting(s): %s", len(missing), list(missing.keys()))
 
     def update_settings(self, key, value):
         if self.settings is None:
