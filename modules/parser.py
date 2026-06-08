@@ -277,6 +277,11 @@ class Parser:
                     ):
                         try:
                             user_entity = await message.get_sender()
+                            if user_entity is None and message.sender_id is not None:
+                                try:
+                                    user_entity = await client.get_entity(message.sender_id)
+                                except Exception:
+                                    pass
                             if not self._check_user_needness(
                                 user_entity, is_parse_admins
                             ):
@@ -346,6 +351,9 @@ class Parser:
         await self.stop()
 
     def _check_user_needness(self, user_entity, is_parse_admins) -> bool:
+        if user_entity is None:
+            return False
+
         if isinstance(user_entity, Channel):
             return False
 
