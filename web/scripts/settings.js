@@ -1492,6 +1492,17 @@ function renderParsingProgressData(render_data_str) {
     document.getElementById("current-chat").innerText = render_data.chat;
     document.getElementById("parsing-elapsed-time").innerText =
         render_data.elapsed_time;
+    const tagsEl = document.getElementById("active-parsing-tags");
+    const tags = render_data.active_settings || [];
+    if (tags.length > 0) {
+        tagsEl.innerHTML = tags
+            .map(t => `<span class="parsing-setting-tag">${t}</span>`)
+            .join("");
+        tagsEl.style.display = "flex";
+    } else {
+        tagsEl.style.display = "none";
+        tagsEl.innerHTML = "";
+    }
 }
 
 function finishParsing() {
