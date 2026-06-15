@@ -1488,8 +1488,22 @@ function renderParsingProgressData(render_data_str) {
     if (!save_db_button.disabled) save_db_button.disabled = true;
     if (!export_csv_button.disabled) export_csv_button.disabled = true;
     document.getElementById("parsing-status").innerText = render_data.status;
-    document.getElementById("total-parsed-count").innerText =
-        render_data.total_count;
+    const isSaving = render_data.status === "сохранение";
+    const addedLabel = document.getElementById("added-count-label");
+    const processedRow = document.getElementById("parsing-processed-row");
+    if (isSaving) {
+        addedLabel.innerText = "Сохранено:";
+        document.getElementById("parsing-added-count").innerText =
+            `${render_data.added_count}/${render_data.total_expected}`;
+        processedRow.style.display = "none";
+    } else {
+        addedLabel.innerText = "Добавлено:";
+        document.getElementById("parsing-added-count").innerText = render_data.added_count;
+        const total = render_data.total_expected;
+        document.getElementById("parsing-processed-count").innerText =
+            total > 0 ? `${render_data.processed_count}/${total}` : `${render_data.processed_count}`;
+        processedRow.style.display = "";
+    }
     document.getElementById("current-chat").innerText = render_data.chat;
     document.getElementById("parsing-elapsed-time").innerText =
         render_data.elapsed_time;

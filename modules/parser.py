@@ -53,6 +53,8 @@ class Parser:
         self.existing_ids = {}
         self.group_data = {}
         self._sent_user_ids: set[int] = set()
+        self.processed_count = 0
+        self.total_expected = 0
         is_parse_admins = self.main_window.settings_manager.get_setting("parse_admins")
         self.send_links_to_parsed = self.main_window.settings_manager.get_setting("send_links_to_parsed")
         self.send_links_type = self.main_window.settings_manager.get_setting("send_links_type") or "messages_and_username"
@@ -206,6 +208,17 @@ class Parser:
             )
 
             if group_type == "broadcast":
+                self.total_expected += int(self.count_of_posts) if self.count_of_posts else 0
+            elif self.is_parse_messages:
+                self.total_expected += int(self.count_of_messages) if self.count_of_messages else 0
+            else:
+                try:
+                    _tmp = await client.get_participants(group_entity, limit=0)
+                    self.total_expected += _tmp.total
+                except Exception:
+                    self.total_expected += getattr(group_entity, 'participants_count', 0) or 0
+
+            if group_type == "broadcast":
                 _strategy = "broadcast→comments"
             elif self.is_parse_messages:
                 _strategy = f"messages (limit={self.count_of_messages or 'all'})"
@@ -227,6 +240,7 @@ class Parser:
                     ):
                         if not message.post:
                             continue
+                        self.processed_count += 1
                         try:
                             async for comment in client.iter_messages(
                                 group_entity, reply_to=message.id
@@ -276,6 +290,7 @@ class Parser:
                         group_entity, self.count_of_messages or None
                     ):
                         try:
+                            self.processed_count += 1
                             user_entity = await message.get_sender()
                             if user_entity is None and message.sender_id is not None:
                                 try:
@@ -314,6 +329,7 @@ class Parser:
                 else:
                     async for user_entity in client.iter_participants(group_entity):
                         try:
+                            self.processed_count += 1
                             if not self._check_user_needness(
                                 user_entity, is_parse_admins
                             ):
@@ -760,7 +776,9 @@ class Parser:
                     json.dumps(
                         {
                             "status": "парсинг",
-                            "total_count": len(self.existing_ids),
+                            "added_count": len(self.existing_ids),
+                            "processed_count": self.processed_count,
+                            "total_expected": self.total_expected,
                             "chat": f"{group_title} @{group_username} {group_type}",
                             "elapsed_time": elapsed_time,
                             "active_settings": self._active_settings_tags(),
@@ -799,7 +817,9 @@ class Parser:
                     json.dumps(
                         {
                             "status": "сохранение",
-                            "total_count": f"{self.saved_count}/{parsed_count}",
+                            "added_count": self.saved_count,
+                            "total_expected": parsed_count,
+                            "processed_count": 0,
                             "chat": f"{group_title} @{group_username} {group_type}",
                             "elapsed_time": elapsed_time,
                             "active_settings": [],
