@@ -13,14 +13,17 @@ class PudgeSession:
         self.target_group: str = ""
         self.hook_ids: list[int] = []            # IDs of selected hook_messages rows
         self.groups: list[str] = []              # normalised group identifiers to monitor
-        self.monitored_chat_ids: set[int] = set()   # resolved numeric IDs (groups + channels)
+        self.monitored_chat_ids: set[int] = set()   # resolved numeric IDs (regular groups/supergroups)
         self.discussion_chat_ids: set[int] = set()  # linked discussion group IDs for channels
+        self.broadcast_chat_ids: set[int] = set()   # broadcast channel IDs (for historical scan)
         self.received_count: int = 0
+        self.saved_count: int = 0       # fallback-to-saved count for real-time
         self.scan_running: bool = False
         self.scan_task: Any = None
         self.scan_found: int = 0
         self.scan_processed: int = 0
         self.scan_total: int = 0
+        self.scan_saved: int = 0        # fallback-to-saved count for historical scan
 
     def set_session(self, client_wrapper):
         self.client_wrapper = client_wrapper
@@ -29,6 +32,7 @@ class PudgeSession:
         if groups != self.groups:
             self.monitored_chat_ids.clear()
             self.discussion_chat_ids.clear()
+            self.broadcast_chat_ids.clear()
         self.groups = groups
 
     def update_config(self, send_to_saved: bool, target_group: str, hook_ids: list[int]):
@@ -40,6 +44,7 @@ class PudgeSession:
         self.starting = False
         self.running = True
         self.received_count = 0
+        self.saved_count = 0
 
     def stop(self):
         self.running = False
@@ -47,6 +52,7 @@ class PudgeSession:
         self.handler = None
         self.monitored_chat_ids.clear()
         self.discussion_chat_ids.clear()
+        self.broadcast_chat_ids.clear()
 
     def stop_scan(self):
         self.scan_running = False

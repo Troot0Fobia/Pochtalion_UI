@@ -45,7 +45,8 @@ class SettingsBridge(BaseBridge):
     pudgeGroupsStatus = pyqtSignal(str, str)
     renderPudgeLinks = pyqtSignal(str, str)
     renderPudgeDefaultGroup = pyqtSignal(str)
-    pudgeScanProgress = pyqtSignal(str, int, int, int)
+    updatePudgeSavedCount = pyqtSignal(str, int)
+    pudgeScanProgress = pyqtSignal(str, int, int, int, int)
     pudgeScanStatus = pyqtSignal(str, bool)
 
     def __init__(self, main_window, database):

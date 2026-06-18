@@ -70,6 +70,7 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.pudgeGroupsStatus.connect(pudgeGroupsStatus);
     bridge.renderPudgeLinks.connect(renderPudgeLinks);
     bridge.renderPudgeDefaultGroup.connect(setRenderPudgeDefaultGroup);
+    bridge.updatePudgeSavedCount.connect(updatePudgeSavedCount);
     bridge.pudgeScanProgress.connect(updatePudgeScanProgress);
     bridge.pudgeScanStatus.connect(changePudgeScanStatus);
     bridge.loadSettings();
@@ -1818,7 +1819,9 @@ function renderPudgeSessions(sessions_json) {
                     </div>
                 </div>
                 <div class="pudge-check-status"></div>
-                <div class="pudge-received">Получено: <span class="pudge-count">0</span></div>
+                <div class="pudge-received">
+                    Получено: <span class="pudge-count">0</span><span class="pudge-saved-wrap hidden"> | В сохранённых: <span class="pudge-saved-count">0</span></span>
+                </div>
                 <div class="pudge-scan-section">
                     <div class="pudge-scan-controls">
                         <label class="pudge-scan-label">Сообщений:
@@ -1829,7 +1832,7 @@ function renderPudgeSessions(sessions_json) {
                     <div class="pudge-scan-progress hidden">
                         Всего: <span class="scan-total">0</span> |
                         Обработано: <span class="scan-processed">0</span> |
-                        Найдено: <span class="scan-found">0</span>
+                        Найдено: <span class="scan-found">0</span><span class="scan-saved-wrap hidden"> | В сохранённых: <span class="scan-saved">0</span></span>
                     </div>
                 </div>
             </div>
@@ -1975,6 +1978,16 @@ function updatePudgeReceivedCount(session_id, count) {
     if (span) span.textContent = String(count);
 }
 
+function updatePudgeSavedCount(session_id, count) {
+    const row = document.querySelector(`#pudge-session-container-block .row[data-id="${session_id}"]`);
+    if (!row) return;
+    const wrap = row.querySelector(".pudge-saved-wrap");
+    if (!wrap) return;
+    wrap.classList.remove("hidden");
+    const span = wrap.querySelector(".pudge-saved-count");
+    if (span) span.textContent = String(count);
+}
+
 // ── Pudge historical scan ──────────────────────────────────────────
 
 async function togglePudgeScan(is_start, btn) {
@@ -2013,7 +2026,7 @@ function changePudgeScanStatus(session_id, is_scanning) {
     }
 }
 
-function updatePudgeScanProgress(session_id, total, processed, found) {
+function updatePudgeScanProgress(session_id, total, processed, found, saved) {
     const row = document.querySelector(`#pudge-session-container-block .row[data-id="${session_id}"]`);
     if (!row) return;
     const progress = row.querySelector(".pudge-scan-progress");
@@ -2025,6 +2038,14 @@ function updatePudgeScanProgress(session_id, total, processed, found) {
     if (totalEl) totalEl.textContent = String(total);
     if (processedEl) processedEl.textContent = String(processed);
     if (foundEl) foundEl.textContent = String(found);
+    if (saved > 0) {
+        const wrap = progress.querySelector(".scan-saved-wrap");
+        if (wrap) {
+            wrap.classList.remove("hidden");
+            const savedEl = wrap.querySelector(".scan-saved");
+            if (savedEl) savedEl.textContent = String(saved);
+        }
+    }
 }
 
 // ── Pudge groups modal (reuse existing links-modal) ────────────────

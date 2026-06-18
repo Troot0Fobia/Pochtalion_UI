@@ -154,6 +154,7 @@ class PudgeManager:
     async def _resolve_entities(self, session_id: str, session: PudgeSession, wrapper) -> None:
         monitored: set[int] = set()
         discussion: set[int] = set()
+        broadcast: set[int] = set()
 
         for group in session.groups:
             try:
@@ -170,6 +171,9 @@ class PudgeManager:
                     if not await wrapper.is_joined(wrapper._client, group):
                         await wrapper._client(JoinChannelRequest(entity))
 
+                    # Track the channel itself for historical scanning
+                    broadcast.add(utils.get_peer_id(entity))
+
                     # Find the linked discussion group
                     full = await wrapper._client(GetFullChannelRequest(entity))
                     linked_id = full.full_chat.linked_chat_id
@@ -180,7 +184,7 @@ class PudgeManager:
                             "[%s] Channel %s → discussion group %d", session_id, group, linked_id
                         )
                     else:
-                        self.logger.warning("[%s] Channel %s has no linked discussion group", session_id, group)
+                        self.logger.info("[%s] Channel %s has no linked discussion group", session_id, group)
                 else:
                     # Regular group or supergroup: join if needed
                     if not await wrapper.is_joined(wrapper._client, group):
@@ -193,6 +197,7 @@ class PudgeManager:
 
         session.monitored_chat_ids = monitored
         session.discussion_chat_ids = discussion
+        session.broadcast_chat_ids = broadcast
 
     def _make_handler(self, session_id: str, session: PudgeSession, wrapper, hook_texts: list[str]):
         async def handler(event):
@@ -223,24 +228,40 @@ class PudgeManager:
             try:
                 chat = await event.get_chat()
                 username = getattr(chat, "username", None)
-                if username:
-                    link = f"https://t.me/{username}/{event.id}"
-                else:
-                    # chat.id is the raw positive channel/chat id — correct for t.me/c/ links
-                    link = f"https://t.me/c/{chat.id}/{event.id}"
 
-                if session.send_to_saved:
-                    target = "me"
+                if isinstance(chat, types.Channel):
+                    if username:
+                        link = f"https://t.me/{username}/{event.id}"
+                    else:
+                        link = f"https://t.me/c/{chat.id}/{event.id}"
+                    if session.send_to_saved:
+                        dest = "me"
+                    else:
+                        default_grp = (self.main_window.settings_manager.get_setting("pudge_default_group") or "").strip()
+                        dest = session.target_group.strip() or default_grp
+                    await wrapper._client.send_message(dest, link)
+                    session.received_count += 1
+                    self.main_window.settings_bridge.updatePudgeReceivedCount.emit(
+                        session_id, session.received_count
+                    )
+                    self.logger.info("[%s] Hook matched in chat %d, link sent to %s", session_id, chat_id, dest)
                 else:
-                    default_grp = (self.main_window.settings_manager.get_setting("pudge_default_group") or "").strip()
-                    target = session.target_group.strip() or default_grp
-                await wrapper._client.send_message(target, link)
-
-                session.received_count += 1
-                self.main_window.settings_bridge.updatePudgeReceivedCount.emit(
-                    session_id, session.received_count
-                )
-                self.logger.info("[%s] Hook matched in chat %d, link sent to %s", session_id, chat_id, target)
+                    # Basic Chat — no message link available, forward to saved messages
+                    await wrapper._client.forward_messages("me", event.message)
+                    if session.send_to_saved:
+                        session.received_count += 1
+                        self.main_window.settings_bridge.updatePudgeReceivedCount.emit(
+                            session_id, session.received_count
+                        )
+                    else:
+                        session.saved_count += 1
+                        self.main_window.settings_bridge.updatePudgeSavedCount.emit(
+                            session_id, session.saved_count
+                        )
+                    self.logger.info(
+                        "[%s] Hook matched in basic chat %d, forwarded to saved (no link available)",
+                        session_id, chat_id,
+                    )
             except Exception as e:
                 self.logger.error("[%s] Error sending hook notification: %s", session_id, e)
 
@@ -339,17 +360,19 @@ class PudgeManager:
         scan_targets = (
             [(cid, False) for cid in session.monitored_chat_ids]
             + [(cid, True) for cid in session.discussion_chat_ids]
+            + [(cid, False) for cid in session.broadcast_chat_ids]
         )
         total = limit * len(scan_targets)
         session.scan_running = True
         session.scan_found = 0
         session.scan_processed = 0
         session.scan_total = total
+        session.scan_saved = 0
 
         default_grp = (self.main_window.settings_manager.get_setting("pudge_default_group") or "").strip()
-        target = "me" if session.send_to_saved else (session.target_group.strip() or default_grp)
+        target = session.target_group.strip() or default_grp
 
-        self.main_window.settings_bridge.pudgeScanProgress.emit(session_id, total, 0, 0)
+        self.main_window.settings_bridge.pudgeScanProgress.emit(session_id, total, 0, 0, 0)
 
         try:
             for chat_id, is_discussion in scan_targets:
@@ -373,15 +396,27 @@ class PudgeManager:
                             try:
                                 chat = await message.get_chat()
                                 username = getattr(chat, "username", None)
-                                if username:
-                                    link = f"https://t.me/{username}/{message.id}"
+
+                                if isinstance(chat, types.Channel):
+                                    if username:
+                                        link = f"https://t.me/{username}/{message.id}"
+                                    else:
+                                        link = f"https://t.me/c/{chat.id}/{message.id}"
+                                    dest = "me" if session.send_to_saved else target
+                                    await wrapper._client.send_message(dest, link)
+                                    session.scan_found += 1
+                                    self.logger.info("[%s] Historical hook match: %s", session_id, link)
                                 else:
-                                    link = f"https://t.me/c/{chat.id}/{message.id}"
-                                await wrapper._client.send_message(target, link)
-                                session.scan_found += 1
-                                self.logger.info(
-                                    "[%s] Historical hook match: %s", session_id, link
-                                )
+                                    # Basic Chat — no message link, forward to saved messages
+                                    await wrapper._client.forward_messages("me", message)
+                                    if session.send_to_saved:
+                                        session.scan_found += 1
+                                    else:
+                                        session.scan_saved += 1
+                                    self.logger.info(
+                                        "[%s] Historical hook match in basic chat, forwarded to saved",
+                                        session_id,
+                                    )
                             except Exception as e:
                                 self.logger.error(
                                     "[%s] Error sending historical hook notification: %s", session_id, e
@@ -391,7 +426,7 @@ class PudgeManager:
                         if session.scan_processed % 5 == 0:
                             self.main_window.settings_bridge.pudgeScanProgress.emit(
                                 session_id, session.scan_total,
-                                session.scan_processed, session.scan_found,
+                                session.scan_processed, session.scan_found, session.scan_saved,
                             )
                 except asyncio.CancelledError:
                     raise
@@ -403,7 +438,8 @@ class PudgeManager:
             session.scan_running = False
             session.scan_task = None
             self.main_window.settings_bridge.pudgeScanProgress.emit(
-                session_id, session.scan_total, session.scan_processed, session.scan_found,
+                session_id, session.scan_total, session.scan_processed,
+                session.scan_found, session.scan_saved,
             )
             self.main_window.settings_bridge.pudgeScanStatus.emit(session_id, False)
             self.logger.info(
