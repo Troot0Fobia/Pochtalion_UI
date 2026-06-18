@@ -70,6 +70,8 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.pudgeGroupsStatus.connect(pudgeGroupsStatus);
     bridge.renderPudgeLinks.connect(renderPudgeLinks);
     bridge.renderPudgeDefaultGroup.connect(setRenderPudgeDefaultGroup);
+    bridge.pudgeScanProgress.connect(updatePudgeScanProgress);
+    bridge.pudgeScanStatus.connect(changePudgeScanStatus);
     bridge.loadSettings();
 });
 
@@ -1817,6 +1819,19 @@ function renderPudgeSessions(sessions_json) {
                 </div>
                 <div class="pudge-check-status"></div>
                 <div class="pudge-received">Получено: <span class="pudge-count">0</span></div>
+                <div class="pudge-scan-section">
+                    <div class="pudge-scan-controls">
+                        <label class="pudge-scan-label">Сообщений:
+                            <input type="number" class="pudge-scan-limit" value="100" min="1" max="50000">
+                        </label>
+                        <div class="btn start-pudge-scan" onclick="togglePudgeScan(true, this)">Сканировать</div>
+                    </div>
+                    <div class="pudge-scan-progress hidden">
+                        Всего: <span class="scan-total">0</span> |
+                        Обработано: <span class="scan-processed">0</span> |
+                        Найдено: <span class="scan-found">0</span>
+                    </div>
+                </div>
             </div>
         `;
         if (isRunning) _setPudgeLocked(row, true);
@@ -1958,6 +1973,58 @@ function updatePudgeReceivedCount(session_id, count) {
     if (!row) return;
     const span = row.querySelector(".pudge-count");
     if (span) span.textContent = String(count);
+}
+
+// ── Pudge historical scan ──────────────────────────────────────────
+
+async function togglePudgeScan(is_start, btn) {
+    const row = btn.closest(".row");
+    if (!row) return;
+    const sid = row.dataset.id;
+    btn.outerHTML = `<div class="btn pudge-loader pudge-scan-loader"><div class="loader"></div></div>`;
+    if (is_start) {
+        const limitInput = row.querySelector(".pudge-scan-limit");
+        const limit = String(parseInt(limitInput?.value || "100", 10) || 100);
+        await bridge.startPudgeScan(sid, limit);
+    } else {
+        await bridge.stopPudgeScan(sid);
+    }
+}
+
+function changePudgeScanStatus(session_id, is_scanning) {
+    const row = document.querySelector(`#pudge-session-container-block .row[data-id="${session_id}"]`);
+    if (!row) return;
+    const controls = row.querySelector(".pudge-scan-controls");
+    controls?.querySelector(".pudge-scan-loader")?.remove();
+    controls?.querySelector(".start-pudge-scan")?.remove();
+    controls?.querySelector(".stop-pudge-scan")?.remove();
+    if (is_scanning) {
+        const btn = document.createElement("div");
+        btn.className = "btn stop-pudge-scan";
+        btn.setAttribute("onclick", "togglePudgeScan(false, this)");
+        btn.textContent = "Стоп";
+        controls?.appendChild(btn);
+    } else {
+        const btn = document.createElement("div");
+        btn.className = "btn start-pudge-scan";
+        btn.setAttribute("onclick", "togglePudgeScan(true, this)");
+        btn.textContent = "Сканировать";
+        controls?.appendChild(btn);
+    }
+}
+
+function updatePudgeScanProgress(session_id, total, processed, found) {
+    const row = document.querySelector(`#pudge-session-container-block .row[data-id="${session_id}"]`);
+    if (!row) return;
+    const progress = row.querySelector(".pudge-scan-progress");
+    if (!progress) return;
+    progress.classList.remove("hidden");
+    const totalEl = progress.querySelector(".scan-total");
+    const processedEl = progress.querySelector(".scan-processed");
+    const foundEl = progress.querySelector(".scan-found");
+    if (totalEl) totalEl.textContent = String(total);
+    if (processedEl) processedEl.textContent = String(processed);
+    if (foundEl) foundEl.textContent = String(found);
 }
 
 // ── Pudge groups modal (reuse existing links-modal) ────────────────

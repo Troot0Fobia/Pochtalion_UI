@@ -45,6 +45,8 @@ class SettingsBridge(BaseBridge):
     pudgeGroupsStatus = pyqtSignal(str, str)
     renderPudgeLinks = pyqtSignal(str, str)
     renderPudgeDefaultGroup = pyqtSignal(str)
+    pudgeScanProgress = pyqtSignal(str, int, int, int)
+    pudgeScanStatus = pyqtSignal(str, bool)
 
     def __init__(self, main_window, database):
         super().__init__(main_window, database)
@@ -257,6 +259,17 @@ class SettingsBridge(BaseBridge):
     @asyncSlot(str, str)
     async def updatePudgeLinks(self, session_id: str, groups_data: str) -> None:
         self.main_window.pudge_manager.update_groups(session_id, groups_data)
+
+    @asyncSlot(str, str)
+    async def startPudgeScan(self, session_id: str, limit_str: str) -> None:
+        started = await self.main_window.pudge_manager.start_historical_scan(
+            session_id, int(limit_str)
+        )
+        self.pudgeScanStatus.emit(session_id, started)
+
+    @asyncSlot(str)
+    async def stopPudgeScan(self, session_id: str) -> None:
+        await self.main_window.pudge_manager.stop_historical_scan(session_id)
 
     # ── End Pudge ──────────────────────────────────────────────────────────────
 

@@ -79,6 +79,10 @@ class PudgeManager:
         session = self.work_sessions.get(session_id)
         return session.running if session else False
 
+    def is_scan_running(self, session_id: str) -> bool:
+        session = self.work_sessions.get(session_id)
+        return session.scan_running if session else False
+
     async def start_pudge(self, session_id: str) -> bool:
         session = self.work_sessions.get(session_id)
         if session is None:
@@ -267,6 +271,154 @@ class PudgeManager:
 
         return await wrapper.check_write_access(group)
 
+    async def start_historical_scan(self, session_id: str, limit: int) -> bool:
+        session = self.work_sessions.get(session_id)
+        if session is None:
+            self.logger.error("Session %s not found for historical scan", session_id)
+            return False
+
+        if session.scan_running:
+            return True
+
+        if not session.groups:
+            self.main_window.show_notification("Внимание", "Нет групп для поиска")
+            return False
+
+        if not session.hook_ids:
+            self.main_window.show_notification("Внимание", "Не выбраны хуки для поиска")
+            return False
+
+        default_grp = (self.main_window.settings_manager.get_setting("pudge_default_group") or "").strip()
+        effective_target = session.target_group.strip() or default_grp
+        if not session.send_to_saved and not effective_target:
+            self.main_window.show_notification("Внимание", "Укажите группу для отправки уведомлений")
+            return False
+
+        wrapper = await self.main_window.session_manager.get_or_start_session(
+            int(session_id), session.session_file
+        )
+        if wrapper is None:
+            self.logger.error("Failed to start session %s for historical scan", session_id)
+            return False
+
+        session.set_session(wrapper)
+
+        if not session.monitored_chat_ids and not session.discussion_chat_ids:
+            try:
+                await asyncio.wait_for(
+                    self._resolve_entities(session_id, session, wrapper),
+                    timeout=60.0,
+                )
+            except asyncio.TimeoutError:
+                self.logger.error("[%s] _resolve_entities timed out for historical scan", session_id)
+                self.main_window.show_notification("Ошибка", "Превышено время ожидания при подключении к группам")
+                return False
+
+        if not session.monitored_chat_ids and not session.discussion_chat_ids:
+            self.main_window.show_notification("Внимание", "Не удалось подключиться ни к одной группе")
+            return False
+
+        hook_messages = await self.main_window.database.get_hook_messages()
+        hook_texts = [m["text"] for m in hook_messages if m["id"] in session.hook_ids]
+        if not hook_texts:
+            self.main_window.show_notification("Внимание", "Выбранные хуки не найдены в базе данных")
+            return False
+
+        session.scan_task = asyncio.create_task(
+            self._run_historical_scan(session_id, session, wrapper, hook_texts, limit)
+        )
+        self.logger.info(
+            "[%s] Historical scan started: limit=%d, groups=%d, hooks=%d",
+            session_id, limit, len(session.groups), len(hook_texts),
+        )
+        return True
+
+    async def _run_historical_scan(
+        self, session_id: str, session, wrapper, hook_texts: list[str], limit: int
+    ) -> None:
+        scan_targets = (
+            [(cid, False) for cid in session.monitored_chat_ids]
+            + [(cid, True) for cid in session.discussion_chat_ids]
+        )
+        total = limit * len(scan_targets)
+        session.scan_running = True
+        session.scan_found = 0
+        session.scan_processed = 0
+        session.scan_total = total
+
+        default_grp = (self.main_window.settings_manager.get_setting("pudge_default_group") or "").strip()
+        target = "me" if session.send_to_saved else (session.target_group.strip() or default_grp)
+
+        self.main_window.settings_bridge.pudgeScanProgress.emit(session_id, total, 0, 0)
+
+        try:
+            for chat_id, is_discussion in scan_targets:
+                if not session.scan_running:
+                    break
+                try:
+                    async for message in wrapper._client.iter_messages(chat_id, limit=limit):
+                        if not session.scan_running:
+                            break
+
+                        if is_discussion and not getattr(message, "reply_to", None):
+                            session.scan_processed += 1
+                            continue
+
+                        if message.out:
+                            session.scan_processed += 1
+                            continue
+
+                        text = (message.raw_text or "").lower()
+                        if text and any(_hook_matches_words(hook, text) for hook in hook_texts):
+                            try:
+                                chat = await message.get_chat()
+                                username = getattr(chat, "username", None)
+                                if username:
+                                    link = f"https://t.me/{username}/{message.id}"
+                                else:
+                                    link = f"https://t.me/c/{chat.id}/{message.id}"
+                                await wrapper._client.send_message(target, link)
+                                session.scan_found += 1
+                                self.logger.info(
+                                    "[%s] Historical hook match: %s", session_id, link
+                                )
+                            except Exception as e:
+                                self.logger.error(
+                                    "[%s] Error sending historical hook notification: %s", session_id, e
+                                )
+
+                        session.scan_processed += 1
+                        if session.scan_processed % 5 == 0:
+                            self.main_window.settings_bridge.pudgeScanProgress.emit(
+                                session_id, session.scan_total,
+                                session.scan_processed, session.scan_found,
+                            )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    self.logger.error("[%s] Error iterating chat %d: %s", session_id, chat_id, e)
+        except asyncio.CancelledError:
+            self.logger.info("[%s] Historical scan cancelled", session_id)
+        finally:
+            session.scan_running = False
+            session.scan_task = None
+            self.main_window.settings_bridge.pudgeScanProgress.emit(
+                session_id, session.scan_total, session.scan_processed, session.scan_found,
+            )
+            self.main_window.settings_bridge.pudgeScanStatus.emit(session_id, False)
+            self.logger.info(
+                "[%s] Historical scan finished: processed=%d, found=%d",
+                session_id, session.scan_processed, session.scan_found,
+            )
+
+    async def stop_historical_scan(self, session_id: str) -> None:
+        session = self.work_sessions.get(session_id)
+        if session is None:
+            return
+        session.stop_scan()
+        self.logger.info("[%s] Historical scan stopped", session_id)
+
     async def stop_all(self) -> None:
         for session_id in list(self.work_sessions.keys()):
             await self.stop_pudge(session_id)
+            await self.stop_historical_scan(session_id)

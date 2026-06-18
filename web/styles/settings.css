@@ -281,23 +281,23 @@ input[type="button"][disabled],
 
 /* Green */
 .start-button, .accept-btn, .start-session-btn,
-.add-voice-window .add-button, .start-group-mailing, .start-pudge {
+.add-voice-window .add-button, .start-group-mailing, .start-pudge, .start-pudge-scan {
   background-color: #15532d;
   color: #86efac;
 }
 .start-button:not([disabled]):hover, .accept-btn:hover,
 .start-session-btn:hover, .add-voice-window .add-button:hover,
-.start-group-mailing:hover, .start-pudge:hover { background-color: #166534; color: #fff; }
+.start-group-mailing:hover, .start-pudge:hover, .start-pudge-scan:hover { background-color: #166534; color: #fff; }
 
 /* Red */
 .stop-button, .delete-btn, .cancel-btn, .stop-session-btn,
-.reset-settings, .add-voice-window .cancel-button, .stop-group-mailing, .stop-pudge {
+.reset-settings, .add-voice-window .cancel-button, .stop-group-mailing, .stop-pudge, .stop-pudge-scan {
   background-color: #7f1d1d;
   color: #fca5a5;
 }
 .stop-button:not([disabled]):hover, .delete-btn:hover, .cancel-btn:hover,
 .stop-session-btn:hover, .reset-settings:hover,
-.add-voice-window .cancel-button:hover, .stop-group-mailing:hover, .stop-pudge:hover {
+.add-voice-window .cancel-button:hover, .stop-group-mailing:hover, .stop-pudge:hover, .stop-pudge-scan:hover {
   background-color: #991b1b; color: #fff;
 }
 
@@ -305,7 +305,7 @@ input[type="button"][disabled],
 #save-results-to-computer, #add-results-to-database,
 .choose-button, #auth-button, .add-session-button,
 .edit-btn, #add-smm-message, #add-hook-message, #refresh-session-manager,
-.open-groups, .parse-groups-btn, .pudge-check-btn {
+.open-groups, .parse-groups-btn, .pudge-check-btn, .pudge-scan-loader {
   background-color: var(--accent-dim);
   color: #a5b4fc;
 }
@@ -1236,6 +1236,55 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 .pudge-received {
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+/* ── PUDGE HISTORICAL SCAN ───────────────────────────── */
+
+.pudge-scan-section {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.pudge-scan-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pudge-scan-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pudge-scan-limit {
+  width: 80px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 4px 8px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.pudge-scan-limit:focus {
+  border-color: var(--accent);
+}
+
+.pudge-scan-progress {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pudge-scan-progress.hidden {
+  display: none;
 }
 
 /* ── HOOK MESSAGES TAB ───────────────────────────────── */

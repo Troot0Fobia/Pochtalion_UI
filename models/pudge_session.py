@@ -16,6 +16,11 @@ class PudgeSession:
         self.monitored_chat_ids: set[int] = set()   # resolved numeric IDs (groups + channels)
         self.discussion_chat_ids: set[int] = set()  # linked discussion group IDs for channels
         self.received_count: int = 0
+        self.scan_running: bool = False
+        self.scan_task: Any = None
+        self.scan_found: int = 0
+        self.scan_processed: int = 0
+        self.scan_total: int = 0
 
     def set_session(self, client_wrapper):
         self.client_wrapper = client_wrapper
@@ -42,3 +47,9 @@ class PudgeSession:
         self.handler = None
         self.monitored_chat_ids.clear()
         self.discussion_chat_ids.clear()
+
+    def stop_scan(self):
+        self.scan_running = False
+        if self.scan_task and not self.scan_task.done():
+            self.scan_task.cancel()
+        self.scan_task = None
