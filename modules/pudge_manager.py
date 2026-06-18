@@ -218,12 +218,19 @@ class PudgeManager:
             if event.out:
                 return
 
+            sender_id = event.sender_id
+            if sender_id and sender_id > 0 and sender_id in session.seen_user_ids:
+                return
+
             text = (event.raw_text or "").lower()
             if not text:
                 return
 
             if not any(_hook_matches_words(hook, text) for hook in hook_texts):
                 return
+
+            if sender_id and sender_id > 0:
+                session.seen_user_ids.add(sender_id)
 
             try:
                 chat = await event.get_chat()
@@ -368,6 +375,8 @@ class PudgeManager:
         session.scan_processed = 0
         session.scan_total = total
         session.scan_saved = 0
+        if not session.running:
+            session.seen_user_ids.clear()
 
         default_grp = (self.main_window.settings_manager.get_setting("pudge_default_group") or "").strip()
         target = session.target_group.strip() or default_grp
@@ -391,8 +400,15 @@ class PudgeManager:
                             session.scan_processed += 1
                             continue
 
+                        sender_id = message.sender_id
+                        if sender_id and sender_id > 0 and sender_id in session.seen_user_ids:
+                            session.scan_processed += 1
+                            continue
+
                         text = (message.raw_text or "").lower()
                         if text and any(_hook_matches_words(hook, text) for hook in hook_texts):
+                            if sender_id and sender_id > 0:
+                                session.seen_user_ids.add(sender_id)
                             try:
                                 chat = await message.get_chat()
                                 username = getattr(chat, "username", None)

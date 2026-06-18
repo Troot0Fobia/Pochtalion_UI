@@ -18,6 +18,7 @@ class PudgeSession:
         self.broadcast_chat_ids: set[int] = set()   # broadcast channel IDs (for historical scan)
         self.received_count: int = 0
         self.saved_count: int = 0       # fallback-to-saved count for real-time
+        self.seen_user_ids: set[int] = set()  # users already notified (dedup)
         self.scan_running: bool = False
         self.scan_task: Any = None
         self.scan_found: int = 0
@@ -33,6 +34,7 @@ class PudgeSession:
             self.monitored_chat_ids.clear()
             self.discussion_chat_ids.clear()
             self.broadcast_chat_ids.clear()
+            self.seen_user_ids.clear()
         self.groups = groups
 
     def update_config(self, send_to_saved: bool, target_group: str, hook_ids: list[int]):
@@ -45,6 +47,7 @@ class PudgeSession:
         self.running = True
         self.received_count = 0
         self.saved_count = 0
+        self.seen_user_ids.clear()
 
     def stop(self):
         self.running = False
