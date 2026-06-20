@@ -83,7 +83,7 @@ class Mailer:
                     self.mail_data.append({"username": matched.group("username")})
         else:
             self.mail_data = await self.main_window.database.get_users_for_sending()
-            if self.mailing_order == "oldest_first":
+            if self.mailing_order == "newest_first":
                 self.mail_data.reverse()
             elif self.mailing_order == "random":
                 random.shuffle(self.mail_data)

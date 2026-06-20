@@ -870,7 +870,7 @@ class Database:
                 SELECT user_id, username, user_status, source_chat_id, source_post_id
                 FROM users
                 WHERE sended = 0
-                ORDER BY rowid ASC
+                ORDER BY created_at ASC
             """
             ) as cursor:
                 async for (
