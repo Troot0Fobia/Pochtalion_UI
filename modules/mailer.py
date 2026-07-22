@@ -338,16 +338,13 @@ class Mailer:
                             failed_usernames.append(u)
                     break
                 except Exception as e:
-                    self.logger.error(
-                        f"Error resolving '{username}' on session "
-                        f"{session_info.wrapper.session_file}: {e}",
-                        exc_info=True,
-                    )
                     if attempts + 1 < num_sessions:
                         carry_over.append((username, attempts + 1))
                     else:
                         self.logger.error(
-                            f"Giving up resolving '{username}', all sessions exhausted"
+                            f"Failed to resolve '{username}' on all {num_sessions} "
+                            f"session(s), last error: {e}",
+                            exc_info=True,
                         )
                         failed_usernames.append(username)
 
