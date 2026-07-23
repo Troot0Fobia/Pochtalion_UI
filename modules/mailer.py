@@ -19,7 +19,7 @@ from telethon.errors import (
 )
 from telethon.errors.rpcerrorlist import MsgIdInvalidError
 from telethon.tl.functions.messages import CheckChatInviteRequest, ImportChatInviteRequest
-from telethon.tl.types import ChatInviteAlready, User
+from telethon.tl.types import ChatInviteAlready, InputPeerSelf, InputPeerUser, User
 
 from core.logger import setup_logger
 from core.paths import SMM_IMAGES, SMM_VOICES
@@ -362,7 +362,14 @@ class Mailer:
         source_post_id = user_data["source_post_id"]
 
         try:
-            return await session_client.get_input_entity(user_id)
+            input_entity = await session_client.get_input_entity(user_id)
+            if isinstance(input_entity, (InputPeerUser, InputPeerSelf)):
+                return input_entity
+            # Telethon's entity cache is keyed by raw numeric id with no
+            # per-type namespace, so a user id that happens to numerically
+            # collide with an already-cached chat/channel id can come back
+            # as the wrong peer type here. Fall through to the other
+            # resolution strategies instead of returning a mismatched peer.
         except ValueError:
             pass
         except AuthKeyUnregisteredError:
@@ -392,7 +399,21 @@ class Mailer:
         if not source_data:
             return None
 
-        chat_identifier = source_data.get("chat_username") or source_chat_id
+        chat_username = source_data.get("chat_username")
+        chat_type = source_data.get("chat_type")
+        if chat_username:
+            chat_identifier = chat_username
+        elif chat_type in ("broadcast", "megagroup", "gigagroup"):
+            # source_chat_id is stored as the raw (unmarked) Telethon entity
+            # id. A bare positive int is always resolved by Telethon as a
+            # PeerUser, never a channel, so it must be marked as such here -
+            # matching the -100{id} convention used elsewhere in the app
+            # (see client_wrapper.py).
+            chat_identifier = int(f"-100{source_chat_id}")
+        elif chat_type == "chat":
+            chat_identifier = -source_chat_id
+        else:
+            chat_identifier = source_chat_id
         chat_title = source_data.get("chat_title", str(source_chat_id))
 
         try:
