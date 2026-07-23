@@ -427,7 +427,7 @@ class Mailer:
             # of repeating the same failed lookup for every subsequent user.
             chat_entity = await self._try_join_private_group(
                 session_client, session_id, source_chat_id,
-                source_data.get("invite_hash"), chat_title,
+                source_data.get("invite_hash"), chat_title, chat_identifier,
             )
             if chat_entity is None:
                 return None
@@ -516,14 +516,20 @@ class Mailer:
                 return si.wrapper.session_file
         return str(session_id)
 
-    async def _mark_group_inaccessible(self, session_id: int, chat_id: int, chat_title: str):
+    async def _mark_group_inaccessible(
+        self, session_id: int, chat_id: int, chat_title: str, chat_identifier
+    ):
         self._inaccessible.add((session_id, chat_id))
         accessible = []
         sm = self.main_window.session_manager
         if sm:
             for sf, wrapper in sm.sessions.items():
                 try:
-                    await wrapper.client.get_entity(chat_id)
+                    # chat_identifier is already marked (-100{id}/-{id}); a
+                    # bare chat_id here would always be misread by Telethon
+                    # as a user id lookup and never resolve, even when this
+                    # session genuinely has access to the group.
+                    await wrapper.client.get_entity(chat_identifier)
                     accessible.append(sf)
                 except Exception:
                     pass
@@ -536,7 +542,10 @@ class Mailer:
             f"Сессии с доступом: {accessible_str}",
         )
 
-    async def _try_join_private_group(self, session_client, session_id: int, chat_id: int, invite_hash: str | None, chat_title: str):
+    async def _try_join_private_group(
+        self, session_client, session_id: int, chat_id: int,
+        invite_hash: str | None, chat_title: str, chat_identifier,
+    ):
         if invite_hash:
             try:
                 result = await session_client(CheckChatInviteRequest(invite_hash))
@@ -547,7 +556,7 @@ class Mailer:
                     return join_result.chats[0]
             except Exception as e:
                 self.logger.error(f"Cannot join group {chat_id} via hash: {e}", exc_info=True)
-        await self._mark_group_inaccessible(session_id, chat_id, chat_title)
+        await self._mark_group_inaccessible(session_id, chat_id, chat_title, chat_identifier)
         return None
 
     async def stop(self):
