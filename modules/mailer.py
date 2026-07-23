@@ -187,7 +187,7 @@ class Mailer:
                     session_info.wrapper.client,
                     session_info.session_id,
                 )
-                if entity is None:
+                if entity is None or not isinstance(entity, (InputPeerUser, InputPeerSelf)):
                     self.logger.info("No entity received from data")
                     continue
                 user_id = entity.user_id
@@ -418,7 +418,13 @@ class Mailer:
 
         try:
             chat_entity = await session_client.get_entity(chat_identifier)
-        except ChannelPrivateError:
+        except (ChannelPrivateError, ValueError):
+            # A private/inaccessible channel can surface either
+            # ChannelPrivateError or a bare ValueError ("could not find the
+            # input entity") depending on whether Telethon recognizes the id
+            # at all. Both mean this session has no access, so try to join
+            # (or mark it inaccessible) the same way in either case, instead
+            # of repeating the same failed lookup for every subsequent user.
             chat_entity = await self._try_join_private_group(
                 session_client, session_id, source_chat_id,
                 source_data.get("invite_hash"), chat_title,
