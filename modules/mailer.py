@@ -1,8 +1,10 @@
 import asyncio
 import base64
+import itertools
 import json
 import random
 import re
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -24,6 +26,8 @@ from core.paths import SMM_IMAGES, SMM_VOICES
 from modules.client_wrapper import ClientWrapper
 
 UPDATE_DELAY = 1
+RESOLVE_BATCH_SIZE = 5
+RESOLVE_DELAY = 1
 
 
 class Mailer:
@@ -53,7 +57,7 @@ class Mailer:
         self.mailing_order = mail_data.get("order", "oldest_first")
         self.session_files = mail_data["selected_sessions"]
         self.session_wrappers = []
-        self.mail_data = []
+        self.mail_data: deque = deque()
         self._inaccessible: set[tuple[int, int]] = set()  # (session_id, chat_id)
 
         if self.is_send_text_messages:
@@ -82,11 +86,12 @@ class Mailer:
                 if matched:
                     self.mail_data.append({"username": matched.group("username")})
         else:
-            self.mail_data = await self.main_window.database.get_users_for_sending()
+            users = await self.main_window.database.get_users_for_sending()
             if self.mailing_order == "newest_first":
-                self.mail_data.reverse()
+                users.reverse()
             elif self.mailing_order == "random":
-                random.shuffle(self.mail_data)
+                random.shuffle(users)
+            self.mail_data = deque(users)
 
         if not self.session_files:
             self.logger.info("User doesn't provide sessions")
@@ -130,29 +135,25 @@ class Mailer:
         self.total_users_count = len(self.mail_data)
 
         if self.is_mail_from_usernames:
-            usernames = [data["username"] for data in self.mail_data]
-            entities = []
-            seen = set()
-            for session_info in self.session_wrappers:
-                for username in usernames:
-                    try:
-                        entity = await session_info.wrapper.client.get_entity(username)
-                        if entity.id not in seen:
-                            seen.add(entity.id)
-                            entities.append(entity)
-                    except Exception as e:
-                        self.logger.error(
-                            f"Error while receiving entity from username: {e}",
-                            exc_info=True,
-                        )
-
-            self.mail_data = entities
+            usernames = [data["username"] for data in list(self.mail_data)]
+            resolved, failed_usernames = await self._resolve_usernames(usernames)
+            self.mail_data = deque(resolved)
+            if failed_usernames:
+                self.logger.warning(
+                    "Failed to resolve %d/%d username(s): %s",
+                    len(failed_usernames), len(usernames), ", ".join(failed_usernames),
+                )
+                self.main_window.show_notification(
+                    "Не удалось зарезолвить username",
+                    f"Не найдены или недоступны на всех аккаунтах "
+                    f"({len(failed_usernames)} из {len(usernames)}):\n"
+                    + "\n".join(failed_usernames),
+                )
 
         while self.mail_data:
             if not self._running or not self.session_wrappers:
                 break
 
-            session_info = self.session_wrappers[index % self.sessions_count]
             smm_message = random.choice(self.smm_messages)
             base64_file = None
             user_id = None
@@ -160,7 +161,13 @@ class Mailer:
 
             entity = None
             if self.is_mail_from_usernames:
-                entity = self.mail_data.pop()
+                entity, session_info = self.mail_data.popleft()
+                if session_info not in self.session_wrappers:
+                    self.logger.info(
+                        "Session %s is no longer active, skipping user %s",
+                        session_info.wrapper.session_file, entity.id,
+                    )
+                    continue
                 user_id = entity.id
                 await session_info.wrapper.process_new_user(
                     {
@@ -174,8 +181,9 @@ class Mailer:
                     user_status=4,
                 )
             else:
+                session_info = self.session_wrappers[index % self.sessions_count]
                 entity = await self.get_user_entity(
-                    self.mail_data.pop(),
+                    self.mail_data.popleft(),
                     session_info.wrapper.client,
                     session_info.session_id,
                 )
@@ -253,9 +261,99 @@ class Mailer:
             )
             session_info.sent_count += 1
 
-            await asyncio.sleep(self.delay_between_messages or random.randint(3, 9))
+            await asyncio.sleep(self.delay_between_messages)
 
         await self.stop()
+
+    async def _resolve_usernames(
+        self, usernames: list[str]
+    ) -> tuple[list[tuple], list[str]]:
+        """Resolve usernames to entities, distributing batches across sessions.
+
+        Each session attempts up to RESOLVE_BATCH_SIZE usernames before handing
+        control to the next session. Usernames a session fails to resolve are
+        handed off to the next session's batch instead of being retried
+        repeatedly on the same (possibly rate-limited) session. A username is
+        dropped only once every session has failed to resolve it. The session
+        that resolves a username is kept attached to the entity, so it is later
+        used to send the message too, since only that session's client has the
+        resolved entity cached.
+        """
+        num_sessions = len(self.session_wrappers)
+        if num_sessions == 0:
+            return [], list(usernames)
+        session_cycle = itertools.cycle(self.session_wrappers)
+        flood_until: dict[int, float] = {}
+
+        pending = deque((username, 0) for username in usernames)
+        carry_over = deque()
+        resolved = []
+        failed_usernames = []
+        seen_ids = set()
+        skip_streak = 0
+
+        while pending or carry_over:
+            if not self._running:
+                break
+
+            session_info = next(session_cycle)
+            loop_time = asyncio.get_event_loop().time()
+            cooldown_until = flood_until.get(session_info.session_id, 0)
+            if loop_time < cooldown_until:
+                skip_streak += 1
+                if skip_streak >= num_sessions:
+                    await asyncio.sleep(1)
+                    skip_streak = 0
+                continue
+            skip_streak = 0
+
+            batch = []
+            while carry_over and len(batch) < RESOLVE_BATCH_SIZE:
+                batch.append(carry_over.popleft())
+            while pending and len(batch) < RESOLVE_BATCH_SIZE:
+                batch.append(pending.popleft())
+            if not batch:
+                break
+
+            for i, (username, attempts) in enumerate(batch):
+                try:
+                    entity = await session_info.wrapper.client.get_entity(username)
+                    if entity.id not in seen_ids:
+                        seen_ids.add(entity.id)
+                        resolved.append((entity, session_info))
+                except FloodWaitError as e:
+                    self.logger.warning(
+                        f"Flood wait ({e.seconds}s) resolving '{username}' on session "
+                        f"{session_info.wrapper.session_file}, handing off remaining "
+                        f"batch to next session"
+                    )
+                    flood_until[session_info.session_id] = loop_time + e.seconds
+                    for u, a in batch[i:]:
+                        if a + 1 < num_sessions:
+                            carry_over.append((u, a + 1))
+                        else:
+                            self.logger.error(
+                                f"Giving up resolving '{u}', all sessions exhausted"
+                            )
+                            failed_usernames.append(u)
+                    break
+                except Exception as e:
+                    self.logger.error(
+                        f"Error resolving '{username}' on session "
+                        f"{session_info.wrapper.session_file}: {e}",
+                        exc_info=True,
+                    )
+                    if attempts + 1 < num_sessions:
+                        carry_over.append((username, attempts + 1))
+                    else:
+                        self.logger.error(
+                            f"Giving up resolving '{username}', all sessions exhausted"
+                        )
+                        failed_usernames.append(username)
+
+                await asyncio.sleep(RESOLVE_DELAY)
+
+        return resolved, failed_usernames
 
     async def get_user_entity(self, user_data, session_client, session_id):
         user_id = user_data["user_id"]
