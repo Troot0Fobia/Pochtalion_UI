@@ -186,7 +186,20 @@ class ClientWrapper:
             self.main_window.settings_manager.get_setting("fetch_sessions_old_dialogs")
             and not is_module
         ):
-            await self.fetch_dialogs()
+            if phone_number or force_auth:
+                self.logger.info(
+                    "%s\tSkipping old-dialogs sync right after login: Telegram "
+                    "blocks data export for freshly authorized sessions for ~24h",
+                    self._session_file,
+                )
+                self.main_window.show_notification(
+                    "Внимание",
+                    "Сессия только что авторизована. Telegram блокирует экспорт "
+                    "диалогов для новых сессий примерно на сутки — синхронизация "
+                    "старых диалогов станет доступна при следующем запуске сессии.",
+                )
+            else:
+                await self.fetch_dialogs()
         self._status = 1
         return True
 
@@ -329,8 +342,15 @@ class ClientWrapper:
                     if messages:
                         await self._process_new_messages(messages, user_id)
         except TakeoutInitDelayError as e:
+            wait_hours = -(-e.seconds // 3600)  # ceil
             self.logger.error(
                 "%s\tTakeout rate limit, must wait %ds", self._session_file, e.seconds, exc_info=True
+            )
+            self.main_window.show_notification(
+                "Внимание",
+                f"Синхронизация старых диалогов недоступна ещё примерно {wait_hours} ч. "
+                "Telegram ограничивает экспорт данных для новых сессий и не позволяет "
+                "запрашивать его слишком часто.",
             )
         except Exception as e:
             self.logger.error(
@@ -396,29 +416,21 @@ class ClientWrapper:
 
     async def fetch_voice_dialogs(self) -> list[dict]:
         try:
-            async with self._client.takeout(users=True) as takeout:
-                dialogs = []
-                session_dialogs = await takeout.get_dialogs(
-                    ignore_migrated=True, archived=False
-                )
-                for dialog in session_dialogs:
-                    if (
-                        dialog.is_user
-                        and dialog.title.strip()
-                        and dialog.name != "Telegram"
-                        and not dialog.entity.bot
-                        and dialog.id != self.session_user_id
-                    ):
-                        dialogs.append({"id": dialog.id, "title": dialog.title.strip()})
+            dialogs = []
+            session_dialogs = await self._client.get_dialogs(
+                ignore_migrated=True, archived=False
+            )
+            for dialog in session_dialogs:
+                if (
+                    dialog.is_user
+                    and dialog.title.strip()
+                    and dialog.name != "Telegram"
+                    and not dialog.entity.bot
+                    and dialog.id != self.session_user_id
+                ):
+                    dialogs.append({"id": dialog.id, "title": dialog.title.strip()})
 
-                return dialogs
-        except TakeoutInitDelayError as e:
-            self.logger.error(
-                "%s\tTakeout rate limit, must wait %ds", self._session_file, e.seconds, exc_info=True
-            )
-            self.main_window.show_notification(
-                "Внимание", f"Частые запросы. Нужно подождать {e.seconds}"
-            )
+            return dialogs
         except Exception as e:
             self.logger.error(
                 "%s\tUnexpected error while retrieving voice dialogs", self._session_file, exc_info=True
@@ -429,32 +441,29 @@ class ClientWrapper:
 
     async def fetch_voices(self, user_id: int) -> list:
         try:
-            async with self._client.takeout(
-                files=True, max_file_size=5000000
-            ) as takeout:
-                messages = await takeout.get_messages(
-                    user_id, limit=100, filter=types.InputMessagesFilterVoice
+            messages = await self._client.get_messages(
+                user_id, limit=100, filter=types.InputMessagesFilterVoice
+            )
+
+            if not messages:
+                return []
+
+            folder = TMP / self._session_file / str(user_id)
+            folder.mkdir(parents=True, exist_ok=True)
+
+            voices = []
+            for message in messages:
+                message_id = message.id
+                filename = f"{message_id}_voice"
+                file = await message.download_media(file=str(folder / filename))
+                voices.append(
+                    {
+                        "id": message_id,
+                        "path": file,
+                    }
                 )
 
-                if not messages:
-                    return []
-
-                folder = TMP / self._session_file / str(user_id)
-                folder.mkdir(parents=True, exist_ok=True)
-
-                voices = []
-                for message in messages:
-                    message_id = message.id
-                    filename = f"{message_id}_voice"
-                    file = await message.download_media(file=str(folder / filename))
-                    voices.append(
-                        {
-                            "id": message_id,
-                            "path": file,
-                        }
-                    )
-
-                return voices
+            return voices
 
         except Exception as e:
             self.logger.error(
