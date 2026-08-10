@@ -104,7 +104,8 @@ class GroupMailer:
     async def start_group_mailing(
         self,
         session_id: str,
-        delay: int | str,
+        delay_min: int | str,
+        delay_max: int | str,
     ) -> bool:
         group_mail = self.work_sessions.get(session_id)
         if group_mail is None:
@@ -133,13 +134,18 @@ class GroupMailer:
 
             group_mail.set_session(session)
             await self._resolve_folder_links(session_id, group_mail, session)
-            group_mail.set_delay(int(delay) if delay else 0)
+            dmin_raw = delay_min or delay_max
+            dmax_raw = delay_max or dmin_raw
+            dmin = int(dmin_raw) if dmin_raw else 0
+            dmax = int(dmax_raw) if dmax_raw else dmin
+            group_mail.set_delay(dmin, dmax)
             self.logger.info(
-                "[%s] Mailing config: session=%s, groups=%d, delay=%ds",
+                "[%s] Mailing config: session=%s, groups=%d, delay=%d-%ds",
                 session_id,
                 group_mail.session_file,
                 len(group_mail.groups),
-                int(delay) if delay else 0,
+                group_mail.delay_min,
+                group_mail.delay_max,
             )
             group_mail.set_task(asyncio.create_task(self.group_mail(session_id)))
             group_mail.start()
@@ -309,7 +315,7 @@ class GroupMailer:
                 group_mail.group_index = (group_mail.group_index + 1) % len(groups)
 
             if group_mail.running:
-                await asyncio.sleep(group_mail.delay)
+                await asyncio.sleep(random.uniform(group_mail.delay_min, group_mail.delay_max))
 
         # Loop exited due to internal stop (PeerFlood / no messages).
         # Task cancellation (external stop) raises CancelledError and never reaches here.

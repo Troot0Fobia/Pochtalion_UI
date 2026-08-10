@@ -147,9 +147,11 @@ class SettingsBridge(BaseBridge):
         merged = [g for g in current if g not in fetched_set] + list(selected_set)
         self.main_window.group_mailer.update_groups(session_id_str, "\n".join(merged))
 
-    @asyncSlot(str, str)
-    async def startGroupMailing(self, session_id: str, delay: str) -> None:
-        started = await self.main_window.group_mailer.start_group_mailing(session_id, delay)
+    @asyncSlot(str, str, str)
+    async def startGroupMailing(self, session_id: str, delay_min: str, delay_max: str) -> None:
+        started = await self.main_window.group_mailer.start_group_mailing(
+            session_id, delay_min, delay_max
+        )
         self.changeGroupMailingStatus.emit(session_id, started)
 
     @asyncSlot(str)

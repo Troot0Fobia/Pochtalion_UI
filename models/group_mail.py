@@ -9,7 +9,8 @@ class GroupMail:
         self.task: Task | None = None
         self.running: bool = False
         self.starting: bool = False
-        self.delay: int = 0
+        self.delay_min: int = 0
+        self.delay_max: int = 0
         self.groups: list[str] = []
         self.group_index: int = 0
         self.group_cooldowns: dict[str, float] = {}
@@ -23,8 +24,11 @@ class GroupMail:
     def set_task(self, task: Task):
         self.task = task
 
-    def set_delay(self, delay: int):
-        self.delay = delay
+    def set_delay(self, delay_min: int, delay_max: int):
+        if delay_min > delay_max:
+            delay_min, delay_max = delay_max, delay_min
+        self.delay_min = delay_min
+        self.delay_max = delay_max
 
     def set_groups(self, groups: list[str]):
         if groups != self.groups:
@@ -56,6 +60,6 @@ class GroupMail:
             f"client wrapper: {self.client_wrapper}\n"
             f"task: {self.task}\n"
             f"running: {self.running}\n"
-            f"delay: {self.delay}\n"
+            f"delay: {self.delay_min}-{self.delay_max}\n"
             f"group: {self.groups}"
         )

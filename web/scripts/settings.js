@@ -540,7 +540,9 @@ async function renderSessions(sessions_json, destination) {
                     <div class="group-mailing-info">
                         <div class="mailing-delay-label">
                             <span>Задержка, сек</span>
-                            <input type="number" placeholder="0" class="input-number group-mailing-delay" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
+                            <input type="number" placeholder="от" class="input-number group-mailing-delay-min" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
+                            <span>–</span>
+                            <input type="number" placeholder="до" class="input-number group-mailing-delay-max" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
                         </div>
                         <div>Отправлено: <span class="group-mailing-count">0</span></div>
                         <div>Последнее в: <span class="group-mailing-time">—</span></div>
@@ -655,8 +657,9 @@ async function toggleControlGroupMailing(is_start, elem) {
     elem.outerHTML = `<div class="btn mailing-loader" style="background-color: blue;"><div class="loader"></div></div>`;
 
     if (is_start) {
-        let delay = row.querySelector(".group-mailing-delay")?.value || 0;
-        await bridge.startGroupMailing(session_id, delay);
+        let delayMin = row.querySelector(".group-mailing-delay-min")?.value || 0;
+        let delayMax = row.querySelector(".group-mailing-delay-max")?.value || 0;
+        await bridge.startGroupMailing(session_id, delayMin, delayMax);
     } else {
         await bridge.stopGroupMailing(session_id);
     }
@@ -1549,7 +1552,8 @@ async function startMailing() {
     const mailing_data = document
         .getElementById("mailing-data-field")
         .value.trim();
-    const delay = document.getElementById("delay-between-mailing-messages").value;
+    const delay_min = document.getElementById("delay-between-mailing-messages-min").value;
+    const delay_max = document.getElementById("delay-between-mailing-messages-max").value;
     const order = document.getElementById("mailing-order").value;
 
     if (is_parse_usernames && !mailing_data) {
@@ -1561,7 +1565,8 @@ async function startMailing() {
         is_parse_usernames,
         is_send_text,
         mailing_data,
-        delay,
+        delay_min,
+        delay_max,
         order,
         selected_sessions: selectedMailSessions,
     };

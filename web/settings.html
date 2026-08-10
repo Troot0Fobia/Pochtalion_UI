@@ -148,8 +148,11 @@
                             </select>
                         </div>
                         <div class="timing-settings">
-                            <label for="delay-between-mailing">Задержка между сообщениями, сек</label>
-                            <input type="text" class="input-number" maxlength="6" placeholder="0" id="delay-between-mailing-messages"
+                            <label for="delay-between-mailing-messages-min">Задержка между сообщениями, сек</label>
+                            <input type="text" class="input-number" maxlength="6" placeholder="от" id="delay-between-mailing-messages-min"
+                                oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
+                            <span>–</span>
+                            <input type="text" class="input-number" maxlength="6" placeholder="до" id="delay-between-mailing-messages-max"
                                 oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
                         </div>
                         <div class="choose-accounts">

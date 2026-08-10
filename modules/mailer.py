@@ -38,7 +38,8 @@ class Mailer:
         self.update_task = None
         self.is_mail_from_usernames = None
         self.mail_data = None
-        self.delay_between_messages = None
+        self.delay_min = None
+        self.delay_max = None
         self.logger = setup_logger("Pochtalion.Mailer", "mailer.log")
 
     @dataclass
@@ -53,7 +54,10 @@ class Mailer:
         mail_data = json.loads(mail_data_str)
         self.is_mail_from_usernames = mail_data["is_parse_usernames"]
         self.is_send_text_messages = mail_data["is_send_text"]
-        self.delay_between_messages = mail_data["delay"]
+        raw_delay_min = mail_data["delay_min"]
+        raw_delay_max = mail_data["delay_max"]
+        self.delay_min = raw_delay_min or raw_delay_max
+        self.delay_max = raw_delay_max or self.delay_min
         self.mailing_order = mail_data.get("order", "oldest_first")
         self.session_files = mail_data["selected_sessions"]
         self.session_wrappers = []
@@ -99,7 +103,7 @@ class Mailer:
             self.main_window.settings_bridge.finishMailing.emit()
             return
 
-        if not self.delay_between_messages.isdigit():
+        if not self.delay_min.isdigit() or not self.delay_max.isdigit():
             self.logger.info("User doesn't provide correct delay between messages")
             self.main_window.show_notification(
                 "Внимание", "Неправильная задержка между сообщениями"
@@ -115,12 +119,16 @@ class Mailer:
             self.main_window.settings_bridge.finishMailing.emit()
             return
 
-        self.delay_between_messages = int(self.delay_between_messages or 0)
+        self.delay_min = int(self.delay_min or 0)
+        self.delay_max = int(self.delay_max or 0)
+        if self.delay_min > self.delay_max:
+            self.delay_min, self.delay_max = self.delay_max, self.delay_min
         self.logger.info(
-            "Mailing config: sessions=%d, users=%d, delay=%ds, from_usernames=%s, msg_type=%s, smm_msgs=%d",
+            "Mailing config: sessions=%d, users=%d, delay=%d-%ds, from_usernames=%s, msg_type=%s, smm_msgs=%d",
             len(self.session_files),
             len(self.mail_data),
-            self.delay_between_messages,
+            self.delay_min,
+            self.delay_max,
             self.is_mail_from_usernames,
             "text" if self.is_send_text_messages else "voice",
             len(self.smm_messages),
@@ -261,7 +269,7 @@ class Mailer:
             )
             session_info.sent_count += 1
 
-            await asyncio.sleep(self.delay_between_messages)
+            await asyncio.sleep(random.uniform(self.delay_min, self.delay_max))
 
         await self.stop()
 
