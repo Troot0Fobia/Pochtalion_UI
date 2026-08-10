@@ -111,6 +111,38 @@ class Database:
             await db.commit()
         except Exception:
             pass
+        try:
+            await db.execute("ALTER TABLE smm_voices ADD COLUMN used_for_replies INTEGER DEFAULT 0")
+            await db.commit()
+        except Exception:
+            pass
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS trigger_phrases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                text TEXT NOT NULL
+            )
+        """
+        )
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS reply_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                text TEXT NOT NULL,
+                photo TEXT DEFAULT NULL
+            )
+        """
+        )
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS trigger_auto_replies (
+                session_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                replied_at TEXT NOT NULL,
+                PRIMARY KEY (session_id, user_id)
+            )
+        """
+        )
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -170,6 +202,11 @@ class Database:
                 END;
             """
         )
+        try:
+            await db.execute("ALTER TABLE messages ADD COLUMN origin TEXT DEFAULT 'manual'")
+            await db.commit()
+        except Exception:
+            pass
 
         await db.commit()
 
@@ -454,6 +491,145 @@ class Database:
             )
             await self._db.commit()
 
+    # ## =================== Methods for trigger phrases ========================= ###
+
+    async def get_trigger_phrases(self) -> list[dict]:
+        phrases = []
+        async with self._lock:
+            async with self._db.execute(
+                "SELECT id, text FROM trigger_phrases ORDER BY id"
+            ) as cursor:
+                async for (id, text) in cursor:
+                    phrases.append({"id": id, "text": text})
+        return phrases
+
+    async def add_trigger_phrase(self, text: str) -> int:
+        async with self._lock:
+            async with self._db.execute(
+                "INSERT INTO trigger_phrases (text) VALUES (?)", (text,)
+            ) as cursor:
+                await self._db.commit()
+                return cursor.lastrowid
+
+    async def delete_trigger_phrase(self, id: int) -> None:
+        async with self._lock:
+            await self._db.execute("DELETE FROM trigger_phrases WHERE id = ?", (id,))
+            await self._db.commit()
+
+    async def update_trigger_phrase(self, id: int, text: str) -> None:
+        async with self._lock:
+            await self._db.execute(
+                "UPDATE trigger_phrases SET text = ? WHERE id = ?", (text, id)
+            )
+            await self._db.commit()
+
+    # ## =================== Methods for reply messages =========================== ###
+
+    async def add_reply_message(self, text: str, photo: str) -> str:
+        async with self._lock:
+            async with self._db.execute(
+                """
+                INSERT INTO reply_messages (text, photo)
+                VALUES (?, ?)
+            """,
+                (text if text else "", photo if photo else ""),
+            ) as cursor:
+                await self._db.commit()
+                return str(cursor.lastrowid)
+
+    async def edit_reply_message(self, id: int, text: str, photo: str) -> str | None:
+        async with self._lock:
+            async with self._db.execute(
+                """
+                SELECT photo FROM reply_messages WHERE id = ?
+            """,
+                (id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+
+            if row is None:
+                return None
+
+            await self._db.execute(
+                """
+                UPDATE reply_messages
+                SET text = ?, photo = ?
+                WHERE id = ?
+            """,
+                (text, photo or row["photo"] or None, id),
+            )
+            await self._db.commit()
+
+            return row["photo"]
+
+    async def get_reply_messages(self) -> list:
+        messages = []
+        async with self._lock:
+            async with self._db.execute(
+                """
+                SELECT id, text, photo
+                FROM reply_messages
+            """
+            ) as cursor:
+                async for (id, text, photo) in cursor:
+                    messages.append(
+                        {
+                            "id": id,
+                            "text": text if text else None,
+                            "photo": photo if photo else None,
+                        }
+                    )
+        return messages
+
+    async def delete_reply_message(self, id: int) -> str | None:
+        async with self._lock:
+            async with self._db.execute(
+                """
+                    SELECT photo
+                    FROM reply_messages
+                    WHERE id = ?
+                """,
+                (id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+
+            await self._db.execute(
+                """
+                    DELETE FROM reply_messages
+                    WHERE id = ?
+                """,
+                (id,),
+            )
+
+            await self._db.commit()
+
+            return row["photo"] if row else None
+
+    # ## =================== Methods for trigger auto-reply dedup ================= ###
+
+    async def has_trigger_replied(self, session_id: int, user_id: int) -> bool:
+        async with self._lock:
+            async with self._db.execute(
+                """
+                SELECT 1 FROM trigger_auto_replies
+                WHERE session_id = ? AND user_id = ?
+                LIMIT 1
+            """,
+                (session_id, user_id),
+            ) as cursor:
+                return await cursor.fetchone() is not None
+
+    async def mark_trigger_replied(self, session_id: int, user_id: int) -> None:
+        async with self._lock:
+            await self._db.execute(
+                """
+                INSERT OR IGNORE INTO trigger_auto_replies (session_id, user_id, replied_at)
+                VALUES (?, ?, ?)
+            """,
+                (session_id, user_id, datetime.now(tz=timezone("UTC")).isoformat()),
+            )
+            await self._db.commit()
+
     # ## ===================== Methods for sending voices ======================= ###
     async def add_voice_message(
         self,
@@ -498,11 +674,11 @@ class Database:
         async with self._lock:
             async with self._db.execute(
                 """
-                    SELECT id, name, description, selected, path, msg_order
+                    SELECT id, name, description, selected, path, msg_order, used_for_replies
                     FROM smm_voices
                 """,
             ) as cursor:
-                async for (id, name, desc, selected, path, msg_order) in cursor:
+                async for (id, name, desc, selected, path, msg_order, used_for_replies) in cursor:
                     voice_msgs.append(
                         {
                             "id": id,
@@ -511,6 +687,7 @@ class Database:
                             "selected": bool(selected),
                             "path": str(SMM_VOICES / path),
                             "order": msg_order or 1,
+                            "used_for_replies": bool(used_for_replies),
                         }
                     )
 
@@ -531,6 +708,20 @@ class Database:
 
         return voices
 
+    async def get_reply_voice_pool(self) -> list:
+        voices = []
+        async with self._lock:
+            async with self._db.execute(
+                """
+                    SELECT name, path
+                    FROM smm_voices
+                    WHERE used_for_replies = 1
+                """
+            ) as cursor:
+                async for (name, path) in cursor:
+                    voices.append({"name": name, "path": path})
+
+        return voices
 
     async def toggle_voice_message_selection(self, id: int, selected: bool) -> bool:
         async with self._lock:
@@ -542,6 +733,23 @@ class Database:
                 """,
                 (
                     int(selected),
+                    id,
+                ),
+            ) as cursor:
+                changed = cursor.rowcount > 0
+                await self._db.commit()
+                return changed
+
+    async def toggle_voice_reply_usage(self, id: int, used: bool) -> bool:
+        async with self._lock:
+            async with self._db.execute(
+                """
+                    UPDATE smm_voices
+                    SET used_for_replies = ?
+                    WHERE id = ?
+                """,
+                (
+                    int(used),
                     id,
                 ),
             ) as cursor:
@@ -638,6 +846,7 @@ class Database:
         is_out: bool,
         session_id: int,
         created_at: str = datetime.now(tz=timezone("UTC")).isoformat(),
+        origin: str = "manual",
     ) -> None:
         async with self._lock:
             await self._db.execute(
@@ -649,8 +858,9 @@ class Database:
                                                 chat_id,
                                                 is_out,
                                                 session_id,
-                                                created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                                created_at,
+                                                origin)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     message_id,
@@ -661,9 +871,22 @@ class Database:
                     int(is_out),
                     session_id,
                     created_at,
+                    origin,
                 ),
             )
             await self._db.commit()
+
+    async def has_outgoing_message(self, chat_id: int, session_id: int, origin: str) -> bool:
+        async with self._lock:
+            async with self._db.execute(
+                """
+                SELECT 1 FROM messages
+                WHERE chat_id = ? AND session_id = ? AND is_out = 1 AND origin = ?
+                LIMIT 1
+            """,
+                (chat_id, session_id, origin),
+            ) as cursor:
+                return await cursor.fetchone() is not None
 
     # ## ====================== Methods for parse_source ======================= ###
 

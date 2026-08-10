@@ -302,7 +302,7 @@ class Mailer:
         """
         try:
             await session_info.wrapper.sendMessage(
-                user_id, json.dumps(message), not self.is_send_text_messages
+                user_id, json.dumps(message), not self.is_send_text_messages, origin="mailer"
             )
             return "ok"
         except FloodWaitError as e:

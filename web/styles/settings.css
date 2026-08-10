@@ -305,7 +305,8 @@ input[type="button"][disabled],
 #save-results-to-computer, #add-results-to-database,
 .choose-button, #auth-button, .add-session-button,
 .edit-btn, #add-smm-message, #add-hook-message, #refresh-session-manager,
-.open-groups, .parse-groups-btn, .pudge-check-btn, .pudge-scan-loader {
+.open-groups, .parse-groups-btn, .pudge-check-btn, .pudge-scan-loader,
+#add-trigger-phrase, #add-reply-message {
   background-color: var(--accent-dim);
   color: #a5b4fc;
 }
@@ -313,7 +314,8 @@ input[type="button"][disabled],
 #add-results-to-database:not([disabled]):hover,
 .choose-button:hover, #auth-button:hover, .add-session-button:hover,
 .edit-btn:hover, #add-smm-message:hover, #add-hook-message:hover, #refresh-session-manager:hover,
-.open-groups:hover, .parse-groups-btn:hover, .pudge-check-btn:hover {
+.open-groups:hover, .parse-groups-btn:hover, .pudge-check-btn:hover,
+#add-trigger-phrase:hover, #add-reply-message:hover {
   background-color: var(--accent); color: #fff;
 }
 
@@ -565,6 +567,21 @@ hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 2px 6px;
+}
+.voice-checkbox-label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.reply-voice-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 4px 0;
 }
 
 .voice-desc-slider {

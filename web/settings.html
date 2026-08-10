@@ -169,6 +169,13 @@
                             <input type="text" class="input-number" maxlength="6" placeholder="до" id="second-message-delay-max"
                                 oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
                         </div>
+                        <div class="timing-settings">
+                            <label class="settings-row">
+                                <input type="checkbox" id="trigger-auto-reply-toggle" name="trigger_auto_reply_enabled"
+                                    onchange="onToggleTriggerAutoReply(this)">
+                                <div class="setting-name">Включить автоответчик</div>
+                            </label>
+                        </div>
                         <div class="choose-accounts">
                             <label for="choose-button">Выберите аккаунты для работы <span id="mailing-account-count">0</span></label>
                             <input type="button" class="button choose-button" value="Выбрать" onclick="loadChooseSessions()">
@@ -261,6 +268,8 @@
                 <div class="tab sub-tab text-tab active-tab" id="text-tab" onclick="openSMMSettingsTab('text')">Для рассылки</div>
                 <div class="tab sub-tab voice-tab" id="voice-tab" onclick="openSMMSettingsTab('voice')">Голосовые сообщения</div>
                 <div class="tab sub-tab" id="hooks-tab" onclick="openSMMSettingsTab('hooks')">Сообщения для хуков</div>
+                <div class="tab sub-tab" id="triggers-tab" onclick="openSMMSettingsTab('triggers')">Триггеры</div>
+                <div class="tab sub-tab" id="replies-tab" onclick="openSMMSettingsTab('replies')">Сообщения для ответа</div>
             </div>
             <div class="sub-block active-tab-block" id="text-smm-block">
                 <div id="image-preview-overlay" onclick="this.style.display = 'none'">
@@ -335,6 +344,37 @@
                 <div class="button" id="add-hook-message" onclick="addHookMessage()"><img class="icons" src="assets/icons/add.png" alt="">Добавить</div>
                 <hr>
                 <div class="hook-message-list" id="hook-message-list"></div>
+            </div>
+            <div class="sub-block" id="triggers-smm-block">
+                <div class="row">
+                    <div class="row-content">
+                        <input type="text" class="hook-message-input" id="newTriggerPhrase" placeholder="Введите триггер-фразу">
+                    </div>
+                </div>
+                <div class="button" id="add-trigger-phrase" onclick="addTriggerPhrase()"><img class="icons" src="assets/icons/add.png" alt="">Добавить</div>
+                <hr>
+                <div class="hook-message-list" id="trigger-phrase-list"></div>
+            </div>
+            <div class="sub-block" id="replies-smm-block">
+                <div id="reply-image-preview-overlay" onclick="this.style.display = 'none'">
+                    <img id="reply-image-preview-fullscreen" src="" alt="preview">
+                </div>
+                <div class="row">
+                    <div class="left-smm-side">
+                        <textarea class="smm-text" placeholder="Напишите сообщение" id="newReplyMessage"></textarea>
+                        <label>
+                            <img class="image-preview" src="assets/images/add_image.png" alt="add image" id="newReplyPhoto">
+                            <input type="file" accept=".jpg,.jpeg,.png" onchange="uploadReplyImage(this)">
+                        </label>
+                    </div>
+                </div>
+                <div class="button" id="add-reply-message" onclick="addReplyMessage()"><img class="icons" src="assets/icons/add.png" alt="">Добавить сообщение</div>
+                <hr>
+                <div class="smm-message-list" id="reply-message-list"></div>
+                <hr>
+                <div class="smm-voice-messages-title">Голосовые ответы</div>
+                <div class="reply-voice-hint">Отмечайте голосовые для ответов галочкой «Для ответов» на вкладке «Голосовые сообщения»</div>
+                <div class="smm-voice-messages-block" id="reply-voice-messages-block"></div>
             </div>
         </div>
         <div class="tab-block" id="sessions-tab-block">

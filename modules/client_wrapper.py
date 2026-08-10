@@ -2,6 +2,7 @@ import asyncio
 import base64
 import io
 import json
+import random
 import re
 import shutil
 from datetime import datetime
@@ -37,7 +38,16 @@ from telethon.tl.types import ChatInviteAlready
 
 from core.database import Database
 from core.entity_cache import load_session_entities, save_entity
-from core.paths import GROUP_PHOTOS, PROFILE_PHOTOS, SESSION_PHOTOS, SESSIONS, TMP, USERS_DATA
+from core.paths import (
+    GROUP_PHOTOS,
+    PROFILE_PHOTOS,
+    SESSION_PHOTOS,
+    SESSIONS,
+    SMM_IMAGES,
+    SMM_VOICES,
+    TMP,
+    USERS_DATA,
+)
 from ui.auth_window import AuthWindow
 from ui.qr_login import QRLoginWindow
 
@@ -771,6 +781,64 @@ class ClientWrapper:
                 json.dumps(render_messages), str(sender.id), self._session_file, r"{}"
             )
 
+        if (
+            not is_multiple
+            and not event.message.out
+            and self.main_window.settings_manager.get_setting("trigger_auto_reply_enabled")
+        ):
+            await self._maybe_send_trigger_reply(user_id, event.message.raw_text or "")
+
+    async def _maybe_send_trigger_reply(self, user_id: int, text: str) -> None:
+        if not text:
+            return
+
+        if await self.database.has_trigger_replied(self._session_id, user_id):
+            return
+
+        if await self.database.has_outgoing_message(user_id, self._session_id, "manual"):
+            return
+
+        if not await self.database.has_outgoing_message(user_id, self._session_id, "mailer"):
+            return
+
+        triggers = await self.database.get_trigger_phrases()
+        lowered_text = text.lower()
+        if not triggers or not any(t["text"].lower() in lowered_text for t in triggers):
+            return
+
+        reply_pool = await self._build_reply_pool()
+        if not reply_pool:
+            self.logger.warning(
+                f"{self.session_file}\tTrigger matched for user {user_id} but reply pool is empty"
+            )
+            return
+
+        reply = random.choice(reply_pool)
+        if reply["kind"] == "voice":
+            message = {"path": str(SMM_VOICES / reply["path"])}
+        else:
+            base64_file = None
+            if reply["photo"]:
+                with open(SMM_IMAGES / reply["photo"], "rb") as file:
+                    base64_file = base64.b64encode(file.read()).decode("utf-8")
+            message = {
+                "base64_file": base64_file,
+                "text": reply["text"],
+                "filename": reply["photo"],
+            }
+
+        await self.sendMessage(
+            user_id, json.dumps(message), reply["kind"] == "voice", origin="auto_reply"
+        )
+        await self.database.mark_trigger_replied(self._session_id, user_id)
+
+    async def _build_reply_pool(self) -> list[dict]:
+        text_replies = await self.database.get_reply_messages()
+        voice_replies = await self.database.get_reply_voice_pool()
+        pool = [{"kind": "text", **m} for m in text_replies]
+        pool += [{"kind": "voice", **v} for v in voice_replies]
+        return pool
+
     async def is_joined(self, client, group):
         try:
             me = await client.get_me()
@@ -955,7 +1023,7 @@ class ClientWrapper:
 
         return render_time
 
-    async def sendMessage(self, user_id, message_str, voice: bool = False):
+    async def sendMessage(self, user_id, message_str, voice: bool = False, origin: str = "manual"):
         if not self._status:
             self.main_window.show_notification(
                 "Внимание", f"Сессия {self._session_file} не запущена"
@@ -1032,6 +1100,7 @@ class ClientWrapper:
             message.out or False,
             self._session_id,
             message_time,
+            origin=origin,
         )
 
         render_message = [

@@ -48,6 +48,10 @@ class SettingsBridge(BaseBridge):
     updatePudgeSavedCount = pyqtSignal(str, int)
     pudgeScanProgress = pyqtSignal(str, int, int, int, int)
     pudgeScanStatus = pyqtSignal(str, bool)
+    renderTriggerPhrases = pyqtSignal(str)
+    renderReplyMessages = pyqtSignal(str)
+    renderReplyVoicePool = pyqtSignal(str)
+    triggerAutoReplyToggled = pyqtSignal(bool)
 
     def __init__(self, main_window, database):
         super().__init__(main_window, database)
@@ -187,6 +191,112 @@ class SettingsBridge(BaseBridge):
         await self.database.update_hook_message(int(data["id"]), data["text"])
         messages = await self.database.get_hook_messages()
         self.renderHookMessages.emit(json.dumps(messages))
+
+    # ── Triggers & reply messages ─────────────────────────────────────────────
+
+    @asyncSlot()
+    async def loadTriggerPhrases(self) -> None:
+        phrases = await self.database.get_trigger_phrases()
+        self.renderTriggerPhrases.emit(json.dumps(phrases))
+
+    @asyncSlot(str)
+    async def addTriggerPhrase(self, text: str) -> None:
+        text = text.strip()
+        if not text:
+            return
+        await self.database.add_trigger_phrase(text)
+        phrases = await self.database.get_trigger_phrases()
+        self.renderTriggerPhrases.emit(json.dumps(phrases))
+
+    @asyncSlot(str)
+    async def deleteTriggerPhrase(self, id_str: str) -> None:
+        await self.database.delete_trigger_phrase(int(id_str))
+        phrases = await self.database.get_trigger_phrases()
+        self.renderTriggerPhrases.emit(json.dumps(phrases))
+
+    @asyncSlot(str)
+    async def saveTriggerPhraseChanges(self, json_str: str) -> None:
+        data = json.loads(json_str)
+        await self.database.update_trigger_phrase(int(data["id"]), data["text"])
+        phrases = await self.database.get_trigger_phrases()
+        self.renderTriggerPhrases.emit(json.dumps(phrases))
+
+    @asyncSlot()
+    async def loadReplyMessages(self) -> None:
+        messages = await self.database.get_reply_messages()
+        self.renderReplyMessages.emit(json.dumps(messages))
+
+    @asyncSlot(str)
+    async def addReplyMessage(self, newReplyMessage_str: str) -> None:
+        newReplyMessage = json.loads(newReplyMessage_str)
+        filename = None
+        if newReplyMessage["photo"]:
+            filename = f"{uuid.uuid4().hex}{puremagic.ext_from_filename(newReplyMessage['filename'])}"
+            with open(str(SMM_IMAGES / filename), "wb") as f:
+                f.write(base64.b64decode(newReplyMessage["photo"]))
+
+        reply_id = await self.database.add_reply_message(newReplyMessage["text"], filename)
+        self.renderReplyMessages.emit(
+            json.dumps([{"id": reply_id, "text": newReplyMessage["text"], "photo": filename}])
+        )
+
+    @asyncSlot(str)
+    async def deleteReplyMessage(self, reply_message_id_str: str) -> None:
+        reply_message_id = int(reply_message_id_str)
+        filename = await self.database.delete_reply_message(reply_message_id)
+        if filename:
+            (SMM_IMAGES / filename).unlink(missing_ok=True)
+
+    @asyncSlot(str)
+    async def saveReplyMessageChanges(self, editedReply_str: str) -> None:
+        editedReply = json.loads(editedReply_str)
+        filename = None
+        if editedReply["photo"]:
+            filename = f"{uuid.uuid4().hex}{puremagic.ext_from_filename(editedReply['filename'])}"
+            with open(str(SMM_IMAGES / filename), "wb") as f:
+                f.write(base64.b64decode(editedReply["photo"]))
+
+        old_photo = await self.database.edit_reply_message(
+            int(editedReply["id"]), editedReply["text"], filename
+        )
+        if editedReply["photo"] and old_photo:
+            (SMM_IMAGES / old_photo).unlink(missing_ok=True)
+
+    @asyncSlot(str, bool)
+    async def changeVoiceReplyUsage(self, voice_id_str: str, used: bool) -> None:
+        await self.database.toggle_voice_reply_usage(int(voice_id_str), used)
+
+    @asyncSlot()
+    async def loadReplyVoicePool(self) -> None:
+        voices = await self.database.get_reply_voice_pool()
+        for voice in voices:
+            voice["path"] = str(SMM_VOICES / voice["path"])
+        self.renderReplyVoicePool.emit(json.dumps(voices))
+
+    @asyncSlot(bool)
+    async def toggleTriggerAutoReply(self, enabled: bool) -> None:
+        if enabled:
+            text_replies = await self.database.get_reply_messages()
+            voice_replies = await self.database.get_reply_voice_pool()
+            if not text_replies and not voice_replies:
+                self.main_window.show_notification(
+                    "Внимание", "Нет сообщений для ответа — добавьте хотя бы одно"
+                )
+                self.triggerAutoReplyToggled.emit(False)
+                return
+            self.main_window.settings_manager.update_settings(
+                "trigger_auto_reply_enabled", True
+            )
+            self.main_window.show_notification(
+                "Автоответчик включён",
+                "Убедитесь, что нужные сессии запущены — иначе он не будет работать",
+            )
+            self.triggerAutoReplyToggled.emit(True)
+        else:
+            self.main_window.settings_manager.update_settings(
+                "trigger_auto_reply_enabled", False
+            )
+            self.triggerAutoReplyToggled.emit(False)
 
     @asyncSlot(str)
     async def startPudge(self, session_id: str) -> None:

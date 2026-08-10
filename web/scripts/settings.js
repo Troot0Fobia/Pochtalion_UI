@@ -2,6 +2,8 @@ let bridge = null;
 let temp_text = "";
 let temp_photo = "";
 let temp_order = "";
+let temp_reply_text = "";
+let temp_reply_photo = "";
 let selectedParseSessions = {};
 let selectedMailSessions = {};
 let sessionGroupSelections = {};
@@ -11,6 +13,8 @@ let openedSettingsTabName = undefined;
 // Pudge state
 let pudgeConfigs = {};        // session_id → {send_to_saved, target_group, hook_ids}
 let allHookMessages = [];     // full list from DB, used for hooks modal
+let allTriggerPhrases = [];
+let allReplyMessages = [];
 let currentPudgeHooksSessionId = null;
 let _pudgeGroupInputTimers = {};
 let pudgeDefaultGroup = "";
@@ -74,6 +78,10 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.updatePudgeSavedCount.connect(updatePudgeSavedCount);
     bridge.pudgeScanProgress.connect(updatePudgeScanProgress);
     bridge.pudgeScanStatus.connect(changePudgeScanStatus);
+    bridge.renderTriggerPhrases.connect(renderTriggerPhrases);
+    bridge.renderReplyMessages.connect(renderReplyMessages);
+    bridge.renderReplyVoicePool.connect(renderReplyVoicePool);
+    bridge.triggerAutoReplyToggled.connect(setTriggerAutoReplyState);
     bridge.loadSettings();
 });
 
@@ -199,6 +207,18 @@ async function openSMMSettingsTab(tab_name) {
         document.getElementById("hooks-smm-block").classList.add("active-tab-block");
         document.getElementById("hook-message-list").innerHTML = "";
         await bridge.loadHookMessages();
+    } else if (tab_name === "triggers") {
+        document.getElementById("triggers-tab").classList.add("active-tab");
+        document.getElementById("triggers-smm-block").classList.add("active-tab-block");
+        document.getElementById("trigger-phrase-list").innerHTML = "";
+        await bridge.loadTriggerPhrases();
+    } else if (tab_name === "replies") {
+        document.getElementById("replies-tab").classList.add("active-tab");
+        document.getElementById("replies-smm-block").classList.add("active-tab-block");
+        document.getElementById("reply-message-list").innerHTML = "";
+        document.getElementById("reply-voice-messages-block").innerHTML = "";
+        await bridge.loadReplyMessages();
+        await bridge.loadReplyVoicePool();
     }
 }
 
@@ -332,10 +352,14 @@ document.addEventListener("click", async (e) => {
 });
 
 document.addEventListener("change", async (e) => {
-    if (e.target.matches(".voice-message-row-side input[type=checkbox]")) {
+    if (e.target.matches(".mailing-usage-checkbox")) {
         const id = e.target.closest(".row")?.querySelector(".audio-player")
             ?.dataset.id;
         if (id) await bridge.changeVoiceSelect(String(id), e.target.checked);
+    } else if (e.target.matches(".reply-usage-checkbox")) {
+        const id = e.target.closest(".row")?.querySelector(".audio-player")
+            ?.dataset.id;
+        if (id) await bridge.changeVoiceReplyUsage(String(id), e.target.checked);
     }
 });
 
@@ -383,7 +407,14 @@ async function renderVoiceMessages(voice_msgs_str) {
         voice_row.innerHTML = `
             <div class="row-content">
                 <div class="voice-message-row-side">
-                    <input type="checkbox" ${voice_msg.selected ? "checked" : ""}>
+                    <label class="voice-checkbox-label" title="Для рассылки">
+                        <input type="checkbox" class="mailing-usage-checkbox" ${voice_msg.selected ? "checked" : ""}>
+                        <span>Рассылка</span>
+                    </label>
+                    <label class="voice-checkbox-label" title="Для ответов">
+                        <input type="checkbox" class="reply-usage-checkbox" ${voice_msg.used_for_replies ? "checked" : ""}>
+                        <span>Ответы</span>
+                    </label>
                     <div class="voice-desc-viewport">
                         <div class="voice-desc-slider">
                             <div class="voice-desc audio-name">${voice_msg.name}</div>
@@ -1062,6 +1093,206 @@ async function saveChanges(elem) {
     temp_order = "";
     delete img_preview.dataset.base64;
     delete img_preview.dataset.filename;
+}
+
+async function renderReplyMessages(reply_messages_str) {
+    const reply_list = document.getElementById("reply-message-list");
+    if (!reply_list) return;
+
+    let last_index = -1;
+    if (reply_list.innerHTML !== "")
+        last_index = Number(
+            reply_list.lastChild.querySelector(".index").innerText.slice(0, -1),
+        );
+
+    const fragment = document.createDocumentFragment();
+    const reply_messages = JSON.parse(reply_messages_str);
+    reply_messages.forEach((reply_message, index) => {
+        const row = document.createElement("div");
+        row.classList = "row";
+        row.dataset.id = reply_message.id;
+        row.innerHTML = `
+            <div class="row-content">
+                <div class="left-smm-side">
+                    <div class="index">${last_index === -1 ? index + 1 : last_index + 1}.</div>
+                    <textarea class="smm-text" disabled>${reply_message.text || ""}</textarea>
+                    <label class="label-image-preview">
+                        <img class="image-preview" src="${reply_message.photo ? "../assets/smm_images/" + reply_message.photo : "assets/images/add_image.png"}" alt="add image" onclick="openReplyImage(this)">
+                        <input type="file" accept=".jpg,.jpeg,.png" onchange="uploadReplyImage(this)" disabled>
+                    </label>
+                </div>
+                <div class="buttons">
+                    <div class="btn edit-btn"><img class="icons" src="assets/icons/edit.png" alt="edit" onclick="editReplyMessage(this)"></div>
+                    <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteReplyMessage(this)"></div>
+                </div>
+            </div>
+        `;
+        fragment.appendChild(row);
+    });
+    reply_list.appendChild(fragment);
+}
+
+async function uploadReplyImage(elem) {
+    const img = elem.parentElement.querySelector("img");
+    const file = elem.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const base64data = e.target.result.split(",")[1];
+            img.src = e.target.result;
+            img.dataset.base64 = base64data;
+            img.dataset.filename = file.name;
+            elem.value = "";
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+async function addReplyMessage() {
+    const textarea = document.getElementById("newReplyMessage");
+    const img = document.getElementById("newReplyPhoto");
+
+    if (textarea.value === "" && !img.dataset.base64) return;
+
+    const newReplyMessage = {
+        text: textarea.value || null,
+        photo: img.dataset.base64 || null,
+        filename: img.dataset.filename || null,
+    };
+
+    await bridge.addReplyMessage(JSON.stringify(newReplyMessage));
+
+    textarea.value = "";
+    img.src = "assets/images/add_image.png";
+    delete img.dataset.base64;
+    delete img.dataset.filename;
+}
+
+async function deleteReplyMessage(elem) {
+    const row = elem.closest(".row");
+    const reply_message_id = row.dataset.id;
+    await bridge.deleteReplyMessage(String(reply_message_id));
+
+    row.remove();
+}
+
+function openReplyImage(elem) {
+    if (
+        elem.src.includes("add_image.png") ||
+        temp_reply_text !== "" ||
+        temp_reply_photo !== ""
+    )
+        return;
+
+    const overlay = document.getElementById("reply-image-preview-overlay");
+    const fullimg = document.getElementById("reply-image-preview-fullscreen");
+    fullimg.src = elem.src;
+    overlay.style.display = "flex";
+}
+
+function editReplyMessage(elem) {
+    const row = elem.closest(".row");
+    const textarea = row.querySelector("textarea");
+    const img_preview = row.querySelector(".image-preview");
+    const input_elem = row.querySelector("input");
+    const buttons = row.querySelector(".buttons");
+
+    temp_reply_text = textarea.value;
+    textarea.disabled = false;
+    temp_reply_photo = img_preview.src;
+    input_elem.disabled = false;
+    buttons.innerHTML = `
+        <div class="btn accept-btn"><img class="icons" src="assets/icons/mark.png" alt="accept" onclick="saveReplyMessageChanges(this)"></div>
+        <div class="btn cancel-btn"><img class="icons" src="assets/icons/cancel.png" alt="cancel" onclick="discardReplyChanges(this)"></div>
+    `;
+}
+
+function discardReplyChanges(elem) {
+    const row = elem.closest(".row");
+    const textarea = row.querySelector("textarea");
+    const img_preview = row.querySelector(".image-preview");
+    const input_elem = row.querySelector("input");
+    const buttons = row.querySelector(".buttons");
+
+    textarea.value = temp_reply_text;
+    textarea.disabled = true;
+    img_preview.src = temp_reply_photo;
+    input_elem.disabled = true;
+    buttons.innerHTML = `
+        <div class="btn edit-btn"><img class="icons" src="assets/icons/edit.png" alt="edit" onclick="editReplyMessage(this)"></div>
+        <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteReplyMessage(this)"></div>
+    `;
+
+    temp_reply_photo = "";
+    temp_reply_text = "";
+    delete img_preview.dataset.base64;
+    delete img_preview.dataset.filename;
+}
+
+async function saveReplyMessageChanges(elem) {
+    const row = elem.closest(".row");
+    const textarea = row.querySelector("textarea");
+    const img_preview = row.querySelector(".image-preview");
+
+    if (textarea.value === temp_reply_text && !img_preview.dataset.base64) {
+        discardReplyChanges(elem);
+        return;
+    }
+
+    const editedReply = {
+        id: String(row.dataset.id),
+        text: textarea.value || null,
+        photo: img_preview.dataset.base64 || null,
+        filename: img_preview.dataset.filename || null,
+    };
+
+    await bridge.saveReplyMessageChanges(JSON.stringify(editedReply));
+
+    const input_elem = row.querySelector("input");
+    const buttons = row.querySelector(".buttons");
+    textarea.disabled = true;
+    input_elem.disabled = true;
+    buttons.innerHTML = `
+        <div class="btn edit-btn"><img class="icons" src="assets/icons/edit.png" alt="edit" onclick="editReplyMessage(this)"></div>
+        <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteReplyMessage(this)"></div>
+    `;
+
+    temp_reply_photo = "";
+    temp_reply_text = "";
+    delete img_preview.dataset.base64;
+    delete img_preview.dataset.filename;
+}
+
+function renderReplyVoicePool(json_str) {
+    const block = document.getElementById("reply-voice-messages-block");
+    if (!block) return;
+    block.innerHTML = "";
+
+    const voices = JSON.parse(json_str);
+    const fragment = document.createDocumentFragment();
+    voices.forEach((voice, index) => {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML = `
+            <div class="row-content">
+                <div class="voice-message-row-side">
+                    <div class="voice-desc audio-name">${_escapeHtml(voice.name)}</div>
+                </div>
+            </div>
+        `;
+        row.querySelector(".row-content").appendChild(createPlayer(voice.path, `reply-${index}`));
+        fragment.appendChild(row);
+    });
+    block.appendChild(fragment);
+}
+
+async function onToggleTriggerAutoReply(elem) {
+    await bridge.toggleTriggerAutoReply(elem.checked);
+}
+
+function setTriggerAutoReplyState(enabled) {
+    const el = document.getElementById("trigger-auto-reply-toggle");
+    if (el) el.checked = enabled;
 }
 
 function changeMailingType(type) {
@@ -2382,6 +2613,96 @@ function cancelHookMessageEdit(btn) {
         </div>
         <div class="btn delete-btn">
             <img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteHookMessage(this)">
+        </div>
+    `;
+}
+
+function renderTriggerPhrases(json_str) {
+    allTriggerPhrases = JSON.parse(json_str);
+
+    const list = document.getElementById("trigger-phrase-list");
+    if (!list) return;
+    list.innerHTML = "";
+
+    const fragment = document.createDocumentFragment();
+    allTriggerPhrases.forEach((msg, index) => {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.dataset.id = msg.id;
+        row.innerHTML = `
+            <div class="row-content">
+                <div class="left-smm-side">
+                    <div class="index">${index + 1}.</div>
+                    <input type="text" class="trigger-phrase-text" value="${_escapeHtml(msg.text)}" disabled>
+                </div>
+                <div class="buttons">
+                    <div class="btn edit-btn">
+                        <img class="icons" src="assets/icons/edit.png" alt="edit" onclick="editTriggerPhrase(this)">
+                    </div>
+                    <div class="btn delete-btn">
+                        <img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteTriggerPhrase(this)">
+                    </div>
+                </div>
+            </div>
+        `;
+        fragment.appendChild(row);
+    });
+    list.appendChild(fragment);
+}
+
+async function addTriggerPhrase() {
+    const input = document.getElementById("newTriggerPhrase");
+    if (!input || !input.value.trim()) return;
+    await bridge.addTriggerPhrase(input.value.trim());
+    input.value = "";
+}
+
+async function deleteTriggerPhrase(btn) {
+    const row = btn.closest(".row");
+    if (!row) return;
+    await bridge.deleteTriggerPhrase(String(row.dataset.id));
+}
+
+function editTriggerPhrase(btn) {
+    const row = btn.closest(".row");
+    if (!row) return;
+    const input = row.querySelector(".trigger-phrase-text");
+    const buttons = row.querySelector(".buttons");
+    input.dataset.original = input.value;
+    input.disabled = false;
+    input.focus();
+    buttons.innerHTML = `
+        <div class="btn accept-btn">
+            <img class="icons" src="assets/icons/mark.png" alt="save" onclick="saveTriggerPhraseChanges(this)">
+        </div>
+        <div class="btn cancel-btn">
+            <img class="icons" src="assets/icons/cancel.png" alt="cancel" onclick="cancelTriggerPhraseEdit(this)">
+        </div>
+    `;
+}
+
+async function saveTriggerPhraseChanges(btn) {
+    const row = btn.closest(".row");
+    if (!row) return;
+    const input = row.querySelector(".trigger-phrase-text");
+    const newText = input.value.trim();
+    if (!newText) { cancelTriggerPhraseEdit(btn); return; }
+    await bridge.saveTriggerPhraseChanges(JSON.stringify({ id: row.dataset.id, text: newText }));
+}
+
+function cancelTriggerPhraseEdit(btn) {
+    const row = btn.closest(".row");
+    if (!row) return;
+    const input = row.querySelector(".trigger-phrase-text");
+    const buttons = row.querySelector(".buttons");
+    input.value = input.dataset.original || input.value;
+    input.disabled = true;
+    buttons.innerHTML = `
+        <div class="btn edit-btn">
+            <img class="icons" src="assets/icons/edit.png" alt="edit" onclick="editTriggerPhrase(this)">
+        </div>
+        <div class="btn delete-btn">
+            <img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteTriggerPhrase(this)">
         </div>
     `;
 }
