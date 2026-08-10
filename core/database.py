@@ -101,6 +101,16 @@ class Database:
             await db.commit()
         except Exception:
             pass
+        try:
+            await db.execute("ALTER TABLE smm_messages ADD COLUMN msg_order INTEGER DEFAULT 1")
+            await db.commit()
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE smm_voices ADD COLUMN msg_order INTEGER DEFAULT 1")
+            await db.commit()
+        except Exception:
+            pass
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -324,19 +334,21 @@ class Database:
 
     # ## ==================== Methods for sending messages ===================== ###
 
-    async def add_smm_message(self, text: str, photo: str) -> str:
+    async def add_smm_message(self, text: str, photo: str, msg_order: int = 1) -> str:
         async with self._lock:
             async with self._db.execute(
                 """
-                INSERT INTO smm_messages (text, photo)
-                VALUES (?, ?)
+                INSERT INTO smm_messages (text, photo, msg_order)
+                VALUES (?, ?, ?)
             """,
-                (text if text else "", photo if photo else ""),
+                (text if text else "", photo if photo else "", msg_order),
             ) as cursor:
                 await self._db.commit()
                 return str(cursor.lastrowid)
 
-    async def edit_smm_message(self, id: int, text: str, photo: str) -> str | None:
+    async def edit_smm_message(
+        self, id: int, text: str, photo: str, msg_order: int = 1
+    ) -> str | None:
         async with self._lock:
             async with self._db.execute(
                 """
@@ -352,10 +364,10 @@ class Database:
             await self._db.execute(
                 """
                 UPDATE smm_messages
-                SET text = ?, photo = ?
+                SET text = ?, photo = ?, msg_order = ?
                 WHERE id = ?
             """,
-                (text, photo or row["photo"] or None, id),
+                (text, photo or row["photo"] or None, msg_order, id),
             )
             await self._db.commit()
 
@@ -366,7 +378,7 @@ class Database:
         async with self._lock:
             async with self._db.execute(
                 """
-                SELECT id, text, photo
+                SELECT id, text, photo, msg_order
                 FROM smm_messages
             """
             ) as cursor:
@@ -374,12 +386,14 @@ class Database:
                     id,
                     text,
                     photo,
+                    msg_order,
                 ) in cursor:
                     messages.append(
                         {
                             "id": id,
                             "text": text if text else None,
                             "photo": photo if photo else None,
+                            "order": msg_order or 1,
                         }
                     )
         return messages
@@ -442,15 +456,20 @@ class Database:
 
     # ## ===================== Methods for sending voices ======================= ###
     async def add_voice_message(
-        self, name: str, description: str, path: str, selected: bool = False
+        self,
+        name: str,
+        description: str,
+        path: str,
+        selected: bool = False,
+        msg_order: int = 1,
     ) -> str:
         async with self._lock:
             async with self._db.execute(
                 """
-                    INSERT INTO smm_voices (name, description, selected, path)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO smm_voices (name, description, selected, path, msg_order)
+                    VALUES (?, ?, ?, ?, ?)
                 """,
-                (name, description, int(selected), path),
+                (name, description, int(selected), path, msg_order),
             ) as cursor:
                 await self._db.commit()
                 return str(cursor.lastrowid)
@@ -459,7 +478,7 @@ class Database:
         async with self._lock:
             async with self._db.execute(
                 """
-                    SELECT name, description, selected, path
+                    SELECT name, description, selected, path, msg_order
                     FROM smm_voices
                     WHERE id = ?
                 """,
@@ -471,6 +490,7 @@ class Database:
                     "desc": row["description"],
                     "selected": bool(row["selected"]),
                     "path": str(SMM_VOICES / row["path"]),
+                    "order": row["msg_order"] or 1,
                 }
 
     async def get_voice_messages(self) -> list[dict]:
@@ -478,11 +498,11 @@ class Database:
         async with self._lock:
             async with self._db.execute(
                 """
-                    SELECT id, name, description, selected, path
+                    SELECT id, name, description, selected, path, msg_order
                     FROM smm_voices
                 """,
             ) as cursor:
-                async for (id, name, desc, selected, path,) in cursor:
+                async for (id, name, desc, selected, path, msg_order) in cursor:
                     voice_msgs.append(
                         {
                             "id": id,
@@ -490,6 +510,7 @@ class Database:
                             "desc": desc,
                             "selected": bool(selected),
                             "path": str(SMM_VOICES / path),
+                            "order": msg_order or 1,
                         }
                     )
 
@@ -500,13 +521,13 @@ class Database:
         async with self._lock:
             async with self._db.execute(
                 """
-                    SELECT path
+                    SELECT path, msg_order
                     FROM smm_voices
                     WHERE selected = 1
                 """
             ) as cursor:
-                async for (path,) in cursor:
-                    voices.append(path)
+                async for (path, msg_order) in cursor:
+                    voices.append({"path": path, "order": msg_order or 1})
 
         return voices
 

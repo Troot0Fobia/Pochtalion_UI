@@ -1,6 +1,7 @@
 let bridge = null;
 let temp_text = "";
 let temp_photo = "";
+let temp_order = "";
 let selectedParseSessions = {};
 let selectedMailSessions = {};
 let sessionGroupSelections = {};
@@ -312,7 +313,8 @@ document.addEventListener("click", async (e) => {
             }
             const path = add_window.dataset.path;
             const desc = add_window.querySelector("#add-voice-desc").value;
-            await bridge.addVoiceMessage(name_field.value, desc, path);
+            const order = add_window.querySelector("#add-voice-order").value;
+            await bridge.addVoiceMessage(name_field.value, desc, path, order);
             add_window.classList.remove("open");
             return;
         }
@@ -388,6 +390,7 @@ async function renderVoiceMessages(voice_msgs_str) {
                             <div class="voice-desc voice-message-desc">${voice_msg.desc}</div>
                         </div>
                     </div>
+                    <div class="voice-order-badge">${voice_msg.order === 2 ? "Второе" : "Первое"}</div>
                 </div>
                 <div class="voice-message-row-side right-side">
                     <div class="voice-message-desc-btn">🛈</div>
@@ -896,6 +899,10 @@ async function renderSMMMessages(smm_messages_str) {
                         <img class="image-preview" src="${smm_message.photo ? "../assets/smm_images/" + smm_message.photo : "assets/images/add_image.png"}" alt="add image" onclick="openImage(this)">
                         <input type="file" accept=".jpg,.jpeg,.png" onchange="uploadImage(this)" disabled>
                     </label>
+                    <select class="inline-select smm-order-select" disabled>
+                        <option value="1" ${smm_message.order === 2 ? "" : "selected"}>Первое сообщение</option>
+                        <option value="2" ${smm_message.order === 2 ? "selected" : ""}>Второе сообщение</option>
+                    </select>
                 </div>
                 <div class="buttons">
                     <div class="btn edit-btn"><img class="icons" src="assets/icons/edit.png" alt="edit" onclick="editMessage(this)"></div>
@@ -927,6 +934,7 @@ async function uploadImage(elem) {
 async function addSMMMessage() {
     const textarea = document.getElementById("newMessage");
     const img = document.getElementById("newPhoto");
+    const orderSelect = document.getElementById("newMessageOrder");
 
     if (textarea.value === "" && !img.dataset.base64) return;
 
@@ -934,6 +942,7 @@ async function addSMMMessage() {
         text: textarea.value || null,
         photo: img.dataset.base64 || null,
         filename: img.dataset.filename || null,
+        order: parseInt(orderSelect.value, 10),
     };
 
     await bridge.addNewSMMMessage(JSON.stringify(newSMMMessage));
@@ -942,6 +951,7 @@ async function addSMMMessage() {
     img.src = "assets/images/add_image.png";
     delete img.dataset.base64;
     delete img.dataset.filename;
+    orderSelect.value = "1";
 }
 
 async function deleteMessage(elem) {
@@ -971,12 +981,15 @@ function editMessage(elem) {
     const textarea = row.querySelector("textarea");
     const img_preview = row.querySelector(".image-preview");
     const input_elem = row.querySelector("input");
+    const order_select = row.querySelector(".smm-order-select");
     const buttons = row.querySelector(".buttons");
 
     temp_text = textarea.value;
     textarea.disabled = false;
     temp_photo = img_preview.src;
     input_elem.disabled = false;
+    temp_order = order_select.value;
+    order_select.disabled = false;
     buttons.innerHTML = `
         <div class="btn accept-btn"><img class="icons" src="assets/icons/mark.png" alt="accept" onclick="saveChanges(this)"></div>
         <div class="btn cancel-btn"><img class="icons" src="assets/icons/cancel.png" alt="cancel" onclick="discardChanges(this)"></div>
@@ -988,12 +1001,15 @@ function discardChanges(elem) {
     const textarea = row.querySelector("textarea");
     const img_preview = row.querySelector(".image-preview");
     const input_elem = row.querySelector("input");
+    const order_select = row.querySelector(".smm-order-select");
     const buttons = row.querySelector(".buttons");
 
     textarea.value = temp_text;
     textarea.disabled = true;
     img_preview.src = temp_photo;
     input_elem.disabled = true;
+    order_select.value = temp_order;
+    order_select.disabled = true;
     buttons.innerHTML = `
         <div class="btn edit-btn"><img class="icons" src="assets/icons/edit.png" alt="edit" onclick="editMessage(this)"></div>
         <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteMessage(this)"></div>
@@ -1001,6 +1017,7 @@ function discardChanges(elem) {
 
     temp_photo = "";
     temp_text = "";
+    temp_order = "";
     delete img_preview.dataset.base64;
     delete img_preview.dataset.filename;
 }
@@ -1009,8 +1026,13 @@ async function saveChanges(elem) {
     const row = elem.closest(".row");
     const textarea = row.querySelector("textarea");
     const img_preview = row.querySelector(".image-preview");
+    const order_select = row.querySelector(".smm-order-select");
 
-    if (textarea.value === temp_text && !img_preview.dataset.base64) {
+    if (
+        textarea.value === temp_text &&
+        !img_preview.dataset.base64 &&
+        order_select.value === temp_order
+    ) {
         discardChanges(elem);
         return;
     }
@@ -1020,6 +1042,7 @@ async function saveChanges(elem) {
         text: textarea.value || null,
         photo: img_preview.dataset.base64 || null,
         filename: img_preview.dataset.filename || null,
+        order: parseInt(order_select.value, 10),
     };
 
     await bridge.saveChanges(JSON.stringify(editedSMM));
@@ -1028,6 +1051,7 @@ async function saveChanges(elem) {
     const buttons = row.querySelector(".buttons");
     textarea.disabled = true;
     input_elem.disabled = true;
+    order_select.disabled = true;
     buttons.innerHTML = `
         <div class="btn edit-btn"><img class="icons" src="assets/icons/edit.png" alt="edit" onclick="editMessage(this)"></div>
         <div class="btn delete-btn"><img class="icons" src="assets/icons/delete.png" alt="delete" onclick="deleteMessage(this)"></div>
@@ -1035,6 +1059,7 @@ async function saveChanges(elem) {
 
     temp_photo = "";
     temp_text = "";
+    temp_order = "";
     delete img_preview.dataset.base64;
     delete img_preview.dataset.filename;
 }
@@ -1555,6 +1580,9 @@ async function startMailing() {
     const delay_min = document.getElementById("delay-between-mailing-messages-min").value;
     const delay_max = document.getElementById("delay-between-mailing-messages-max").value;
     const order = document.getElementById("mailing-order").value;
+    const enable_second_message = document.getElementById("enable-second-message").checked;
+    const second_delay_min = document.getElementById("second-message-delay-min").value;
+    const second_delay_max = document.getElementById("second-message-delay-max").value;
 
     if (is_parse_usernames && !mailing_data) {
         bridge.show_notification("Введите данные для рассылки");
@@ -1568,6 +1596,9 @@ async function startMailing() {
         delay_min,
         delay_max,
         order,
+        enable_second_message,
+        second_delay_min,
+        second_delay_max,
         selected_sessions: selectedMailSessions,
     };
 
@@ -1580,6 +1611,12 @@ async function stopMailing() {
     document.getElementById("stop-mailing-button").disabled = true;
     document.getElementById("mailing-status").innerText = "остановка...";
     await bridge.stopMailing();
+}
+
+function toggleSecondMessageDelay(checkbox) {
+    document.getElementById("second-message-delay-block").style.display = checkbox.checked
+        ? ""
+        : "none";
 }
 
 function renderMailingProgressData(render_data_str) {

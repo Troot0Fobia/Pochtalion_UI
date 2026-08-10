@@ -281,11 +281,12 @@ class SettingsBridge(BaseBridge):
         voice_msgs = await self.database.get_voice_messages()
         self.renderVoiceMessages.emit(json.dumps(voice_msgs))
 
-    @asyncSlot(str, str, str)
-    async def addVoiceMessage(self, name: str, desc: str, path: str) -> None:
+    @asyncSlot(str, str, str, str)
+    async def addVoiceMessage(self, name: str, desc: str, path: str, msg_order: str) -> None:
         path = path.replace("../", "")
         voice_data = []
         voice_path = Path(path)
+        order = int(msg_order) if msg_order else 1
 
         if not voice_path.exists():
             self.main_window.show_notification(
@@ -301,7 +302,9 @@ class SettingsBridge(BaseBridge):
             filename = f"{uuid.uuid4().hex}{puremagic.ext_from_filename(voice_path)}"
             new_path = SMM_VOICES / filename
             shutil.copy(voice_path, new_path)
-            voice_id = await self.database.add_voice_message(name, desc, filename)
+            voice_id = await self.database.add_voice_message(
+                name, desc, filename, msg_order=order
+            )
             voice_data = [
                 {
                     "id": voice_id,
@@ -309,6 +312,7 @@ class SettingsBridge(BaseBridge):
                     "desc": desc,
                     "selected": False,
                     "path": str(new_path),
+                    "order": order,
                 }
             ]
         self.renderVoiceMessages.emit(json.dumps(voice_data))
@@ -509,10 +513,13 @@ class SettingsBridge(BaseBridge):
             with open(str(SMM_IMAGES / filename), "wb") as f:
                 f.write(base64.b64decode(newSMMMessage["photo"]))
 
-        smm_id = await self.database.add_smm_message(newSMMMessage["text"], filename)
+        order = int(newSMMMessage.get("order") or 1)
+        smm_id = await self.database.add_smm_message(
+            newSMMMessage["text"], filename, msg_order=order
+        )
         self.renderSMMMessages.emit(
             json.dumps(
-                [{"id": smm_id, "text": newSMMMessage["text"], "photo": filename}]
+                [{"id": smm_id, "text": newSMMMessage["text"], "photo": filename, "order": order}]
             )
         )
 
@@ -532,8 +539,9 @@ class SettingsBridge(BaseBridge):
             with open(str(SMM_IMAGES / filename), "wb") as f:
                 f.write(base64.b64decode(editedSMM["photo"]))
 
+        order = int(editedSMM.get("order") or 1)
         old_photo = await self.database.edit_smm_message(
-            int(editedSMM["id"]), editedSMM["text"], filename
+            int(editedSMM["id"]), editedSMM["text"], filename, msg_order=order
         )
         if editedSMM["photo"] and old_photo:
             (SMM_IMAGES / old_photo).unlink(missing_ok=True)

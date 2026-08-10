@@ -40,6 +40,9 @@ class Mailer:
         self.mail_data = None
         self.delay_min = None
         self.delay_max = None
+        self.enable_second_message = False
+        self.second_delay_min = None
+        self.second_delay_max = None
         self.logger = setup_logger("Pochtalion.Mailer", "mailer.log")
 
     @dataclass
@@ -49,15 +52,25 @@ class Mailer:
         session_id: int
         sent_count: int = 0
 
+    @staticmethod
+    def _resolve_delay_bounds(raw_min: str, raw_max: str) -> tuple[str, str]:
+        resolved_min = raw_min or raw_max
+        resolved_max = raw_max or resolved_min
+        return resolved_min, resolved_max
+
     async def start(self, mail_data_str):
         self.logger.info("Mailing starting")
         mail_data = json.loads(mail_data_str)
         self.is_mail_from_usernames = mail_data["is_parse_usernames"]
         self.is_send_text_messages = mail_data["is_send_text"]
-        raw_delay_min = mail_data["delay_min"]
-        raw_delay_max = mail_data["delay_max"]
-        self.delay_min = raw_delay_min or raw_delay_max
-        self.delay_max = raw_delay_max or self.delay_min
+        self.delay_min, self.delay_max = self._resolve_delay_bounds(
+            mail_data["delay_min"], mail_data["delay_max"]
+        )
+        self.enable_second_message = bool(mail_data.get("enable_second_message"))
+        if self.enable_second_message:
+            self.second_delay_min, self.second_delay_max = self._resolve_delay_bounds(
+                mail_data.get("second_delay_min", ""), mail_data.get("second_delay_max", "")
+            )
         self.mailing_order = mail_data.get("order", "oldest_first")
         self.session_files = mail_data["selected_sessions"]
         self.session_wrappers = []
@@ -65,15 +78,25 @@ class Mailer:
         self._inaccessible: set[tuple[int, int]] = set()  # (session_id, chat_id)
 
         if self.is_send_text_messages:
-            self.smm_messages = await self.main_window.database.get_smm_messages()
+            message_pool = await self.main_window.database.get_smm_messages()
         else:
-            self.smm_messages = await self.main_window.database.get_voices_for_mailing()
+            message_pool = await self.main_window.database.get_voices_for_mailing()
+        self.first_messages = [m for m in message_pool if m.get("order", 1) != 2]
+        self.second_messages = [m for m in message_pool if m.get("order") == 2]
 
-        if not self.smm_messages:
+        if not self.first_messages:
             self.logger.info("User doesn't provide mailing data")
             self.main_window.show_notification(
                 "Внимание",
                 f"Нет {'' if self.is_send_text_messages else 'голосовых'} сообщений для рассылки",
+            )
+            self.main_window.settings_bridge.finishMailing.emit()
+            return
+
+        if self.enable_second_message and not self.second_messages:
+            self.logger.info("Second message enabled but no second messages available")
+            self.main_window.show_notification(
+                "Внимание", "Нет вторых сообщений для рассылки"
             )
             self.main_window.settings_bridge.finishMailing.emit()
             return
@@ -111,6 +134,16 @@ class Mailer:
             self.main_window.settings_bridge.finishMailing.emit()
             return
 
+        if self.enable_second_message and (
+            not self.second_delay_min.isdigit() or not self.second_delay_max.isdigit()
+        ):
+            self.logger.info("User doesn't provide correct delay before second message")
+            self.main_window.show_notification(
+                "Внимание", "Неправильная задержка перед вторым сообщением"
+            )
+            self.main_window.settings_bridge.finishMailing.emit()
+            return
+
         if not self.mail_data:
             self.logger.info("User doesn't provide correct data, no data for mailing")
             self.main_window.show_notification(
@@ -123,15 +156,26 @@ class Mailer:
         self.delay_max = int(self.delay_max or 0)
         if self.delay_min > self.delay_max:
             self.delay_min, self.delay_max = self.delay_max, self.delay_min
+        if self.enable_second_message:
+            self.second_delay_min = int(self.second_delay_min or 0)
+            self.second_delay_max = int(self.second_delay_max or 0)
+            if self.second_delay_min > self.second_delay_max:
+                self.second_delay_min, self.second_delay_max = (
+                    self.second_delay_max,
+                    self.second_delay_min,
+                )
         self.logger.info(
-            "Mailing config: sessions=%d, users=%d, delay=%d-%ds, from_usernames=%s, msg_type=%s, smm_msgs=%d",
+            "Mailing config: sessions=%d, users=%d, delay=%d-%ds, second_message=%s, "
+            "second_delay=%s, from_usernames=%s, msg_type=%s, smm_msgs=%d",
             len(self.session_files),
             len(self.mail_data),
             self.delay_min,
             self.delay_max,
+            self.enable_second_message,
+            f"{self.second_delay_min}-{self.second_delay_max}s" if self.enable_second_message else "n/a",
             self.is_mail_from_usernames,
             "text" if self.is_send_text_messages else "voice",
-            len(self.smm_messages),
+            len(self.first_messages) + len(self.second_messages),
         )
         self._running = True
         await self.start_sessions()
@@ -162,8 +206,7 @@ class Mailer:
             if not self._running or not self.session_wrappers:
                 break
 
-            smm_message = random.choice(self.smm_messages)
-            base64_file = None
+            smm_message = random.choice(self.first_messages)
             user_id = None
             index += 1
 
@@ -203,75 +246,104 @@ class Mailer:
                     user_id, session_info.session_id
                 )
 
-            try:
-                if self.is_send_text_messages:
-                    if smm_message["photo"]:
-                        with open(SMM_IMAGES / smm_message["photo"], "rb") as file:
-                            base64_file = base64.b64encode(file.read()).decode("utf-8")
-
-                    message = {
-                        "base64_file": base64_file,
-                        "text": smm_message["text"],
-                        "filename": smm_message["photo"],
-                    }
-                else:
-                    message = {
-                        "path": str(SMM_VOICES / smm_message),
-                    }
-
-                await session_info.wrapper.sendMessage(
-                    user_id, json.dumps(message), not self.is_send_text_messages
-                )
-
-                if not self.is_mail_from_usernames:
-                    await self.main_window.database.set_user_to_sended(user_id)
-            except FloodWaitError as e:
-                self.logger.error(
-                    f"Caught Flood Wait Error, wait for {e.seconds}", exc_info=True
-                )
-                self.main_window.show_notification(
-                    "Внимание",
-                    f"Сессия {session_info.wrapper.session_file} поймала флуд, ждем {e.seconds + 10} секунд",
-                )
-                await asyncio.sleep(e.seconds + 10)
-            except PeerFloodError as e:
-                self.logger.error(
-                    f"Caught Flood Error, stop mailing for this session {session_info.wrapper.session_file}: {e}",
-                    exc_info=True,
-                )
-                await self.finish_session(session_info.session_id)
-                self.main_window.show_notification(
-                    "Внимание",
-                    f"Сессия {session_info.wrapper.session_file} поймала флуд",
-                )
+            result = await self._send_single_message(
+                session_info, user_id, self._build_message_payload(smm_message)
+            )
+            if result == "skip":
                 continue
-            except InputUserDeactivatedError as e:
-                self.logger.error(
-                    f"Caught User Deactivated Error, skip this user {user_id}: {e}",
-                    exc_info=True,
-                )
-                continue
-            except ForbiddenError as e:
-                self.logger.error(
-                    f"Caught Forbidden Error, skip this user {user_id}: {e}",
-                    exc_info=True,
-                )
-                continue
-            except Exception:
-                self.logger.error(
-                    "Unexpected error during message sending, session=%s, user_id=%s",
-                    session_info.wrapper.session_file, user_id, exc_info=True,
-                )
-                continue
+            if result == "ok" and not self.is_mail_from_usernames:
+                await self.main_window.database.set_user_to_sended(user_id)
 
             await session_info.wrapper.process_new_user(
                 entity, smm_message["text"] if self.is_send_text_messages else ""
             )
             session_info.sent_count += 1
 
+            if self.enable_second_message:
+                await asyncio.sleep(
+                    random.uniform(self.second_delay_min, self.second_delay_max)
+                )
+                second_message = random.choice(self.second_messages)
+                second_result = await self._send_single_message(
+                    session_info, user_id, self._build_message_payload(second_message)
+                )
+                if second_result != "skip":
+                    await session_info.wrapper.process_new_user(
+                        entity,
+                        second_message["text"] if self.is_send_text_messages else "",
+                    )
+                    session_info.sent_count += 1
+
             await asyncio.sleep(random.uniform(self.delay_min, self.delay_max))
 
         await self.stop()
+
+    def _build_message_payload(self, smm_message) -> dict:
+        if self.is_send_text_messages:
+            base64_file = None
+            if smm_message["photo"]:
+                with open(SMM_IMAGES / smm_message["photo"], "rb") as file:
+                    base64_file = base64.b64encode(file.read()).decode("utf-8")
+
+            return {
+                "base64_file": base64_file,
+                "text": smm_message["text"],
+                "filename": smm_message["photo"],
+            }
+        return {"path": str(SMM_VOICES / smm_message["path"])}
+
+    async def _send_single_message(self, session_info, user_id, message: dict) -> str:
+        """Send one message to user_id via session_info.
+
+        Returns "ok" on a genuine send, "flood" if a FloodWaitError was
+        hit and absorbed (matches the historical behavior of proceeding
+        as if the message went through after waiting out the flood), or
+        "skip" if the caller should abandon this user entirely.
+        """
+        try:
+            await session_info.wrapper.sendMessage(
+                user_id, json.dumps(message), not self.is_send_text_messages
+            )
+            return "ok"
+        except FloodWaitError as e:
+            self.logger.error(
+                f"Caught Flood Wait Error, wait for {e.seconds}", exc_info=True
+            )
+            self.main_window.show_notification(
+                "Внимание",
+                f"Сессия {session_info.wrapper.session_file} поймала флуд, ждем {e.seconds + 10} секунд",
+            )
+            await asyncio.sleep(e.seconds + 10)
+            return "flood"
+        except PeerFloodError as e:
+            self.logger.error(
+                f"Caught Flood Error, stop mailing for this session {session_info.wrapper.session_file}: {e}",
+                exc_info=True,
+            )
+            await self.finish_session(session_info.session_id)
+            self.main_window.show_notification(
+                "Внимание",
+                f"Сессия {session_info.wrapper.session_file} поймала флуд",
+            )
+            return "skip"
+        except InputUserDeactivatedError as e:
+            self.logger.error(
+                f"Caught User Deactivated Error, skip this user {user_id}: {e}",
+                exc_info=True,
+            )
+            return "skip"
+        except ForbiddenError as e:
+            self.logger.error(
+                f"Caught Forbidden Error, skip this user {user_id}: {e}",
+                exc_info=True,
+            )
+            return "skip"
+        except Exception:
+            self.logger.error(
+                "Unexpected error during message sending, session=%s, user_id=%s",
+                session_info.wrapper.session_file, user_id, exc_info=True,
+            )
+            return "skip"
 
     async def _resolve_usernames(
         self, usernames: list[str]
