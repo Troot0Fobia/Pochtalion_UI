@@ -75,7 +75,9 @@ class Mailer:
         self.session_files = mail_data["selected_sessions"]
         self.session_wrappers = []
         self.mail_data: deque = deque()
-        self._inaccessible: set[tuple[int, int]] = set()  # (session_id, chat_id)
+        self._access_cache: dict[int, dict[int, bool]] = {}  # chat_id -> {session_id: has_access}, persisted
+        self._participants_cache: dict[tuple[int, int], dict[int, User]] = {}  # (session_id, chat_id) -> {user_id: User}
+        self._unreached_chats: dict[int, int] = {}  # chat_id -> number of users we couldn't resolve an entity for
 
         if self.is_send_text_messages:
             message_pool = await self.main_window.database.get_smm_messages()
@@ -201,6 +203,16 @@ class Mailer:
                     f"({len(failed_usernames)} из {len(usernames)}):\n"
                     + "\n".join(failed_usernames),
                 )
+        else:
+            # One bulk query for every distinct source group referenced by
+            # this run, instead of a lookup per user during the send loop -
+            # most chats are public and won't have a single row here anyway.
+            distinct_chat_ids = list(
+                {u["source_chat_id"] for u in self.mail_data if u.get("source_chat_id") is not None}
+            )
+            self._access_cache = await self.main_window.database.get_chat_access(
+                distinct_chat_ids
+            )
 
         while self.mail_data:
             if not self._running or not self.session_wrappers:
@@ -232,14 +244,23 @@ class Mailer:
                     user_status=4,
                 )
             else:
-                session_info = self.session_wrappers[index % self.sessions_count]
+                user_data = self.mail_data.popleft()
+                session_info = self._select_session_for_user(user_data, index)
+                if session_info is None:
+                    self.logger.info(
+                        "No selected session has access to user %s's source, skipping",
+                        user_data.get("user_id"),
+                    )
+                    self._note_unreached(user_data.get("source_chat_id"))
+                    continue
                 entity = await self.get_user_entity(
-                    self.mail_data.popleft(),
+                    user_data,
                     session_info.wrapper.client,
                     session_info.session_id,
                 )
                 if entity is None or not isinstance(entity, (InputPeerUser, InputPeerSelf)):
                     self.logger.info("No entity received from data")
+                    self._note_unreached(user_data.get("source_chat_id"))
                     continue
                 user_id = entity.user_id
                 await self.main_window.database.add_user_to_session(
@@ -432,6 +453,57 @@ class Mailer:
 
         return resolved, failed_usernames
 
+    async def _update_access(self, chat_id: int, session_id, has_access: bool) -> None:
+        sid = int(session_id)
+        await self.main_window.database.set_chat_access(chat_id, sid, has_access)
+        self._access_cache.setdefault(chat_id, {})[sid] = has_access
+
+    def _select_session_for_user(self, user_data, index):
+        """Pick which session should resolve/send to this user.
+
+        A resolved InputPeer's access_hash is only valid for the session
+        that obtained it, so a user backed by a parsed source group can
+        only be mailed through a session that actually has access to that
+        group. Most chats are public and have no entry in _access_cache at
+        all - any selected session is eligible and this is a plain round
+        robin, same as before. Sessions confirmed accessible for this chat
+        (from parsing or an earlier run) are preferred; sessions confirmed
+        to lack access are avoided entirely, so a private group's dead-end
+        sessions are only ever tried once, period - not once per run.
+        Anything with no recorded status yet is tried via round robin so
+        access can still be discovered.
+        """
+        source_chat_id = user_data.get("source_chat_id")
+        if source_chat_id is None:
+            return self.session_wrappers[index % self.sessions_count]
+
+        status = self._access_cache.get(source_chat_id)
+        if not status:
+            return self.session_wrappers[index % self.sessions_count]
+
+        confirmed = [si for si in self.session_wrappers if status.get(int(si.session_id)) is True]
+        if confirmed:
+            return confirmed[index % len(confirmed)]
+
+        untested = [si for si in self.session_wrappers if int(si.session_id) not in status]
+        if untested:
+            return untested[index % len(untested)]
+        return None
+
+    async def _get_group_participants(
+        self, session_client, session_id, chat_entity, chat_id: int
+    ) -> dict[int, "User"]:
+        """One full participants scan per (session, group) per mailing run,
+        cached and reused for every subsequent user from the same group
+        instead of re-scanning the whole group from scratch for each one."""
+        cache_key = (int(session_id), chat_id)
+        if cache_key not in self._participants_cache:
+            participants: dict[int, User] = {}
+            async for user in session_client.iter_participants(chat_entity):
+                participants[user.id] = user
+            self._participants_cache[cache_key] = participants
+        return self._participants_cache[cache_key]
+
     async def get_user_entity(self, user_data, session_client, session_id):
         user_id = user_data["user_id"]
         username = user_data["username"]
@@ -469,9 +541,6 @@ class Mailer:
                     exc_info=True,
                 )
 
-        if (session_id, source_chat_id) in self._inaccessible:
-            return None
-
         source_data = await self.main_window.database.get_parse_source(source_chat_id)
         if not source_data:
             return None
@@ -479,18 +548,30 @@ class Mailer:
         chat_username = source_data.get("chat_username")
         chat_type = source_data.get("chat_type")
         if chat_username:
+            # Public sources are resolvable by username regardless of this
+            # session's membership, so access history (measured against the
+            # numeric identifier below) doesn't gate this path.
             chat_identifier = chat_username
-        elif chat_type in ("broadcast", "megagroup", "gigagroup"):
-            # source_chat_id is stored as the raw (unmarked) Telethon entity
-            # id. A bare positive int is always resolved by Telethon as a
-            # PeerUser, never a channel, so it must be marked as such here -
-            # matching the -100{id} convention used elsewhere in the app
-            # (see client_wrapper.py).
-            chat_identifier = int(f"-100{source_chat_id}")
-        elif chat_type == "chat":
-            chat_identifier = -source_chat_id
         else:
-            chat_identifier = source_chat_id
+            if chat_type in ("broadcast", "megagroup", "gigagroup"):
+                # source_chat_id is stored as the raw (unmarked) Telethon
+                # entity id. A bare positive int is always resolved by
+                # Telethon as a PeerUser, never a channel, so it must be
+                # marked as such here - matching the -100{id} convention
+                # used elsewhere in the app (see client_wrapper.py).
+                chat_identifier = int(f"-100{source_chat_id}")
+            elif chat_type == "chat":
+                chat_identifier = -source_chat_id
+            else:
+                # Unrecognized/legacy chat_type (e.g. a pre-repair "unknown"
+                # row): a bare source_chat_id would be misread by Telethon
+                # as a PeerUser and is guaranteed to fail, wasting a
+                # request. Bail out instead of guessing an identifier.
+                self.logger.warning(
+                    "Unrecognized chat_type '%s' for source %s, skipping user %s",
+                    chat_type, source_chat_id, user_id,
+                )
+                return None
         chat_title = source_data.get("chat_title", str(source_chat_id))
 
         try:
@@ -519,6 +600,8 @@ class Mailer:
                 f"Unexpected error occurred. Skip user {user_id}: {e}", exc_info=True
             )
             return None
+
+        await self._update_access(source_chat_id, session_id, True)
 
         user_entity = None
 
@@ -555,10 +638,10 @@ class Mailer:
                         if isinstance(sender, User) and sender.id == user_id:
                             user_entity = sender
                 else:
-                    async for user in session_client.iter_participants(chat_entity):
-                        if user.id == user_id:
-                            user_entity = user
-                            break
+                    participants = await self._get_group_participants(
+                        session_client, session_id, chat_entity, source_chat_id
+                    )
+                    user_entity = participants.get(user_id)
             except MsgIdInvalidError:
                 self.logger.warning(
                     (
@@ -596,10 +679,14 @@ class Mailer:
     async def _mark_group_inaccessible(
         self, session_id: int, chat_id: int, chat_title: str, chat_identifier
     ):
-        self._inaccessible.add((session_id, chat_id))
+        await self._update_access(chat_id, session_id, False)
         accessible = []
         sm = self.main_window.session_manager
         if sm:
+            # This notification loop already pays for a get_entity() probe
+            # per live session - piggyback on it to learn access for the
+            # rest too, rather than issuing a second round of requests
+            # later, and persist both outcomes (see _update_access).
             for sf, wrapper in sm.sessions.items():
                 try:
                     # chat_identifier is already marked (-100{id}/-{id}); a
@@ -608,8 +695,9 @@ class Mailer:
                     # session genuinely has access to the group.
                     await wrapper.client.get_entity(chat_identifier)
                     accessible.append(sf)
+                    await self._update_access(chat_id, wrapper.session_id, True)
                 except Exception:
-                    pass
+                    await self._update_access(chat_id, wrapper.session_id, False)
         session_file = self._get_session_file(session_id)
         accessible_str = ", ".join(accessible) if accessible else "нет доступных сессий"
         self.main_window.show_notification(
@@ -636,10 +724,70 @@ class Mailer:
         await self._mark_group_inaccessible(session_id, chat_id, chat_title, chat_identifier)
         return None
 
+    def _note_unreached(self, chat_id) -> None:
+        if chat_id is None:
+            return
+        self._unreached_chats[chat_id] = self._unreached_chats.get(chat_id, 0) + 1
+
+    @staticmethod
+    def _format_group_label(chat_id: int, source: dict) -> str:
+        title = source.get("chat_title") or "без названия"
+        parts = [f"id {chat_id}"]
+        username = source.get("chat_username")
+        if username:
+            parts.append(f"@{username}")
+        invite_hash = source.get("invite_hash")
+        if invite_hash:
+            parts.append(f"https://t.me/+{invite_hash}")
+        return f"«{title}» ({', '.join(parts)})"
+
+    async def _report_unreached_groups(self) -> None:
+        if not self._unreached_chats:
+            return
+        chat_ids = list(self._unreached_chats.keys())
+        access_by_chat = await self.main_window.database.get_chat_access_sessions(chat_ids)
+
+        with_access_lines = []
+        without_access_lines = []
+        for chat_id in chat_ids:
+            source = await self.main_window.database.get_parse_source(chat_id)
+            label = self._format_group_label(chat_id, source)
+            sessions = access_by_chat.get(chat_id)
+            if sessions:
+                session_parts = ", ".join(
+                    f"{s['session_id']} {s['session_file']} ({s['phone_number'] or 'без номера'})"
+                    for s in sessions
+                )
+                with_access_lines.append(f"{label} — {session_parts}")
+            else:
+                without_access_lines.append(label)
+
+        message_parts = []
+        if with_access_lines:
+            message_parts.append(
+                "Часть пользователей не была разослана — доступ к их группам есть "
+                "у сессий, не выбранных для этой рассылки:\n" + "\n".join(with_access_lines)
+            )
+        if without_access_lines:
+            message_parts.append(
+                "Группы без доступных сессий (нужно найти/подключить сессию с "
+                "доступом к ним):\n" + "\n".join(without_access_lines)
+            )
+
+        self.logger.warning(
+            "Mailing finished with unreached users from %d group(s): %s",
+            len(chat_ids), self._unreached_chats,
+        )
+        self.main_window.show_notification(
+            "Не все пользователи получили сообщение",
+            "\n\n".join(message_parts),
+        )
+
     async def stop(self):
         if not self._running:
             return
         self.logger.info("Stopping mailing")
+        await self._report_unreached_groups()
         self._running = False
         if self.update_task:
             self.update_task.cancel()

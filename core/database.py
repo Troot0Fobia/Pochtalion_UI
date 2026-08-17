@@ -15,6 +15,8 @@ from core.utils import resource_path
 
 DB_PATH = DATABASE / "database.db"
 
+KNOWN_CHAT_TYPES = frozenset({"broadcast", "megagroup", "gigagroup", "chat"})
+
 
 class Database:
 
@@ -207,6 +209,19 @@ class Database:
             await db.commit()
         except Exception:
             pass
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS chat_access (
+                chat_id INTEGER NOT NULL,
+                session_id INTEGER NOT NULL,
+                has_access INTEGER NOT NULL,
+                checked_at TEXT NOT NULL,
+                PRIMARY KEY (chat_id, session_id),
+                FOREIGN KEY (chat_id) REFERENCES parse_source(chat_id) ON DELETE CASCADE,
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+            )
+        """
+        )
 
         await db.commit()
 
@@ -925,6 +940,115 @@ class Database:
                     }
                 else:
                     return {}
+
+    async def get_unclassified_parse_sources(self) -> list[dict]:
+        """Rows whose chat_type predates access-aware classification (legacy
+        'unknown'/other garbage values) - candidates for the one-time repair."""
+        placeholders = ", ".join("?" for _ in KNOWN_CHAT_TYPES)
+        async with self._lock:
+            async with self._db.execute(
+                f"""
+                SELECT chat_id, chat_title, chat_username, chat_type, invite_hash
+                FROM parse_source
+                WHERE chat_type NOT IN ({placeholders})
+            """,
+                tuple(KNOWN_CHAT_TYPES),
+            ) as cursor:
+                return [
+                    {
+                        "chat_id": row["chat_id"],
+                        "chat_title": row["chat_title"],
+                        "chat_username": row["chat_username"],
+                        "chat_type": row["chat_type"],
+                        "invite_hash": row["invite_hash"],
+                    }
+                    async for row in cursor
+                ]
+
+    async def update_parse_source_type(self, chat_id: int, chat_type: str) -> None:
+        async with self._lock:
+            await self._db.execute(
+                "UPDATE parse_source SET chat_type = ? WHERE chat_id = ?",
+                (chat_type, chat_id),
+            )
+            await self._db.commit()
+
+    # ## ======================= Methods for chat_access ========================= ###
+    #
+    # Both facts are stored ("session X can/cannot reach chat Y"), keyed by
+    # (chat_id, session_id). A missing row means "never tested" - the vast
+    # majority of chats are public and every session that ever touches one
+    # succeeds immediately, so nothing is ever written for them. Rows only
+    # accumulate for genuinely restricted chats, and even in the worst case
+    # that's bounded by (private chats) x (number of Telegram accounts the
+    # app manages) - a small, fixed number, not by user/message count. The
+    # point of keeping the negative half (not just "confirmed accessible")
+    # is that without it, a session that will never have access to a given
+    # private group re-fails against it on every single mailing run
+    # forever, instead of once.
+
+    async def set_chat_access(self, chat_id: int, session_id: int, has_access: bool) -> None:
+        async with self._lock:
+            await self._db.execute(
+                """
+                INSERT INTO chat_access (chat_id, session_id, has_access, checked_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(chat_id, session_id) DO UPDATE SET
+                    has_access = excluded.has_access,
+                    checked_at = excluded.checked_at
+            """,
+                (chat_id, session_id, int(has_access), datetime.now(tz=timezone("UTC")).isoformat()),
+            )
+            await self._db.commit()
+
+    async def get_chat_access(self, chat_ids: list[int]) -> dict[int, dict[int, bool]]:
+        """Bulk-load known access (chat_id -> {session_id: has_access, ...})
+        for a batch of chats in one query, so callers can preload once per
+        mailing run instead of querying per user."""
+        if not chat_ids:
+            return {}
+        result: dict[int, dict[int, bool]] = {}
+        placeholders = ", ".join("?" for _ in chat_ids)
+        async with self._lock:
+            async with self._db.execute(
+                f"""
+                SELECT chat_id, session_id, has_access FROM chat_access
+                WHERE chat_id IN ({placeholders})
+            """,
+                tuple(chat_ids),
+            ) as cursor:
+                async for row in cursor:
+                    result.setdefault(row["chat_id"], {})[row["session_id"]] = bool(row["has_access"])
+        return result
+
+    async def get_chat_access_sessions(self, chat_ids: list[int]) -> dict[int, list[dict]]:
+        """For each of the given chat_ids, the still-existing sessions
+        confirmed to have access - joined against `sessions` so a session
+        that's since been deleted is simply absent, no separate check
+        needed."""
+        if not chat_ids:
+            return {}
+        result: dict[int, list[dict]] = {}
+        placeholders = ", ".join("?" for _ in chat_ids)
+        async with self._lock:
+            async with self._db.execute(
+                f"""
+                SELECT ca.chat_id, s.id AS session_id, s.session_file, s.phone_number
+                FROM chat_access ca
+                JOIN sessions s ON s.id = ca.session_id
+                WHERE ca.chat_id IN ({placeholders}) AND ca.has_access = 1
+            """,
+                tuple(chat_ids),
+            ) as cursor:
+                async for row in cursor:
+                    result.setdefault(row["chat_id"], []).append(
+                        {
+                            "session_id": row["session_id"],
+                            "session_file": row["session_file"],
+                            "phone_number": row["phone_number"],
+                        }
+                    )
+        return result
 
     # ## ======================== Methods for users ============================ ###
 

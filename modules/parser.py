@@ -25,6 +25,38 @@ PARSE_DELAY = 1
 UPDATE_DELAY = 1
 
 
+def classify_chat_entity(entity) -> tuple[str | None, bool]:
+    """Classify a resolved chat/channel entity.
+
+    Returns (chat_type, has_access). chat_type is one of
+    "broadcast"/"megagroup"/"gigagroup"/"chat", or None if the entity is of
+    an unrecognized TL type (should not normally happen - callers must not
+    persist a source in that case).
+
+    Telegram returns ChannelForbidden/ChatForbidden instead of raising when
+    the requesting session has no (or no longer has) access to a chat it
+    can still reference by id. Those stubs are NOT subclasses of
+    Channel/Chat, but ChannelForbidden still carries broadcast/megagroup
+    flags, so the real type is usually still derivable even without access -
+    has_access=False is what actually distinguishes this case, not the type.
+    """
+    if isinstance(entity, types.Channel):
+        if entity.broadcast:
+            return "broadcast", True
+        if entity.megagroup:
+            return "megagroup", True
+        if entity.gigagroup:
+            return "gigagroup", True
+        return "megagroup", True
+    if isinstance(entity, types.Chat):
+        return "chat", True
+    if isinstance(entity, types.ChannelForbidden):
+        return ("broadcast" if entity.broadcast else "megagroup"), False
+    if isinstance(entity, types.ChatForbidden):
+        return "chat", False
+    return None, False
+
+
 class Parser:
 
     def __init__(self, main_window):
@@ -195,7 +227,13 @@ class Parser:
                     exc_info=True,
                 )
                 continue
-            group_type = self._get_channel_type(group_entity)
+            group_type, has_access = classify_chat_entity(group_entity)
+            if group_type is None:
+                self.logger.warning(
+                    f"Could not classify entity type for {parse_username} "
+                    f"({type(group_entity).__name__}), skipping",
+                )
+                continue
             self.group_id = group_entity.id
             self.group_data[self.group_id] = (
                 group_entity.title,
@@ -206,6 +244,16 @@ class Parser:
             await self.main_window.database.add_parse_source(
                 self.group_id, *self.group_data[self.group_id]
             )
+            await self.main_window.database.set_chat_access(
+                self.group_id, int(session_id), has_access
+            )
+
+            if not has_access:
+                self.logger.warning(
+                    "Session %s has no access to '%s' (%s, id=%s), skipped",
+                    wrapper.session_file, group_entity.title, group_type, self.group_id,
+                )
+                continue
 
             if group_type == "broadcast":
                 self.total_expected += int(self.count_of_posts) if self.count_of_posts else 0
@@ -721,20 +769,6 @@ class Parser:
         if self.main_window.settings_manager.get_setting("parse_admins"):
             tags.append("Только администраторы")
         return tags
-
-    def _get_channel_type(self, entity) -> str:
-        if isinstance(entity, types.Channel):
-            if entity.broadcast:
-                return "broadcast"
-            if entity.megagroup:
-                return "megagroup"
-            if entity.gigagroup:
-                return "gigagroup"
-        elif isinstance(entity, types.Chat):
-            return "chat"
-        else:
-            return "unknown"
-        return "unknown"
 
     async def stop(self):
         if not self._running or not self.session_wrappers:
