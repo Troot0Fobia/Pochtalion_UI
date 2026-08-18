@@ -56,6 +56,36 @@ class AuthCanceled(Exception):
     pass
 
 
+_SPAMBOT_RESTRICTED_RE = re.compile(
+    r"Ограничения будут автоматически сняты\s+(.+?)\s+UTC", re.IGNORECASE
+)
+
+
+def format_spam_status_notification(session_file: str, result: dict) -> tuple[str, str]:
+    state = result.get("state")
+    if state == "free":
+        return (
+            "SpamBot",
+            f"Сессия {session_file}: ограничений нет, это был просто флуд библиотеки",
+        )
+    if state == "restricted":
+        until = result.get("until")
+        if until:
+            return (
+                "SpamBot",
+                f"Сессия {session_file}: аккаунт ограничен спам-ботом, снятие ~{until} UTC",
+            )
+        return (
+            "SpamBot",
+            f"Сессия {session_file}: аккаунт ограничен спам-ботом",
+        )
+    return (
+        "SpamBot",
+        f"Сессия {session_file}: SpamBot не дал понятного ответа — считаем аккаунт "
+        f"всё ещё ограниченным, нужна ручная проверка",
+    )
+
+
 def _friendly_write_error(e: Exception) -> str:
     name = type(e).__name__
     _MESSAGES = {
@@ -1118,6 +1148,41 @@ class ClientWrapper:
             self.main_window.chat_bridge.renderNewMessage(
                 json.dumps(render_message), str(user_id), self._session_file, r"{}"
             )
+
+    async def check_spam_status(self) -> dict:
+        """Ask @SpamBot for this account's spam/restriction status.
+
+        Sends "/start" and classifies the reply. Returns
+        {"state": "free" | "restricted" | "unknown", "until": str | None, "raw": str}.
+        """
+        try:
+            async with self._client.conversation("SpamBot", timeout=20) as conv:
+                await conv.send_message("/start")
+                reply = await conv.get_response()
+                text = reply.raw_text or ""
+                lower = text.lower()
+
+                if (
+                    "свободен от каких-либо ограничений" in lower
+                    or "no limits are currently applied" in lower
+                ):
+                    return {"state": "free", "until": None, "raw": text}
+
+                match = _SPAMBOT_RESTRICTED_RE.search(text)
+                if "ограничен" in lower and match:
+                    until = match.group(1)
+                    try:
+                        await conv.send_message("ОК")
+                        await conv.get_response()
+                    except Exception:
+                        pass
+                    return {"state": "restricted", "until": until, "raw": text}
+                if "restrict" in lower:
+                    return {"state": "restricted", "until": None, "raw": text}
+
+                return {"state": "unknown", "until": None, "raw": text}
+        except asyncio.TimeoutError:
+            return {"state": "unknown", "until": None, "raw": ""}
 
     async def deleteDialog(self, dialog_id: int):
         if not self._status:

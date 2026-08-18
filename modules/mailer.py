@@ -23,11 +23,12 @@ from telethon.tl.types import ChatInviteAlready, InputPeerSelf, InputPeerUser, U
 
 from core.logger import setup_logger
 from core.paths import SMM_IMAGES, SMM_VOICES
-from modules.client_wrapper import ClientWrapper
+from modules.client_wrapper import ClientWrapper, format_spam_status_notification
 
 UPDATE_DELAY = 1
 RESOLVE_BATCH_SIZE = 5
 RESOLVE_DELAY = 1
+SPAMBOT_CHECK_FLOOD_THRESHOLD = 900  # seconds; only check @SpamBot on long flood waits
 
 
 class Mailer:
@@ -334,6 +335,8 @@ class Mailer:
                 "Внимание",
                 f"Сессия {session_info.wrapper.session_file} поймала флуд, ждем {e.seconds + 10} секунд",
             )
+            if e.seconds >= SPAMBOT_CHECK_FLOOD_THRESHOLD:
+                await self._check_spambot_status(session_info.wrapper)
             await asyncio.sleep(e.seconds + 10)
             return "flood"
         except PeerFloodError as e:
@@ -341,6 +344,7 @@ class Mailer:
                 f"Caught Flood Error, stop mailing for this session {session_info.wrapper.session_file}: {e}",
                 exc_info=True,
             )
+            await self._check_spambot_status(session_info.wrapper)
             await self.finish_session(session_info.session_id)
             self.main_window.show_notification(
                 "Внимание",
@@ -817,6 +821,19 @@ class Mailer:
                 continue
             self.session_wrappers.append(
                 self.SessionWrapperInfo(session_wrapper, was_started, session_id, 0)
+            )
+
+    async def _check_spambot_status(self, wrapper) -> None:
+        if not self.main_window.settings_manager.get_setting("auto_write_spambot"):
+            return
+        try:
+            result = await wrapper.check_spam_status()
+            title, message = format_spam_status_notification(wrapper.session_file, result)
+            self.main_window.show_notification(title, message)
+            self.logger.info(f"{wrapper.session_file}\tSpamBot check: {result}")
+        except Exception as e:
+            self.logger.error(
+                f"{wrapper.session_file}\tSpamBot check failed", exc_info=e
             )
 
     async def finish_session(self, session_id):

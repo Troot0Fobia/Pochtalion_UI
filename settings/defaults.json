@@ -10,5 +10,6 @@
     "send_links_type": "messages_and_username",
     "parse_last_seen_filter": "any",
     "pudge_default_group": "",
-    "trigger_auto_reply_enabled": false
+    "trigger_auto_reply_enabled": false,
+    "auto_write_spambot": false
 }

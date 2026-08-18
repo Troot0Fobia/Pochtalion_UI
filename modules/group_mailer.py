@@ -19,10 +19,12 @@ from telethon.errors import (
 from core.logger import setup_logger
 from core.paths import SMM_IMAGES
 from models.group_mail import GroupMail
+from modules.client_wrapper import format_spam_status_notification
 
 
 _RETRY_DELAYS = (30, 60, 90, 120)  # seconds; total 5 attempts, ~5 min max wait
 _MAX_RETRIES = len(_RETRY_DELAYS) + 1
+SPAMBOT_CHECK_FLOOD_THRESHOLD = 900  # seconds; only check @SpamBot on long flood waits
 
 # Patterns for group identifier normalisation
 _INVITE_RE = re.compile(r"^(?:https?://)?t\.me/(?:joinchat/|\+)[a-zA-Z0-9_=\-]+$")
@@ -246,6 +248,8 @@ class GroupMailer:
                     "Внимание",
                     f"Сессия {session.session_file} поймала флуд, ждем {e.seconds + 10} секунд",
                 )
+                if e.seconds >= SPAMBOT_CHECK_FLOOD_THRESHOLD:
+                    await self._check_spambot_status(session)
                 await asyncio.sleep(e.seconds + 10)
             except PeerFloodError as e:
                 self.logger.error(
@@ -256,6 +260,7 @@ class GroupMailer:
                     "Внимание",
                     f"Сессия {session.session_file} поймала флуд — рассылка остановлена",
                 )
+                await self._check_spambot_status(session)
                 group_mail.stop()
                 break
             except InviteRequestSentError:
@@ -320,6 +325,19 @@ class GroupMailer:
         # Loop exited due to internal stop (PeerFlood / no messages).
         # Task cancellation (external stop) raises CancelledError and never reaches here.
         self.main_window.settings_bridge.changeGroupMailingStatus.emit(session_id, False)
+
+    async def _check_spambot_status(self, session) -> None:
+        if not self.main_window.settings_manager.get_setting("auto_write_spambot"):
+            return
+        try:
+            result = await session.check_spam_status()
+            title, message = format_spam_status_notification(session.session_file, result)
+            self.main_window.show_notification(title, message)
+            self.logger.info(f"{session.session_file}\tSpamBot check: {result}")
+        except Exception as e:
+            self.logger.error(
+                f"{session.session_file}\tSpamBot check failed", exc_info=e
+            )
 
     async def _retry_on_disconnect(self, session_id: str, group_mail, session) -> bool:
         for attempt, delay in enumerate(_RETRY_DELAYS, start=1):
