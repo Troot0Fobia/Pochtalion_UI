@@ -18,99 +18,127 @@
         </div>
         <div class="tab-block active-tab-block" id="common-tab-block">
             <h1>Настройки</h1>
-            <div class="settings-list">
-                <div class="row">
-                    <div class="settings-row">
-                        <div class="setting-name">API ключи для работы</div>
-                        <input type="text" name="api_keys" id="api-keys" onblur="changeSettings(this)" placeholder="<api_id>:<api_hash>">
-                        <div class="button" id="refresh-session-manager" onclick="refreshSessionManager()">Обновить ключи</div>
-                    </div>
-                </div>
-                <div class="row">
-                    <label class="settings-row">
-                        <input type="checkbox" name="force_parse_to_db" id="force-parse-to-db" onchange="changeSettings(this)">
-                        <div class="setting-name">Автоматически добавлять пользователей в Базу Данных</div>
-                    </label>
-                </div>
-                <div class="row">
-                    <label class="settings-row">
-                        <input type="checkbox" name="fetch_sessions_old_dialogs" id="fetch-sessions-old-dialogs" onchange="changeSettings(this)">
-                        <div class="setting-name">Получать старые диалоги сессии</div>
-                    </label>
-                </div>
-                <div class="row">
-                    <label class="settings-row">
-                        <input type="checkbox" name="parse_admins" id="parse-admins" onchange="changeSettings(this)">
-                        <div class="setting-name">Парсить админов и модераторов</div>
-                    </label>
-                </div>
-                <div class="row">
-                    <label class="settings-row">
-                        <input type="checkbox" name="auto_write_spambot" id="auto-write-spambot" onchange="changeSettings(this)">
-                        <div class="setting-name">Автоматически писать в SpamBot при получении спама</div>
-                    </label>
-                </div>
-                <div class="row">
-                    <label class="settings-row">
-                        <input type="checkbox" name="contact_mailing_cross_send" id="contact-mailing-cross-send" onchange="changeSettings(this)">
-                        <div class="setting-name">Писать пересекающимся контактам</div>
-                    </label>
-                </div>
-                <div class="row">
-                    <div class="settings-row">
-                        <div class="setting-name">Парсить пользователей, которые заходили</div>
-                        <select name="parse_last_seen_filter" id="parse-last-seen-filter"
-                                onchange="changeSettings(this)" class="inline-select">
-                            <option value="any">Когда угодно</option>
-                            <option value="this_month">В этом месяце и чаще</option>
-                            <option value="this_week">На этой неделе и чаще</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="row">
-                    <label class="settings-row">
-                        <input type="checkbox" name="load_chats" id="load-chats" onchange="changeSettings(this)">
-                        <div class="setting-name">Загружать чаты при старте</div>
-                    </label>
-                </div>
-                <div class="row">
-                    <label class="settings-row">
-                        <input type="checkbox" name="force_delete_chats" id="force-delete-chats" onchange="changeSettings(this)">
-                        <div class="setting-name">Принудительно удалять чаты при удалении сессии</div>
-                    </label>
-                </div>
-                <div class="row">
-                    <div class="settings-row">
-                        <input type="checkbox" name="send_links_to_parsed" id="send-links-to-parsed"
-                               onchange="toggleLinksSelect(this)">
-                        <span class="setting-name">Отправлять ссылки на</span>
-                        <select name="send_links_type" id="send-links-type"
-                                onchange="changeSettings(this)" class="inline-select" disabled>
-                            <option value="messages">сообщения</option>
-                            <option value="username">username</option>
-                            <option value="messages_and_username">сообщения и username</option>
-                            <option value="usernames_and_messages">username и сообщения</option>
-                        </select>
-                        <span class="setting-name">людей с парсинга в сохранённые сообщения</span>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="settings-row">
-                        <div class="setting-name">Группа по-умолчанию для уведомлений Пуджа</div>
-                        <input type="text" name="pudge_default_group" id="pudge-default-group"
-                               onblur="changeSettings(this)"
-                               placeholder="@username, https://t.me/username или https://t.me/+invite">
-                    </div>
-                </div>
-                <div class="row">
-                    <label class="settings-row">
-                        <input type="checkbox" name="open_dialogs_sidebar" id="open-dialogs-sidebar" onchange="changeSettings(this)">
-                        <div class="setting-name-with-info">
-                            <span class="setting-name">Открывать сайдбар диалогов при загрузке</span>
-                            <span class="info-tooltip" data-tooltip="Изменение применится после перезапуска приложения"
-                                  onclick="event.preventDefault()">i</span>
+
+            <div class="settings-section">
+                <h2 class="settings-section-title">Подключение</h2>
+                <div class="settings-list">
+                    <div class="row">
+                        <div class="settings-row">
+                            <div class="setting-name">API ключи для работы</div>
+                            <input type="text" name="api_keys" id="api-keys" onblur="changeSettings(this)" placeholder="<api_id>:<api_hash>">
+                            <div class="button" id="refresh-session-manager" onclick="refreshSessionManager()">Обновить ключи</div>
                         </div>
-                    </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2 class="settings-section-title">Интерфейс</h2>
+                <div class="settings-list">
+                    <div class="row">
+                        <label class="settings-row">
+                            <input type="checkbox" name="open_dialogs_sidebar" id="open-dialogs-sidebar" onchange="changeSettings(this)">
+                            <div class="setting-name-with-info">
+                                <span class="setting-name">Открывать сайдбар диалогов при загрузке</span>
+                                <span class="info-tooltip" data-tooltip="Изменение применится после перезапуска приложения"
+                                      onclick="event.preventDefault()">i</span>
+                            </div>
+                        </label>
+                    </div>
+                    <div class="row">
+                        <label class="settings-row">
+                            <input type="checkbox" name="load_chats" id="load-chats" onchange="changeSettings(this)">
+                            <div class="setting-name">Загружать чаты при старте</div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2 class="settings-section-title">Парсинг</h2>
+                <div class="settings-list">
+                    <div class="row">
+                        <label class="settings-row">
+                            <input type="checkbox" name="force_parse_to_db" id="force-parse-to-db" onchange="changeSettings(this)">
+                            <div class="setting-name">Автоматически добавлять пользователей в Базу Данных</div>
+                        </label>
+                    </div>
+                    <div class="row">
+                        <label class="settings-row">
+                            <input type="checkbox" name="parse_admins" id="parse-admins" onchange="changeSettings(this)">
+                            <div class="setting-name">Парсить админов и модераторов</div>
+                        </label>
+                    </div>
+                    <div class="row">
+                        <div class="settings-row">
+                            <div class="setting-name">Парсить пользователей, которые заходили</div>
+                            <select name="parse_last_seen_filter" id="parse-last-seen-filter"
+                                    onchange="changeSettings(this)" class="inline-select">
+                                <option value="any">Когда угодно</option>
+                                <option value="this_month">В этом месяце и чаще</option>
+                                <option value="this_week">На этой неделе и чаще</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2 class="settings-section-title">Рассылка</h2>
+                <div class="settings-list">
+                    <div class="row">
+                        <div class="settings-row">
+                            <input type="checkbox" name="send_links_to_parsed" id="send-links-to-parsed"
+                                   onchange="toggleLinksSelect(this)">
+                            <span class="setting-name">Отправлять ссылки на</span>
+                            <select name="send_links_type" id="send-links-type"
+                                    onchange="changeSettings(this)" class="inline-select" disabled>
+                                <option value="messages">сообщения</option>
+                                <option value="username">username</option>
+                                <option value="messages_and_username">сообщения и username</option>
+                                <option value="usernames_and_messages">username и сообщения</option>
+                            </select>
+                            <span class="setting-name">людей с парсинга в сохранённые сообщения</span>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <label class="settings-row">
+                            <input type="checkbox" name="contact_mailing_cross_send" id="contact-mailing-cross-send" onchange="changeSettings(this)">
+                            <div class="setting-name">Писать пересекающимся контактам</div>
+                        </label>
+                    </div>
+                    <div class="row">
+                        <label class="settings-row">
+                            <input type="checkbox" name="auto_write_spambot" id="auto-write-spambot" onchange="changeSettings(this)">
+                            <div class="setting-name">Автоматически писать в SpamBot при получении спама</div>
+                        </label>
+                    </div>
+                    <div class="row">
+                        <div class="settings-row">
+                            <div class="setting-name">Группа по-умолчанию для уведомлений Пуджа</div>
+                            <input type="text" name="pudge_default_group" id="pudge-default-group"
+                                   onblur="changeSettings(this)"
+                                   placeholder="@username, https://t.me/username или https://t.me/+invite">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2 class="settings-section-title">Сессии</h2>
+                <div class="settings-list">
+                    <div class="row">
+                        <label class="settings-row">
+                            <input type="checkbox" name="fetch_sessions_old_dialogs" id="fetch-sessions-old-dialogs" onchange="changeSettings(this)">
+                            <div class="setting-name">Получать старые диалоги сессии</div>
+                        </label>
+                    </div>
+                    <div class="row">
+                        <label class="settings-row">
+                            <input type="checkbox" name="force_delete_chats" id="force-delete-chats" onchange="changeSettings(this)">
+                            <div class="setting-name">Принудительно удалять чаты при удалении сессии</div>
+                        </label>
+                    </div>
                 </div>
             </div>
             <div class="button reset-settings" onclick="resetSettings()">Сбросить настройки</div>
