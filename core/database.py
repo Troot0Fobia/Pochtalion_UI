@@ -25,7 +25,19 @@ class Database:
         self._lock = asyncio.Lock()
 
     @classmethod
-    async def create(cls):
+    async def create(cls, db_path: str | Path | None = None):
+        # db_path is an explicit override used by one-off maintenance
+        # scripts that need to open an arbitrary database file; the app
+        # itself always calls create() with no argument.
+        if db_path is not None:
+            target = Path(db_path)
+            if not target.exists():
+                open(target, "a").close()
+            db = await aiosqlite.connect(target)
+            db.row_factory = sqlite3.Row
+            await db.execute("PRAGMA foreign_keys = ON")
+            return cls(db)
+
         # Путь к базе в .exe или локально
         source_db_path = resource_path(DB_PATH)
         # Путь для записи
@@ -1003,6 +1015,12 @@ class Database:
                 INSERT INTO parse_source (chat_id, chat_title, chat_username, chat_type, invite_hash)
                 VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(chat_id) DO UPDATE SET
+                    chat_title = excluded.chat_title,
+                    chat_type = excluded.chat_type,
+                    -- keep the known handle if this pass resolved the chat
+                    -- without one (e.g. a ChannelForbidden stub from a
+                    -- session with no access carries no username)
+                    chat_username = COALESCE(excluded.chat_username, parse_source.chat_username),
                     invite_hash = COALESCE(excluded.invite_hash, parse_source.invite_hash)
             """,
                 (chat_id, chat_title, chat_username, chat_type, invite_hash),
@@ -1061,6 +1079,55 @@ class Database:
                 (chat_type, chat_id),
             )
             await self._db.commit()
+
+    async def get_all_parse_sources(self) -> list[dict]:
+        async with self._lock:
+            async with self._db.execute(
+                """
+                SELECT chat_id, chat_title, chat_username, chat_type, invite_hash
+                FROM parse_source
+            """
+            ) as cursor:
+                return [
+                    {
+                        "chat_id": row["chat_id"],
+                        "chat_title": row["chat_title"],
+                        "chat_username": row["chat_username"],
+                        "chat_type": row["chat_type"],
+                        "invite_hash": row["invite_hash"],
+                    }
+                    async for row in cursor
+                ]
+
+    async def update_parse_source_meta(
+        self, chat_id: int, chat_title: str, chat_username: str | None, chat_type: str
+    ) -> None:
+        async with self._lock:
+            await self._db.execute(
+                """
+                UPDATE parse_source
+                SET chat_title = ?, chat_username = ?, chat_type = ?
+                WHERE chat_id = ?
+            """,
+                (chat_title, chat_username, chat_type, chat_id),
+            )
+            await self._db.commit()
+
+    async def clear_chat_access_denials(self, chat_id: int) -> int:
+        """Drop the negative (has_access=0) chat_access rows for a chat.
+
+        Those rows are only meaningful for a genuinely membership-gated
+        chat. Once a chat is known to have a public @username every session
+        can reach it by that handle regardless of membership, so a stale
+        "no access" verdict there just permanently benches sessions the
+        mailer would otherwise use."""
+        async with self._lock:
+            cursor = await self._db.execute(
+                "DELETE FROM chat_access WHERE chat_id = ? AND has_access = 0",
+                (chat_id,),
+            )
+            await self._db.commit()
+            return cursor.rowcount
 
     # ## ======================= Methods for chat_access ========================= ###
     #

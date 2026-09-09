@@ -57,6 +57,35 @@ def classify_chat_entity(entity) -> tuple[str | None, bool]:
     return None, False
 
 
+def entity_username(entity) -> str | None:
+    """Best public @username for a chat/channel/user entity.
+
+    Telegram exposes multi-username support (a base handle plus purchased
+    "collectible"/Fragment usernames, all pointing at the same peer)
+    through a `usernames` list. As soon as an entity has more than one
+    handle, the scalar `username` field comes back None and *every* handle
+    - the main one included - lands in `usernames` instead. Code that
+    reads only `.username` then sees None and treats a fully public group
+    as private (no public identifier -> mailer falls back to the
+    membership-gated -100{id} path).
+
+    Prefer the editable (non-collectible) active handle, fall back to any
+    active handle, and finally to the legacy scalar field.
+    """
+    scalar = getattr(entity, "username", None)
+    if scalar:
+        return scalar
+    active = [
+        u
+        for u in (getattr(entity, "usernames", None) or [])
+        if getattr(u, "active", False) and getattr(u, "username", None)
+    ]
+    if not active:
+        return None
+    editable = next((u for u in active if getattr(u, "editable", False)), None)
+    return (editable or active[0]).username
+
+
 class Parser:
 
     def __init__(self, main_window):
@@ -237,7 +266,7 @@ class Parser:
             self.group_id = group_entity.id
             self.group_data[self.group_id] = (
                 group_entity.title,
-                getattr(group_entity, "username", None),
+                entity_username(group_entity),
                 group_type,
                 target.get("hash"),  # invite_hash; None for public/numeric targets
             )
@@ -275,7 +304,7 @@ class Parser:
             self.logger.info(
                 "Parsing '%s' (@%s, %s) via session %s | strategy: %s",
                 group_entity.title,
-                getattr(group_entity, "username", None) or "no_username",
+                entity_username(group_entity) or "no_username",
                 group_type,
                 wrapper.session_file,
                 _strategy,
@@ -329,7 +358,7 @@ class Parser:
                     self.logger.error(
                         "Unexpected error while parsing broadcast '%s' (@%s)",
                         group_entity.title,
-                        getattr(group_entity, "username", None) or "no_username",
+                        entity_username(group_entity) or "no_username",
                         exc_info=True,
                     )
             elif group_type in ("megagroup", "gigagroup", "chat"):
@@ -370,7 +399,7 @@ class Parser:
                             self.logger.error(
                                 "Unexpected error while parsing '%s' (@%s) by messages, msg_id=%s",
                                 group_entity.title,
-                                getattr(group_entity, "username", None) or "no_username",
+                                entity_username(group_entity) or "no_username",
                                 getattr(message, "id", "?"),
                                 exc_info=True,
                             )
@@ -403,7 +432,7 @@ class Parser:
                             self.logger.error(
                                 "Unexpected error while parsing '%s' (@%s) by participants, user_id=%s",
                                 group_entity.title,
-                                getattr(group_entity, "username", None) or "no_username",
+                                entity_username(group_entity) or "no_username",
                                 getattr(user_entity, "id", "?"),
                                 exc_info=True,
                             )
@@ -471,7 +500,7 @@ class Parser:
                 user_data = {
                     "first_name": getattr(user_entity, "first_name", None),
                     "last_name": getattr(user_entity, "last_name", None),
-                    "username": getattr(user_entity, "username", None),
+                    "username": entity_username(user_entity),
                     "phone_number": getattr(user_entity, "phone", None),
                 }
                 self.existing_ids[user_entity.id] = (
@@ -498,15 +527,15 @@ class Parser:
             return True
 
         mode = self.send_links_type
-        group_username = getattr(group_entity, "username", None)
+        group_username = entity_username(group_entity)
 
         if mode == "username":
-            username = getattr(user_entity, "username", None)
+            username = entity_username(user_entity)
             if not username:
                 return False
             link = f"@{username}"
         elif mode == "usernames_and_messages":
-            username = getattr(user_entity, "username", None)
+            username = entity_username(user_entity)
             if username:
                 link = f"@{username}"
             else:
@@ -560,7 +589,7 @@ class Parser:
                     )
 
             if link is None and mode == "messages_and_username":
-                username = getattr(user_entity, "username", None)
+                username = entity_username(user_entity)
                 if username:
                     link = f"@{username}"
 
