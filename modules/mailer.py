@@ -15,9 +15,10 @@ from telethon.errors import (
     ForbiddenError,
     InputUserDeactivatedError,
     PeerFloodError,
+    UsernameInvalidError,
     UsernameNotOccupiedError,
 )
-from telethon.errors.rpcerrorlist import MsgIdInvalidError
+from telethon.errors.rpcerrorlist import MsgIdInvalidError, PeerIdInvalidError
 from telethon.tl.functions.contacts import GetContactsRequest
 from telethon.tl.functions.messages import CheckChatInviteRequest, ImportChatInviteRequest
 from telethon.tl.types import ChatInviteAlready, InputPeerSelf, InputPeerUser, User
@@ -88,6 +89,8 @@ class Mailer:
         self._access_cache: dict[int, dict[int, bool]] = {}  # chat_id -> {session_id: has_access}, persisted
         self._participants_cache: dict[tuple[int, int], dict[int, User]] = {}  # (session_id, chat_id) -> {user_id: User}
         self._unreached_chats: dict[int, int] = {}  # chat_id -> number of users we couldn't resolve an entity for
+        self._dialog_ids_cache: dict[int, set[int]] = {}  # session_id -> {entity_id} from one dialog scan per run
+        self._undeliverable = 0  # resolved users the send was permanently rejected for (privacy / min entity / deleted)
 
         if self.is_send_text_messages:
             message_pool = await self.main_window.database.get_smm_messages()
@@ -290,7 +293,9 @@ class Mailer:
             result = await self._send_single_message(
                 session_info, user_id, self._build_message_payload(smm_message)
             )
-            if result == "skip":
+            if result in ("skip", "undeliverable"):
+                if result == "undeliverable":
+                    self._undeliverable += 1
                 continue
             if result == "ok" and not self.is_mail_from_usernames:
                 await self.main_window.database.set_user_to_sended(user_id)
@@ -308,7 +313,9 @@ class Mailer:
                 second_result = await self._send_single_message(
                     session_info, user_id, self._build_message_payload(second_message)
                 )
-                if second_result != "skip":
+                if second_result == "undeliverable":
+                    self._undeliverable += 1
+                if second_result not in ("skip", "undeliverable"):
                     await session_info.wrapper.process_new_user(
                         entity,
                         second_message["text"] if self.is_send_text_messages else "",
@@ -338,8 +345,11 @@ class Mailer:
 
         Returns "ok" on a genuine send, "flood" if a FloodWaitError was
         hit and absorbed (matches the historical behavior of proceeding
-        as if the message went through after waiting out the flood), or
-        "skip" if the caller should abandon this user entirely.
+        as if the message went through after waiting out the flood),
+        "undeliverable" if the user was resolved but Telegram permanently
+        rejected the send (privacy settings, a min-entity access hash that
+        is not valid for DMs, a deleted account), or "skip" if something
+        unexpected went wrong and the caller should just abandon this user.
         """
         try:
             await session_info.wrapper.sendMessage(
@@ -375,13 +385,23 @@ class Mailer:
                 f"Caught User Deactivated Error, skip this user {user_id}: {e}",
                 exc_info=True,
             )
-            return "skip"
+            return "undeliverable"
         except ForbiddenError as e:
             self.logger.error(
                 f"Caught Forbidden Error, skip this user {user_id}: {e}",
                 exc_info=True,
             )
-            return "skip"
+            return "undeliverable"
+        except PeerIdInvalidError as e:
+            # Almost always a `min` user pulled from a channel's participant
+            # list: the access hash is only valid inside that channel, so a
+            # direct message is rejected. Nothing to retry - the user simply
+            # cannot be DMed by this account without a prior relationship.
+            self.logger.warning(
+                "PeerIdInvalid for user %s via %s - cannot DM (min entity / privacy): %s",
+                user_id, session_info.wrapper.session_file, e,
+            )
+            return "undeliverable"
         except Exception:
             self.logger.error(
                 "Unexpected error during message sending, session=%s, user_id=%s",
@@ -661,7 +681,15 @@ class Mailer:
         sessions are only ever tried once, period - not once per run.
         Anything with no recorded status yet is tried via round robin so
         access can still be discovered.
+
+        A user carrying a public @username is exempt from all of this:
+        get_entity(username) resolves them on any session regardless of
+        source-group membership, so gating them behind group access just
+        strands them when the group happens to be private.
         """
+        if user_data.get("username"):
+            return self.session_wrappers[index % self.sessions_count]
+
         source_chat_id = user_data.get("source_chat_id")
         if source_chat_id is None:
             return self.session_wrappers[index % self.sessions_count]
@@ -699,6 +727,30 @@ class Mailer:
         source_chat_id = user_data["source_chat_id"]
         source_post_id = user_data["source_post_id"]
 
+        # Username first: get_entity(username) returns a *full* entity that
+        # can be DMed. The user-id cache lookup below is cheaper but can
+        # hand back a `min` InputPeerUser cached from an earlier participant
+        # scan this run - it passes the isinstance check yet the send later
+        # fails with PeerIdInvalidError. Resolving the username up front
+        # avoids that for every user that has one.
+        if username:
+            try:
+                entity = await session_client.get_entity(username)
+                input_entity = await session_client.get_input_entity(entity)
+                if isinstance(input_entity, (InputPeerUser, InputPeerSelf)):
+                    return input_entity
+            except (UsernameNotOccupiedError, UsernameInvalidError, ValueError):
+                # handle freed or changed since parsing - fall through
+                pass
+            except AuthKeyUnregisteredError:
+                self.logger.error("Auth key unregistered for session %s", session_id, exc_info=True)
+                return None
+            except Exception as e:
+                self.logger.warning(
+                    f"Unexpected error while receiving user entity from username: {e}",
+                    exc_info=True,
+                )
+
         try:
             input_entity = await session_client.get_input_entity(user_id)
             if isinstance(input_entity, (InputPeerUser, InputPeerSelf)):
@@ -719,16 +771,6 @@ class Mailer:
                 user_id, session_id, exc_info=True,
             )
             return None
-
-        if username:
-            try:
-                entity = await session_client.get_entity(username)
-                return await session_client.get_input_entity(entity)
-            except Exception as e:
-                self.logger.warning(
-                    f"Unexpected error while receiving user entity from username: {e}",
-                    exc_info=True,
-                )
 
         source_data = await self.main_window.database.get_parse_source(source_chat_id)
         if not source_data:
@@ -763,34 +805,28 @@ class Mailer:
                 return None
         chat_title = source_data.get("chat_title", str(source_chat_id))
 
-        try:
-            chat_entity = await session_client.get_entity(chat_identifier)
-        except (ChannelPrivateError, ValueError):
-            # A private/inaccessible channel can surface either
-            # ChannelPrivateError or a bare ValueError ("could not find the
-            # input entity") depending on whether Telethon recognizes the id
-            # at all. Both mean this session has no access, so try to join
-            # (or mark it inaccessible) the same way in either case, instead
-            # of repeating the same failed lookup for every subsequent user.
-            chat_entity = await self._try_join_private_group(
-                session_client, session_id, source_chat_id,
-                source_data.get("invite_hash"), chat_title, chat_identifier,
-            )
-            if chat_entity is None:
+        chat_entity, verdict = await self._resolve_chat_for_session(
+            session_client, session_id, chat_identifier, source_chat_id
+        )
+        if verdict is True:
+            # record even when chat_entity is None (member, but the resolve
+            # itself was flaky) so the session stays selectable for this chat
+            await self._update_access(source_chat_id, session_id, True)
+        if chat_entity is None:
+            if verdict is False:
+                # Telegram says this session genuinely has no access. Try an
+                # invite join if we have a hash, otherwise record the denial
+                # and notify.
+                chat_entity = await self._try_join_private_group(
+                    session_client, session_id, source_chat_id,
+                    source_data.get("invite_hash"), chat_title, chat_identifier,
+                )
+                if chat_entity is None:
+                    return None
+            else:
+                # verdict None (couldn't tell) or True-without-entity: skip
+                # this one user, but never bench the session over it.
                 return None
-        except UsernameNotOccupiedError:
-            self.logger.error(
-                f"Chat {chat_identifier} was deleted. Skip it...",
-                exc_info=True,
-            )
-            return None
-        except Exception as e:
-            self.logger.error(
-                f"Unexpected error occurred. Skip user {user_id}: {e}", exc_info=True
-            )
-            return None
-
-        await self._update_access(source_chat_id, session_id, True)
 
         user_entity = None
 
@@ -852,6 +888,15 @@ class Mailer:
                 return None
 
         if user_entity:
+            if getattr(user_entity, "min", False) and getattr(user_entity, "username", None):
+                # A `min` participant's access hash only works inside the
+                # source channel; resolve the username to a full entity so
+                # the DM is not rejected with PeerIdInvalidError.
+                try:
+                    full = await session_client.get_entity(user_entity.username)
+                    return await session_client.get_input_entity(full)
+                except Exception:
+                    pass
             try:
                 return await session_client.get_input_entity(user_entity)
             except ValueError:
@@ -865,27 +910,88 @@ class Mailer:
                 return si.wrapper.session_file
         return str(session_id)
 
+    async def _session_dialog_ids(self, session_client, session_id):
+        """Entity ids of every dialog the session has open, scanned once
+        per run (returns None if the scan itself failed). A get_entity() by
+        bare -100{id} fails for a channel that is not in the session's
+        local entity cache even when the account is a member; the dialog
+        list is the reliable membership signal and the scan also warms the
+        cache so the next get_entity() succeeds."""
+        sid = int(session_id)
+        if sid not in self._dialog_ids_cache:
+            try:
+                ids: set[int] = set()
+                async for dialog in session_client.iter_dialogs():
+                    entity = dialog.entity
+                    if entity is not None:
+                        ids.add(entity.id)
+                self._dialog_ids_cache[sid] = ids
+            except Exception:
+                self.logger.warning(
+                    "Dialog scan failed for session %s", session_id, exc_info=True
+                )
+                self._dialog_ids_cache[sid] = None
+        return self._dialog_ids_cache[sid]
+
+    async def _resolve_chat_for_session(
+        self, session_client, session_id, chat_identifier, raw_chat_id
+    ):
+        """Resolve a source chat for one session.
+
+        Returns (entity_or_None, verdict) where verdict is:
+          True  - the session can reach the chat
+          False - Telegram says it cannot (ChannelPrivateError)
+          None  - undetermined (bare id not cached, transient error). A
+                  None verdict must never be persisted as a denial, or a
+                  temporary miss benches the session for good.
+        """
+        try:
+            return await session_client.get_entity(chat_identifier), True
+        except ChannelPrivateError:
+            return None, False
+        except (ValueError, TypeError):
+            pass
+        except UsernameNotOccupiedError:
+            self.logger.warning("Chat %s no longer exists", chat_identifier)
+            return None, False
+        except Exception:
+            self.logger.warning(
+                "Access probe error for chat %s on session %s",
+                raw_chat_id, session_id, exc_info=True,
+            )
+            return None, None
+
+        # Bare id wasn't in this session's cache. A member still has the
+        # chat in their dialog list - scan once, then retry the resolve.
+        dialog_ids = await self._session_dialog_ids(session_client, session_id)
+        if dialog_ids is None:
+            return None, None  # scan failed - can't tell, don't persist
+        if raw_chat_id in dialog_ids:
+            try:
+                return await session_client.get_entity(chat_identifier), True
+            except Exception:
+                return None, True
+        return None, False  # not in the dialog list => genuinely not a member
+
     async def _mark_group_inaccessible(
         self, session_id: int, chat_id: int, chat_title: str, chat_identifier
     ):
-        await self._update_access(chat_id, session_id, False)
         accessible = []
         sm = self.main_window.session_manager
         if sm:
-            # This notification loop already pays for a get_entity() probe
-            # per live session - piggyback on it to learn access for the
-            # rest too, rather than issuing a second round of requests
-            # later, and persist both outcomes (see _update_access).
+            # Probe every live session so one notification pass also
+            # refreshes the access table for the rest. Only a definite
+            # verdict (see _resolve_chat_for_session) is persisted - an
+            # "undetermined" session is left untouched so it is retried on
+            # the next run instead of being permanently benched.
             for sf, wrapper in sm.sessions.items():
-                try:
-                    # chat_identifier is already marked (-100{id}/-{id}); a
-                    # bare chat_id here would always be misread by Telethon
-                    # as a user id lookup and never resolve, even when this
-                    # session genuinely has access to the group.
-                    await wrapper.client.get_entity(chat_identifier)
+                _, verdict = await self._resolve_chat_for_session(
+                    wrapper.client, wrapper.session_id, chat_identifier, chat_id
+                )
+                if verdict is True:
                     accessible.append(sf)
                     await self._update_access(chat_id, wrapper.session_id, True)
-                except Exception:
+                elif verdict is False:
                     await self._update_access(chat_id, wrapper.session_id, False)
         session_file = self._get_session_file(session_id)
         accessible_str = ", ".join(accessible) if accessible else "нет доступных сессий"
@@ -931,8 +1037,18 @@ class Mailer:
         return f"«{title}» ({', '.join(parts)})"
 
     async def _report_unreached_groups(self) -> None:
-        if not self._unreached_chats:
+        if not self._unreached_chats and not self._undeliverable:
             return
+
+        message_parts = []
+        if self._undeliverable:
+            message_parts.append(
+                f"{self._undeliverable} пользовател(ей) удалось найти, но отправить "
+                f"им нельзя — закрытые настройки приватности, аккаунт удалён, либо "
+                f"пользователь получен из участников группы и ему нельзя написать "
+                f"первым (нет username)."
+            )
+
         chat_ids = list(self._unreached_chats.keys())
         access_by_chat = await self.main_window.database.get_chat_access_sessions(chat_ids)
 
@@ -951,7 +1067,6 @@ class Mailer:
             else:
                 without_access_lines.append(label)
 
-        message_parts = []
         if with_access_lines:
             message_parts.append(
                 "Часть пользователей не была разослана — доступ к их группам есть "
@@ -964,13 +1079,14 @@ class Mailer:
             )
 
         self.logger.warning(
-            "Mailing finished with unreached users from %d group(s): %s",
-            len(chat_ids), self._unreached_chats,
+            "Mailing finished: unreached from %d group(s): %s; undeliverable: %d",
+            len(chat_ids), self._unreached_chats, self._undeliverable,
         )
-        self.main_window.show_notification(
-            "Не все пользователи получили сообщение",
-            "\n\n".join(message_parts),
-        )
+        if message_parts:
+            self.main_window.show_notification(
+                "Не все пользователи получили сообщение",
+                "\n\n".join(message_parts),
+            )
 
     async def stop(self):
         if not self._running:
