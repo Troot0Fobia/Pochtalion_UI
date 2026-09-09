@@ -114,6 +114,14 @@ class Pochtalion_UI(QMainWindow):
         self.setCentralWidget(self.main_widget)
         self.stack.setCurrentWidget(self.settings_window)
 
+        # When off (default), the dialogs sidebar is not shown at startup and
+        # the settings window is the full-size main window. QSplitter hides the
+        # pane and its handle for an invisible child. Applying a change needs a
+        # restart. loadSidebar still runs to populate active_session etc.
+        self.sidebar_window.setVisible(
+            bool(self.settings_manager.get_setting("open_dialogs_sidebar"))
+        )
+
         self.sidebar_window.loadFinished.connect(
             lambda _: asyncio.create_task(self.loadSidebar())
         )

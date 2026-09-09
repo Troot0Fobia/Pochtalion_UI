@@ -12,5 +12,6 @@
     "pudge_default_group": "",
     "trigger_auto_reply_enabled": false,
     "auto_write_spambot": false,
-    "contact_mailing_cross_send": false
+    "contact_mailing_cross_send": false,
+    "open_dialogs_sidebar": false
 }

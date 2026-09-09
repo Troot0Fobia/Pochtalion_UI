@@ -102,6 +102,16 @@
                                placeholder="@username, https://t.me/username или https://t.me/+invite">
                     </div>
                 </div>
+                <div class="row">
+                    <label class="settings-row">
+                        <input type="checkbox" name="open_dialogs_sidebar" id="open-dialogs-sidebar" onchange="changeSettings(this)">
+                        <div class="setting-name-with-info">
+                            <span class="setting-name">Открывать сайдбар диалогов при загрузке</span>
+                            <span class="info-tooltip" data-tooltip="Изменение применится после перезапуска приложения"
+                                  onclick="event.preventDefault()">i</span>
+                        </div>
+                    </label>
+                </div>
             </div>
             <div class="button reset-settings" onclick="resetSettings()">Сбросить настройки</div>
             <hr class="section-divider">
