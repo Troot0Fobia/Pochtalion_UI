@@ -51,6 +51,12 @@
                     </label>
                 </div>
                 <div class="row">
+                    <label class="settings-row">
+                        <input type="checkbox" name="contact_mailing_cross_send" id="contact-mailing-cross-send" onchange="changeSettings(this)">
+                        <div class="setting-name">Писать пересекающимся контактам</div>
+                    </label>
+                </div>
+                <div class="row">
                     <div class="settings-row">
                         <div class="setting-name">Парсить пользователей, которые заходили</div>
                         <select name="parse_last_seen_filter" id="parse-last-seen-filter"
@@ -90,7 +96,7 @@
                 </div>
                 <div class="row">
                     <div class="settings-row">
-                        <div class="setting-name">Группа по-умолчания для уведомлений Пуджа</div>
+                        <div class="setting-name">Группа по-умолчанию для уведомлений Пуджа</div>
                         <input type="text" name="pudge_default_group" id="pudge-default-group"
                                onblur="changeSettings(this)"
                                placeholder="@username, https://t.me/username или https://t.me/+invite">
@@ -139,11 +145,21 @@
                             <span class="active-type" id="mailing-database" onclick="changeMailingType('db')">Рассылки из базы данных</span>
                             <div>/</div>
                             <span id="mailing-usernames" onclick="changeMailingType('usernames')">Рассылка по usernames</span>
+                            <div>/</div>
+                            <span id="mailing-contacts" onclick="changeMailingType('contacts')">Рассылка по контактам</span>
                         </div>
                         <div class="select-type select-message-type">
                             <span class="active-type" id="text-message" onclick="changeMessageType('text')">Текстовые сообщения</span>
                             <div>/</div>
                             <span id="voice-message" onclick="changeMessageType('voice')">Голосовые сообщения</span>
+                        </div>
+                        <div class="timing-settings" id="contact-address-book-block" style="display:none">
+                            <label for="contact-address-book">Кому отправлять</label>
+                            <select class="inline-select" id="contact-address-book">
+                                <option value="current">Текущим контактам</option>
+                                <option value="past">Прошлым контактам</option>
+                                <option value="all" selected>Всем</option>
+                            </select>
                         </div>
                         <div class="timing-settings" id="mailing-order-block">
                             <label for="mailing-order">Порядок рассылки</label>

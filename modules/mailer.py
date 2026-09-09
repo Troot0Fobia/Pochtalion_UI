@@ -18,6 +18,7 @@ from telethon.errors import (
     UsernameNotOccupiedError,
 )
 from telethon.errors.rpcerrorlist import MsgIdInvalidError
+from telethon.tl.functions.contacts import GetContactsRequest
 from telethon.tl.functions.messages import CheckChatInviteRequest, ImportChatInviteRequest
 from telethon.tl.types import ChatInviteAlready, InputPeerSelf, InputPeerUser, User
 
@@ -38,6 +39,8 @@ class Mailer:
         self._running = False
         self.update_task = None
         self.is_mail_from_usernames = None
+        self.is_mail_from_contacts = None
+        self.contact_address_book_filter = "all"
         self.mail_data = None
         self.delay_min = None
         self.delay_max = None
@@ -62,7 +65,13 @@ class Mailer:
     async def start(self, mail_data_str):
         self.logger.info("Mailing starting")
         mail_data = json.loads(mail_data_str)
-        self.is_mail_from_usernames = mail_data["is_parse_usernames"]
+        mail_type = mail_data.get(
+            "mail_type",
+            "usernames" if mail_data.get("is_parse_usernames") else "db",
+        )
+        self.is_mail_from_usernames = mail_type == "usernames"
+        self.is_mail_from_contacts = mail_type == "contacts"
+        self.contact_address_book_filter = mail_data.get("contact_filter", "all")
         self.is_send_text_messages = mail_data["is_send_text"]
         self.delay_min, self.delay_max = self._resolve_delay_bounds(
             mail_data["delay_min"], mail_data["delay_max"]
@@ -115,6 +124,10 @@ class Mailer:
                 )
                 if matched:
                     self.mail_data.append({"username": matched.group("username")})
+        elif self.is_mail_from_contacts:
+            # Contacts are collected per session inside _run_contact_mailing()
+            # after the sessions are started - nothing to preload here.
+            pass
         else:
             users = await self.main_window.database.get_users_for_sending()
             if self.mailing_order == "newest_first":
@@ -147,7 +160,7 @@ class Mailer:
             self.main_window.settings_bridge.finishMailing.emit()
             return
 
-        if not self.mail_data:
+        if not self.mail_data and not self.is_mail_from_contacts:
             self.logger.info("User doesn't provide correct data, no data for mailing")
             self.main_window.show_notification(
                 "Внимание", "Нет пользователей для рассылки"
@@ -186,6 +199,12 @@ class Mailer:
         index = 0
         self.sessions_count = len(self.session_wrappers)
         self.start_time = datetime.now()
+
+        if self.is_mail_from_contacts:
+            await self._run_contact_mailing()
+            await self.stop()
+            return
+
         self.update_task = asyncio.create_task(self.sendUpdate())
         self.total_users_count = len(self.mail_data)
 
@@ -456,6 +475,172 @@ class Mailer:
                 await asyncio.sleep(RESOLVE_DELAY)
 
         return resolved, failed_usernames
+
+    async def _run_contact_mailing(self) -> None:
+        """Contact mailing: every session messages only its own Telegram
+        address book, never another session's.
+
+        Phase 1 imports each session's contacts into the DB (a kind of
+        parsing - see Database.bulk_add_contacts). Phase 2 walks the pending
+        rows per account and sends, reusing the shared send / flood-wait /
+        second-message machinery. Dedup and the "overlapping contacts"
+        setting are handled through account_contacts, keyed by the sending
+        account's Telegram id, so history survives a session being removed
+        and re-added.
+        """
+        db = self.main_window.database
+        cross_send = bool(
+            self.main_window.settings_manager.get_setting("contact_mailing_cross_send")
+        )
+
+        # ---- Phase 1: import address books ------------------------------------
+        self.main_window.settings_bridge.renderMailingProgressData.emit(
+            json.dumps(
+                {
+                    "status": "сбор контактов",
+                    "total_count": "0/0",
+                    "time": "00:00:00/00:00:00",
+                }
+            )
+        )
+        account_by_session: dict[int, int] = {}
+        for session_info in list(self.session_wrappers):
+            if not self._running:
+                return
+            wrapper = session_info.wrapper
+            account_id = getattr(wrapper, "session_user_id", None) or (
+                await db.get_session_user_id(session_info.session_id)
+            )
+            if not account_id:
+                self.logger.warning(
+                    "Session %s has no account id, skipping contact import",
+                    wrapper.session_file,
+                )
+                continue
+            account_by_session[session_info.session_id] = account_id
+            try:
+                result = await wrapper.client(GetContactsRequest(hash=0))
+            except FloodWaitError as e:
+                self.logger.error(
+                    "Flood wait %ss fetching contacts for %s",
+                    e.seconds, wrapper.session_file, exc_info=True,
+                )
+                self.main_window.show_notification(
+                    "Внимание",
+                    f"Сессия {wrapper.session_file}: флуд при сборе контактов "
+                    f"({e.seconds}с), пропускаем",
+                )
+                continue
+            except Exception:
+                self.logger.error(
+                    "Failed to fetch contacts for %s", wrapper.session_file,
+                    exc_info=True,
+                )
+                continue
+
+            contacts = [
+                {
+                    "user_id": u.id,
+                    "username": u.username,
+                    "first_name": u.first_name,
+                    "last_name": u.last_name,
+                    "phone_number": u.phone,
+                    "display_name": " ".join(
+                        p for p in (u.first_name, u.last_name) if p
+                    )
+                    or None,
+                }
+                for u in getattr(result, "users", [])
+                if not getattr(u, "is_self", False)
+                and not u.bot
+                and not u.deleted
+            ]
+            await db.bulk_add_contacts(
+                account_id, session_info.session_id, contacts
+            )
+            self.logger.info(
+                "Session %s: imported %d contacts",
+                wrapper.session_file, len(contacts),
+            )
+            await asyncio.sleep(RESOLVE_DELAY)
+
+        if not self._running:
+            return
+
+        # ---- Phase 2: send --------------------------------------------------
+        blocked: set[int] = set()
+        if not cross_send:
+            blocked = await db.get_sent_contact_user_ids()
+
+        queues: list[tuple] = []
+        total = 0
+        for session_info in self.session_wrappers:
+            account_id = account_by_session.get(session_info.session_id)
+            if not account_id:
+                continue
+            rows = await db.get_contacts_for_sending(
+                account_id, self.contact_address_book_filter
+            )
+            if self.mailing_order == "newest_first":
+                rows.reverse()
+            elif self.mailing_order == "random":
+                random.shuffle(rows)
+            queues.append((session_info, account_id, rows))
+            total += len(rows)
+
+        if total == 0:
+            self.main_window.show_notification(
+                "Внимание", "Нет контактов для рассылки"
+            )
+            return
+
+        self.total_users_count = total
+        self.update_task = asyncio.create_task(self.sendUpdate())
+
+        for session_info, account_id, rows in queues:
+            for row in rows:
+                if not self._running:
+                    return
+                if session_info not in self.session_wrappers:
+                    break  # session died (e.g. PeerFlood) - abandon its queue
+                user_id = row["user_id"]
+                if not cross_send and user_id in blocked:
+                    continue
+
+                smm_message = random.choice(self.first_messages)
+                result = await self._send_single_message(
+                    session_info, user_id, self._build_message_payload(smm_message)
+                )
+                if result in ("ok", "flood"):
+                    await db.set_contact_status(account_id, user_id, "sent")
+                    blocked.add(user_id)
+                    session_info.sent_count += 1
+
+                    if self.enable_second_message:
+                        await asyncio.sleep(
+                            random.uniform(
+                                self.second_delay_min, self.second_delay_max
+                            )
+                        )
+                        second_message = random.choice(self.second_messages)
+                        second_result = await self._send_single_message(
+                            session_info,
+                            user_id,
+                            self._build_message_payload(second_message),
+                        )
+                        if second_result in ("ok", "flood"):
+                            session_info.sent_count += 1
+                elif session_info in self.session_wrappers:
+                    # Session still alive -> the failure is on this contact
+                    # (privacy / blocked / deactivated). Mark it so we don't
+                    # retry every run; resetting means deleting the record.
+                    await db.set_contact_status(account_id, user_id, "failed")
+                else:
+                    break
+
+                await asyncio.sleep(
+                    random.uniform(self.delay_min, self.delay_max)
+                )
 
     async def _update_access(self, chat_id: int, session_id, has_access: bool) -> None:
         sid = int(session_id)

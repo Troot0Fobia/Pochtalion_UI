@@ -209,6 +209,11 @@ class Database:
             await db.commit()
         except Exception:
             pass
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN origin TEXT DEFAULT NULL")
+            await db.commit()
+        except Exception:
+            pass
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS chat_access (
@@ -221,6 +226,33 @@ class Database:
                 FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
             )
         """
+        )
+        # Per-account address book registry for contact mailing. Deliberately
+        # FK-free (same rationale as trigger_auto_replies): keyed by the
+        # sending account's Telegram id (sessions.user_id), so the "already
+        # messaged this contact" facts survive a session being deleted and
+        # re-added. status: 'pending' | 'sent' | 'failed'. in_address_book is
+        # refreshed on every import run - a contact removed from the account's
+        # Telegram address book keeps its row (still reachable via the cached
+        # access_hash) but drops to 0.
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS account_contacts (
+                account_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                username TEXT DEFAULT NULL,
+                display_name TEXT DEFAULT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                in_address_book INTEGER NOT NULL DEFAULT 1,
+                added_at TEXT NOT NULL,
+                sent_at TEXT DEFAULT NULL,
+                session_id INTEGER DEFAULT NULL,
+                PRIMARY KEY (account_id, user_id)
+            )
+        """
+        )
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_account_contacts_user ON account_contacts(user_id)"
         )
 
         await db.commit()
@@ -280,6 +312,12 @@ class Database:
         message_ids: dict[int, list[int]] = {}
 
         async with self._lock:
+            async with self._db.execute(
+                "SELECT user_id FROM sessions WHERE id = ?", (session_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                account_id = row["user_id"] if row else None
+
             if delete_mode != 0:
                 # Selecting the type of users to delete
                 if delete_mode == 2:
@@ -334,6 +372,57 @@ class Database:
                         if chat_id not in message_ids:
                             message_ids[chat_id] = []
                         message_ids[chat_id].append(message_id)
+
+            # Account contact registry. The same delete_mode taxonomy applies:
+            # 1 -> whole book, 2 -> already-messaged (sent/failed), 3 -> pending.
+            # Mode 0 ("keep") leaves it fully intact so a re-added account is
+            # not re-messaged.
+            if delete_mode != 0 and account_id is not None:
+                if delete_mode == 2:
+                    status_filter = "AND status != 'pending'"
+                elif delete_mode == 3:
+                    status_filter = "AND status = 'pending'"
+                else:
+                    status_filter = ""
+
+                async with self._db.execute(
+                    f"""
+                        SELECT user_id FROM account_contacts
+                        WHERE account_id = ? {status_filter}
+                    """,
+                    (account_id,),
+                ) as cursor:
+                    contact_user_ids = [row[0] async for row in cursor]
+
+                await self._db.execute(
+                    f"""
+                        DELETE FROM account_contacts
+                        WHERE account_id = ? {status_filter}
+                    """,
+                    (account_id,),
+                )
+
+                if contact_user_ids:
+                    # GC contact identities no account references any more
+                    # (messages cascade via FK + trigger). Parsed users keep
+                    # their own origin and are untouched.
+                    async with self._db.execute(
+                        """
+                        SELECT user_id FROM users
+                        WHERE origin = 'contact'
+                          AND user_id NOT IN (SELECT user_id FROM account_contacts)
+                    """
+                    ) as cursor:
+                        orphan_ids = [row[0] async for row in cursor]
+                    if orphan_ids:
+                        await self._db.execute(
+                            """
+                            DELETE FROM users
+                            WHERE origin = 'contact'
+                              AND user_id NOT IN (SELECT user_id FROM account_contacts)
+                        """
+                        )
+                        user_ids.extend(orphan_ids)
 
             await self._db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
             await self._db.commit()
@@ -1238,6 +1327,7 @@ class Database:
                 SELECT user_id, username, user_status, source_chat_id, source_post_id
                 FROM users
                 WHERE sended = 0
+                  AND user_id NOT IN (SELECT user_id FROM account_contacts)
                 ORDER BY created_at ASC
             """
             ) as cursor:
@@ -1308,3 +1398,145 @@ class Database:
             ) as cursor:
                 row = await cursor.fetchone()
                 return row["profile_photo"] if row else None
+
+    # ## ====================== Methods for account contacts =================== ###
+
+    async def bulk_add_contacts(
+        self, account_id: int, session_id: int, contacts: list[dict]
+    ) -> None:
+        """Import one session's address book in a single transaction.
+
+        Lightweight: identities land in `users` (origin='contact', sended=1 so
+        they never leak into the parsed-DB mailing), no profile photo fetch.
+        Every run first marks the whole account's book as out-of-book, then the
+        upsert flips the ones still present back to in_address_book=1; rows for
+        removed contacts stay (status/sent_at untouched) at in_address_book=0.
+        """
+        if not account_id:
+            return
+        now = datetime.now(tz=timezone("UTC")).isoformat()
+        user_rows = [
+            (
+                c["user_id"],
+                c.get("username"),
+                c.get("first_name"),
+                c.get("last_name"),
+                c.get("phone_number"),
+                now,
+            )
+            for c in contacts
+        ]
+        contact_rows = [
+            (
+                account_id,
+                c["user_id"],
+                c.get("username"),
+                c.get("display_name"),
+                now,
+                session_id,
+            )
+            for c in contacts
+        ]
+        async with self._lock:
+            await self._db.execute(
+                "UPDATE account_contacts SET in_address_book = 0 WHERE account_id = ?",
+                (account_id,),
+            )
+            if user_rows:
+                await self._db.executemany(
+                    """
+                    INSERT OR IGNORE INTO users (user_id,
+                                                 username,
+                                                 first_name,
+                                                 last_name,
+                                                 phone_number,
+                                                 user_status,
+                                                 sended,
+                                                 origin,
+                                                 created_at)
+                    VALUES (?, ?, ?, ?, ?, 0, 1, 'contact', ?)
+                """,
+                    user_rows,
+                )
+                await self._db.executemany(
+                    """
+                    INSERT INTO account_contacts (account_id,
+                                                  user_id,
+                                                  username,
+                                                  display_name,
+                                                  status,
+                                                  in_address_book,
+                                                  added_at,
+                                                  session_id)
+                    VALUES (?, ?, ?, ?, 'pending', 1, ?, ?)
+                    ON CONFLICT(account_id, user_id) DO UPDATE SET
+                        in_address_book = 1,
+                        username = excluded.username,
+                        display_name = excluded.display_name,
+                        session_id = excluded.session_id
+                """,
+                    contact_rows,
+                )
+            await self._db.commit()
+
+    async def get_contacts_for_sending(
+        self, account_id: int, address_book_filter: str = "all"
+    ) -> list[dict]:
+        """Pending contacts for one account, oldest first.
+
+        address_book_filter: 'current' -> only in_address_book = 1,
+        'past' -> only in_address_book = 0, anything else -> no filter.
+        """
+        if not account_id:
+            return []
+        clause = ""
+        if address_book_filter == "current":
+            clause = "AND in_address_book = 1"
+        elif address_book_filter == "past":
+            clause = "AND in_address_book = 0"
+        contacts = []
+        async with self._lock:
+            async with self._db.execute(
+                f"""
+                SELECT user_id, username, display_name
+                FROM account_contacts
+                WHERE account_id = ? AND status = 'pending' {clause}
+                ORDER BY added_at ASC
+            """,
+                (account_id,),
+            ) as cursor:
+                async for (user_id, username, display_name) in cursor:
+                    contacts.append(
+                        {
+                            "user_id": user_id,
+                            "username": username,
+                            "display_name": display_name,
+                        }
+                    )
+        return contacts
+
+    async def get_sent_contact_user_ids(self) -> set[int]:
+        """Every contact any account has already messaged - used to skip
+        overlapping contacts when cross-account sending is disabled."""
+        async with self._lock:
+            async with self._db.execute(
+                "SELECT DISTINCT user_id FROM account_contacts WHERE status = 'sent'"
+            ) as cursor:
+                return {row[0] async for row in cursor}
+
+    async def set_contact_status(
+        self, account_id: int, user_id: int, status: str
+    ) -> None:
+        sent_at = (
+            datetime.now(tz=timezone("UTC")).isoformat() if status == "sent" else None
+        )
+        async with self._lock:
+            await self._db.execute(
+                """
+                UPDATE account_contacts
+                SET status = ?, sent_at = COALESCE(?, sent_at)
+                WHERE account_id = ? AND user_id = ?
+            """,
+                (status, sent_at, account_id, user_id),
+            )
+            await self._db.commit()

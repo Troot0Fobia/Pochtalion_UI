@@ -1297,23 +1297,22 @@ function setTriggerAutoReplyState(enabled) {
 
 function changeMailingType(type) {
     const select_block = document.querySelector(".select-mailing-type");
-    if (type === "usernames") {
-        select_block
-            .querySelector("#mailing-database")
-            .classList.remove("active-type");
-        select_block
-            .querySelector("#mailing-usernames")
-            .classList.add("active-type");
-        document.getElementById("mailing-order-block").style.display = "none";
-    } else if (type === "db") {
-        select_block
-            .querySelector("#mailing-usernames")
-            .classList.remove("active-type");
-        select_block
-            .querySelector("#mailing-database")
-            .classList.add("active-type");
-        document.getElementById("mailing-order-block").style.display = "";
+    const ids = {
+        db: "mailing-database",
+        usernames: "mailing-usernames",
+        contacts: "mailing-contacts",
+    };
+    if (!ids[type]) return;
+
+    for (const id of Object.values(ids)) {
+        select_block.querySelector("#" + id).classList.remove("active-type");
     }
+    select_block.querySelector("#" + ids[type]).classList.add("active-type");
+
+    document.getElementById("mailing-order-block").style.display =
+        type === "usernames" ? "none" : "";
+    document.getElementById("contact-address-book-block").style.display =
+        type === "contacts" ? "" : "none";
 }
 
 function changeMessageType(type) {
@@ -1799,9 +1798,12 @@ async function exportCSV() {
 }
 
 async function startMailing() {
-    const is_parse_usernames = document
-        .getElementById("mailing-usernames")
-        .classList.contains("active-type");
+    let mail_type = "db";
+    if (document.getElementById("mailing-usernames").classList.contains("active-type"))
+        mail_type = "usernames";
+    else if (document.getElementById("mailing-contacts").classList.contains("active-type"))
+        mail_type = "contacts";
+
     const is_send_text = document
         .getElementById("text-message")
         .classList.contains("active-type");
@@ -1811,22 +1813,25 @@ async function startMailing() {
     const delay_min = document.getElementById("delay-between-mailing-messages-min").value;
     const delay_max = document.getElementById("delay-between-mailing-messages-max").value;
     const order = document.getElementById("mailing-order").value;
+    const contact_filter = document.getElementById("contact-address-book").value;
     const enable_second_message = document.getElementById("enable-second-message").checked;
     const second_delay_min = document.getElementById("second-message-delay-min").value;
     const second_delay_max = document.getElementById("second-message-delay-max").value;
 
-    if (is_parse_usernames && !mailing_data) {
+    if (mail_type === "usernames" && !mailing_data) {
         bridge.show_notification("Введите данные для рассылки");
         return;
     }
 
     const mail_data = {
-        is_parse_usernames,
+        mail_type,
+        is_parse_usernames: mail_type === "usernames",
         is_send_text,
         mailing_data,
         delay_min,
         delay_max,
         order,
+        contact_filter,
         enable_second_message,
         second_delay_min,
         second_delay_max,

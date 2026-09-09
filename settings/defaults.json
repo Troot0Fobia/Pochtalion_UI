@@ -11,5 +11,6 @@
     "parse_last_seen_filter": "any",
     "pudge_default_group": "",
     "trigger_auto_reply_enabled": false,
-    "auto_write_spambot": false
+    "auto_write_spambot": false,
+    "contact_mailing_cross_send": false
 }
