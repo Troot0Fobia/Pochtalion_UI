@@ -9,3 +9,6 @@ tmp
 /settings/*
 !/settings/defaults.json
 CLAUDE.md
+
+# stray screenshots from the run skill
+/app.png

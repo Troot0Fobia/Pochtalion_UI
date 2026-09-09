@@ -1,35 +1,25 @@
 import json
-import sys
-from pathlib import Path
 from shutil import copyfile
 
-import appdirs
-
 from core.logger import setup_logger
+from core.paths import DEFAULTS, SETTINGS
 from core.utils import load_config
 
 
 class SettingsManager:
 
     def __init__(self, main_window):
-        # Динамический путь в зависимости от режима выполнения
-        if getattr(sys, "_MEIPASS", False):
-            base_path = Path(sys._MEIPASS)
-        else:
-            base_path = Path(__file__).parent.parent
-        self.settings_dir = base_path / "settings"
-        self.default_settings_path = self.settings_dir / "defaults.json"
-        self.settings_file_path = self.settings_dir / "settings.json"
+        # defaults.json ships with the app (read-only); settings.json is user data.
+        self.default_settings_path = DEFAULTS
+        self.settings_file_path = SETTINGS / "settings.json"
         self.default_settings = load_config(self.default_settings_path)
         self.main_window = main_window
         self.logger = setup_logger("Pochtalion.Settings", "settings_manager.log")
         self.settings = None
 
     def start(self):
-        # Используем appdirs для хранения настроек в AppData
-        self.app_dir = Path(appdirs.user_data_dir("Pochtalion", "Pochtalion"))
-        self.app_dir.mkdir(parents=True, exist_ok=True)
-        self.settings_file_path = self.app_dir / "settings.json"
+        SETTINGS.mkdir(parents=True, exist_ok=True)
+        self._migrate_legacy_settings()
 
         if not self.default_settings_path.exists():
             self.logger.error(
@@ -58,6 +48,26 @@ class SettingsManager:
             return False
 
         return True
+
+    def _migrate_legacy_settings(self):
+        """Older builds kept settings.json in the appdirs data directory. If that file
+        exists and the current one does not, move it to the new location once."""
+        if self.settings_file_path.exists():
+            return
+        try:
+            from platformdirs import PlatformDirs
+
+            legacy = (
+                PlatformDirs("Pochtalion", appauthor="Pochtalion").user_data_path
+                / "settings.json"
+            )
+            if legacy.resolve() == self.settings_file_path.resolve():
+                return
+            if legacy.exists():
+                copyfile(legacy, self.settings_file_path)
+                self.logger.info("Migrated legacy settings from %s", legacy)
+        except Exception as e:
+            self.logger.warning("Legacy settings migration skipped: %s", e)
 
     def _load(self):
         with self.settings_file_path.open("r", encoding="utf-8") as f:
