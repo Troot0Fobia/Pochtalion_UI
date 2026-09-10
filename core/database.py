@@ -1,19 +1,13 @@
 import asyncio
 import sqlite3
-import sys
 from datetime import datetime
 from pathlib import Path
-from shutil import copyfile
 
 import aiosqlite
-import appdirs
 import tzlocal
 from pytz import timezone
 
-from core.paths import DATABASE, SMM_VOICES
-from core.utils import resource_path
-
-DB_PATH = DATABASE / "database.db"
+from core.paths import DB_PATH, SMM_VOICES
 
 KNOWN_CHAT_TYPES = frozenset({"broadcast", "megagroup", "gigagroup", "chat"})
 
@@ -38,21 +32,11 @@ class Database:
             await db.execute("PRAGMA foreign_keys = ON")
             return cls(db)
 
-        # Путь к базе в .exe или локально
-        source_db_path = resource_path(DB_PATH)
-        # Путь для записи
-        if hasattr(sys, "_MEIPASS"):
-            app_name = "Pochtalion"
-            user_data_dir = Path(appdirs.user_data_dir(app_name))
-            user_data_dir.mkdir(parents=True, exist_ok=True)
-            db_path = user_data_dir / "database.db"
-            # Копируем базу в AppData, если отсутствует
-            if not db_path.exists():
-                copyfile(source_db_path, db_path)
-        else:
-            db_path = source_db_path
-
+        # The schema is fully created below via "CREATE TABLE IF NOT EXISTS", so an
+        # empty file is enough for a fresh install. DB_PATH is resolved by core.paths
+        # (in-repo in dev, per-user data dir when installed, <exe>/data when portable).
         if not DB_PATH.exists():
+            DB_PATH.parent.mkdir(parents=True, exist_ok=True)
             open(DB_PATH, "a").close()
 
         db = await aiosqlite.connect(DB_PATH)

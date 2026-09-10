@@ -2,8 +2,6 @@ import asyncio
 import json
 import re
 import shutil
-import sys
-from pathlib import Path
 
 from PyQt6.QtCore import QMargins, QSize, Qt, QUrl
 from PyQt6.QtGui import QIcon
@@ -23,7 +21,7 @@ from bridges import chat_bridge, settings_bridge, sidebar_bridge
 from core.database import Database
 from core.logger import setup_logger
 from core.notification_manager import NotificationManager
-from core.paths import TMP, WEB
+from core.paths import ICON, TMP, WEB
 from core.settings_manager import SettingsManager
 from modules.group_mailer import GroupMailer
 from modules.pudge_manager import PudgeManager
@@ -31,11 +29,7 @@ from modules.mailer import Mailer
 from modules.parser import Parser
 from modules.sessions_manager import SessionsManager
 
-# Динамический путь к WEB
-if getattr(sys, "_MEIPASS", False):
-    web_base = Path(sys._MEIPASS) / "web"
-else:
-    web_base = WEB
+web_base = WEB
 
 
 class Pochtalion_UI(QMainWindow):
@@ -44,11 +38,7 @@ class Pochtalion_UI(QMainWindow):
         super().__init__()
         self.setWindowTitle("Pochtalion")
         self.setMinimumSize(QSize(300, 400))
-        if getattr(sys, "_MEIPASS", False):
-            icon_path = Path(sys._MEIPASS) / "icon.ico"
-        else:
-            icon_path = Path("icon.ico")
-        self.setWindowIcon(QIcon(str(icon_path)))
+        self.setWindowIcon(QIcon(str(ICON)))
         self.current_chat = None
         self.active_session = None
         self.database = None

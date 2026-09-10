@@ -3,18 +3,9 @@ import sys
 
 from qasync import QApplication, QEventLoop
 
-from core.paths import (
-    ASSETS,
-    DATABASE,
-    LOGS,
-    PROFILE_PHOTOS,
-    SESSIONS,
-    SETTINGS,
-    SMM_IMAGES,
-    SMM_VOICES,
-    TMP,
-    USERS_DATA,
-)
+# Importing core.paths creates the writable directory layout for the current mode
+# (dev / portable / standalone). Keep this before other project imports.
+import core.paths  # noqa: F401
 from ui.pochtalion_ui import Pochtalion_UI
 
 
@@ -38,20 +29,5 @@ async def main():
     sys.exit(0)
 
 
-def init_folders():
-    ASSETS.mkdir(parents=True, exist_ok=True)
-    USERS_DATA.mkdir(parents=True, exist_ok=True)
-    PROFILE_PHOTOS.mkdir(parents=True, exist_ok=True)
-    LOGS.mkdir(parents=True, exist_ok=True)
-    TMP.mkdir(parents=True, exist_ok=True)
-    DATABASE.mkdir(parents=True, exist_ok=True)
-    SMM_IMAGES.mkdir(parents=True, exist_ok=True)
-    SMM_VOICES.mkdir(parents=True, exist_ok=True)
-    SESSIONS.mkdir(parents=True, exist_ok=True)
-    SETTINGS.mkdir(parents=True, exist_ok=True)
-
-
 if __name__ == "__main__":
-    init_folders()
     asyncio.run(main())
-

@@ -1,7 +1,7 @@
 aiosqlite==0.21.0
-appdirs==1.4.4
 cryptg==0.5.0.post0
 pillow==12.1.0
+platformdirs==4.11.8
 puremagic==1.29
 pyaes==1.6.1
 pyasn1==0.6.1
