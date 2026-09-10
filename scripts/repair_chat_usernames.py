@@ -47,7 +47,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import appdirs
 from telethon import TelegramClient
 
 from core.database import Database
@@ -59,7 +58,6 @@ CANDIDATE_DELAY = 0.5
 
 def _load_api_keys() -> tuple[int, str] | None:
     candidates = [
-        Path(appdirs.user_data_dir("Pochtalion", "Pochtalion")) / "settings.json",
         SETTINGS / "settings.json",
     ]
     for path in candidates:
