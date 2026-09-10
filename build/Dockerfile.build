@@ -1,0 +1,64 @@
+# syntax=docker/dockerfile:1
+#
+# Linux build environment for Pochtalion.
+#
+# This image contains NO Python and NO application dependencies. Those are
+# installed at build time from the hash-locked requirement files, so the
+# build inputs are exactly what is committed to the repo.
+
+FROM debian:bookworm-slim
+
+# Pinned uv. Must match the uv used to generate the locks, or resolution can
+# differ. Keep in sync with build/PYTHON_VERSION's toolchain expectations.
+ARG UV_VERSION=0.12.10
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=UTC \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_NO_MODIFY_PATH=1 \
+    UV_PYTHON_INSTALL_DIR=/opt/uv-python
+
+# Qt 6 / QtWebEngine shared-library dependencies. PyInstaller's binary analysis
+# needs to resolve these at build time; the target host is expected to provide
+# them (the AppImage bundles the redistributable subset).
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        ca-certificates curl \
+        binutils \
+        libglib2.0-0 libgl1 libegl1 libopengl0 libdrm2 libgbm1 \
+        libdbus-1-3 \
+        libfontconfig1 libfreetype6 \
+        libx11-6 libxext6 libxrender1 libxcb1 libxkbcommon0 libxkbcommon-x11-0 \
+        libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+        libxcb-render-util0 libxcb-shape0 libxcb-xkb1 libxcb-sync1 libxcb-xfixes0 \
+        libxcb-glx0 libxcb-shm0 libxcb-present0 libxcb-dri2-0 libxcb-dri3-0 \
+        libxcomposite1 libxdamage1 libxrandr2 libxi6 libxtst6 libxfixes3 \
+        libnss3 libnspr4 libcups2 libasound2 libpci3 libxss1 \
+        xvfb; \
+    rm -rf /var/lib/apt/lists/*
+
+# Pinned uv, verified against its published checksum.
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64) triple=x86_64-unknown-linux-gnu ;; \
+      arm64) triple=aarch64-unknown-linux-gnu ;; \
+      *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
+    esac; \
+    base="https://github.com/astral-sh/uv/releases/download/${UV_VERSION}"; \
+    curl -LsSf -o /tmp/uv.tar.gz     "${base}/uv-${triple}.tar.gz"; \
+    curl -LsSf -o /tmp/uv.tar.gz.sha256 "${base}/uv-${triple}.tar.gz.sha256"; \
+    ( cd /tmp && sha256sum -c "uv.tar.gz.sha256" ); \
+    tar -xzf /tmp/uv.tar.gz -C /usr/local/bin --strip-components=1 \
+        "uv-${triple}/uv" "uv-${triple}/uvx"; \
+    rm -f /tmp/uv.tar.gz /tmp/uv.tar.gz.sha256; \
+    uv --version
+
+# Unprivileged build user (uid 1000 matches a typical host user, so a
+# bind-mounted repo has no ownership surprises).
+RUN useradd -m -u 1000 builder
+USER builder
+WORKDIR /work

@@ -29,5 +29,42 @@ async def main():
     sys.exit(0)
 
 
+def _selfcheck() -> int:
+    """Display-free smoke test used by the build pipeline.
+
+    Imports every module that must be present in a frozen bundle, loads the
+    offscreen Qt platform plugin, resolves the runtime paths, and prints the
+    version. It does NOT start the event loop or touch QtWebEngine. Exit 0 means
+    the bundle is structurally sound.
+    """
+    import importlib
+
+    import config
+
+    for mod in (
+        "PyQt6.QtWidgets",
+        "PyQt6.QtWebEngineWidgets",
+        "PyQt6.QtWebChannel",
+        "qasync",
+        "telethon",
+        "aiosqlite",
+        "qrcode",
+        "PIL",
+        "tzlocal",
+        "puremagic",
+    ):
+        importlib.import_module(mod)
+
+    from PyQt6.QtWidgets import QApplication as _QApp
+
+    _QApp(["pochtalion", "-platform", "offscreen"])
+
+    print(f"Pochtalion {config.__version__}")
+    print(f"mode={core.paths.MODE} resources={core.paths.RESOURCE_ROOT} data={core.paths.DATA_DIR}")
+    return 0
+
+
 if __name__ == "__main__":
+    if "--selfcheck" in sys.argv:
+        sys.exit(_selfcheck())
     asyncio.run(main())
