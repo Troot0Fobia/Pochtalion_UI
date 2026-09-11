@@ -10,7 +10,9 @@
 | `Dockerfile.build` | Linux build image (OS + uv only) |
 | `build-linux.sh` | Linux build (in the image or on a matching host) |
 | `container-build-linux.sh` | host entry point: build the image, run the build in it |
+| `build-windows.ps1` | Windows build (run on a Windows machine/VM) |
 | `appimage.sh` | package the Linux onedir as an AppImage; called by build-linux.sh |
+| `installer.iss` | Inno Setup script (Windows installer) |
 
 ## Building on Linux
 
@@ -30,6 +32,48 @@ Output in `dist/`:
 
 `build-linux.sh` also runs `Pochtalion --selfcheck` — a display-free import +
 offscreen-Qt smoke test that fails the build if the bundle is missing a module.
+
+## Building on Windows
+
+Prerequisites on the Windows build VM:
+- [`uv`](https://docs.astral.sh/uv/getting-started/installation/) on PATH.
+- Optionally, [Inno Setup](https://jrsoftware.org/isinfo.php) for the
+  installer — see "Installing Inno Setup" below. Without it the script still
+  produces the zip, just skips the installer.
+
+```powershell
+.\build\build-windows.ps1
+```
+
+Output in `dist\`:
+- `Pochtalion\` — the onedir tree
+- `Pochtalion-<version>-windows-x86_64.zip` — release archive
+- `Pochtalion-<version>-windows-setup.exe` — installer, if Inno Setup is present
+- `SHA256SUMS`
+
+### Installing Inno Setup
+
+Releases moved to GitHub (`jrsoftware/issrc`) a while back, so — like uv and
+appimagetool — we can pin a specific asset by a real sha256 rather than just
+trusting whatever `jrsoftware.org` currently links to. Verified by hand:
+
+```powershell
+$url  = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
+$sha  = "9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732"
+Invoke-WebRequest $url -OutFile innosetup.exe
+$actual = (Get-FileHash innosetup.exe -Algorithm SHA256).Hash.ToLower()
+if ($actual -ne $sha) { throw "checksum mismatch: got $actual" }
+.\innosetup.exe /VERYSILENT   # unattended install; adds iscc.exe to PATH
+```
+
+The installer is also Authenticode-signed by the author, Jordan Russell, as
+a second check: `(Get-AuthenticodeSignature .\innosetup.exe).Status` should
+read `Valid`.
+
+This is a one-time setup step on the build VM, not something
+`build-windows.ps1` does on every run. Check https://jrsoftware.org/isdl.php
+for newer releases and re-pin (new version → new sha256) deliberately, the
+same way `build/appimage.sh`'s pins get updated.
 
 The exact interpreter (`PYTHON_VERSION`) and every wheel (`requirements-*.txt`,
 `--require-hashes`) are fetched over the network but hash-verified, so the build
