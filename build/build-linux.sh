@@ -50,3 +50,7 @@ tar -C "$DIST" -czf "$DIST/$ARCHIVE" Pochtalion
 
 ( cd "$DIST" && sha256sum "$ARCHIVE" | tee SHA256SUMS )
 echo ">> done: dist/$ARCHIVE"
+
+# --- AppImage ----------------------------------------------------------
+# Appends its own line to dist/SHA256SUMS.
+POCHTALION_BUILD_PYTHON="$VENV/bin/python3" bash build/appimage.sh

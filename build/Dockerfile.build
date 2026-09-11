@@ -23,12 +23,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Qt 6 / QtWebEngine shared-library dependencies. PyInstaller's binary analysis
 # needs to resolve these at build time; the target host is expected to provide
-# them (the AppImage bundles the redistributable subset).
+# them (the AppImage bundles the redistributable subset). `file` is required
+# by appimagetool (build/appimage.sh), not by PyInstaller itself.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         ca-certificates curl \
-        binutils \
+        binutils file \
         libglib2.0-0 libgl1 libegl1 libopengl0 libdrm2 libgbm1 \
         libdbus-1-3 \
         libfontconfig1 libfreetype6 \

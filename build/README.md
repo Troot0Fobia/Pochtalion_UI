@@ -10,6 +10,7 @@
 | `Dockerfile.build` | Linux build image (OS + uv only) |
 | `build-linux.sh` | Linux build (in the image or on a matching host) |
 | `container-build-linux.sh` | host entry point: build the image, run the build in it |
+| `appimage.sh` | package the Linux onedir as an AppImage; called by build-linux.sh |
 
 ## Building on Linux
 
