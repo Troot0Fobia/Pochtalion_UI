@@ -63,8 +63,9 @@ rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin"
 cp -a "$DIST/Pochtalion/." "$APPDIR/usr/bin/"
 
-# Resize onto a square canvas for a conventional app icon.
-"$PYTHON" - "$REPO_ROOT/icon.ico" "$APPDIR/pochtalion.png" <<'PYEOF'
+# Resize onto a square canvas for a conventional app icon (Pillow opens the
+# largest frame of a multi-res ICO by default).
+"$PYTHON" - "$REPO_ROOT/pochtalion.ico" "$APPDIR/pochtalion.png" <<'PYEOF'
 import sys
 from PIL import Image
 

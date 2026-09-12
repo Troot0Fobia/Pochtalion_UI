@@ -30,15 +30,13 @@ VERSION = re.search(r'__version__\s*=\s*"([^"]+)"', _config_text).group(1)
 # --- read-only resources shipped with the app --------------------------------
 # (src, dest-dir-inside-_internal); dest matches core.paths.RESOURCE_ROOT layout
 #
-# icon.ico is bundled unconditionally - core.paths.ICON points at it and
+# pochtalion.ico is bundled unconditionally - core.paths.ICON points at it and
 # ui/pochtalion_ui.py loads it via QIcon() at runtime for the window/taskbar
-# icon, which works fine regardless of the file's actual format (Qt sniffs
-# image content, it doesn't trust the extension). Verified working this way
-# through the Linux builds.
+# icon.
 datas = [
     (str(PROJECT_ROOT / "web"), "web"),
     (str(PROJECT_ROOT / "settings" / "defaults.json"), "settings"),
-    (str(PROJECT_ROOT / "icon.ico"), "."),
+    (str(PROJECT_ROOT / "pochtalion.ico"), "."),
 ]
 
 # PyInstaller's icon= (EXE-resource icon embedding, Windows/macOS only) is a
@@ -48,7 +46,7 @@ datas = [
 # entirely). Check the magic bytes and only pass icon= if it's a real ICO,
 # so a Windows build still succeeds (unbranded .exe icon) if it ever isn't -
 # the runtime taskbar icon is unaffected either way.
-_icon_path = PROJECT_ROOT / "icon.ico"
+_icon_path = PROJECT_ROOT / "pochtalion.ico"
 _icon_is_valid_ico = _icon_path.exists() and _icon_path.read_bytes()[:4] == b"\x00\x00\x01\x00"
 if not _icon_is_valid_ico:
     print(f"WARNING: {_icon_path} is not a valid ICO file - building the .exe without an embedded icon resource")
