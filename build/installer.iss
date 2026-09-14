@@ -28,7 +28,15 @@ AppId={{7C54F1CC-8641-4508-8998-F6E8D086A5FE}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\{#MyAppName}
+; Per-user install, no admin/UAC prompt - same reasoning VS Code/Discord/Slack
+; use this layout for: a self-updater running as the logged-in user can freely
+; rewrite {localappdata}\Programs\Pochtalion, but could never touch Program
+; Files without elevating on every single update. PrivilegesRequiredOverrides
+; still lets someone launch the installer "as administrator" and get a
+; per-machine install instead, if they really want one.
+DefaultDirName={localappdata}\Programs\{#MyAppName}
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=commandline dialog
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\dist
