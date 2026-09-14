@@ -17,8 +17,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     PYTHONDONTWRITEBYTECODE=1 \
-    UV_NO_MODIFY_PATH=1 \
-    UV_PYTHON_INSTALL_DIR=/opt/uv-python
+    UV_NO_MODIFY_PATH=1
+# Python installs go to uv's own default (under $HOME, created by `useradd -m`
+# below) rather than a system path — the build runs as a non-root user.
 
 # Qt 6 / QtWebEngine shared-library dependencies. PyInstaller's binary analysis
 # needs to resolve these at build time; the target host is expected to provide
@@ -37,6 +38,7 @@ RUN set -eux; \
         libxcb-glx0 libxcb-shm0 libxcb-present0 libxcb-dri2-0 libxcb-dri3-0 \
         libxcomposite1 libxdamage1 libxrandr2 libxi6 libxtst6 libxfixes3 \
         libnss3 libnspr4 libcups2 libasound2 libpci3 libxss1 \
+        libatomic1 libpulse0 \
         xvfb; \
     rm -rf /var/lib/apt/lists/*
 
@@ -49,12 +51,14 @@ RUN set -eux; \
       *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
     esac; \
     base="https://github.com/astral-sh/uv/releases/download/${UV_VERSION}"; \
-    curl -LsSf -o /tmp/uv.tar.gz     "${base}/uv-${triple}.tar.gz"; \
-    curl -LsSf -o /tmp/uv.tar.gz.sha256 "${base}/uv-${triple}.tar.gz.sha256"; \
-    ( cd /tmp && sha256sum -c "uv.tar.gz.sha256" ); \
-    tar -xzf /tmp/uv.tar.gz -C /usr/local/bin --strip-components=1 \
+    asset="uv-${triple}.tar.gz"; \
+    cd /tmp; \
+    curl -LsSf -O "${base}/${asset}"; \
+    curl -LsSf -O "${base}/${asset}.sha256"; \
+    sha256sum -c "${asset}.sha256"; \
+    tar -xzf "${asset}" -C /usr/local/bin --strip-components=1 \
         "uv-${triple}/uv" "uv-${triple}/uvx"; \
-    rm -f /tmp/uv.tar.gz /tmp/uv.tar.gz.sha256; \
+    rm -f "${asset}" "${asset}.sha256"; \
     uv --version
 
 # Unprivileged build user (uid 1000 matches a typical host user, so a

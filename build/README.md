@@ -9,12 +9,15 @@
 | `pochtalion.spec` | PyInstaller recipe (onedir) |
 | `Dockerfile.build` | Linux build image (OS + uv only) |
 | `build-linux.sh` | Linux build (in the image or on a matching host) |
-| `docker-build-linux.sh` | host entry point: build the image, run the build in it |
+| `container-build-linux.sh` | host entry point: build the image, run the build in it |
 
 ## Building on Linux
 
+Install [podman](https://podman.io/docs/installation) (rootless by default —
+see "Container engine" below for why this matters over plain Docker).
+
 ```bash
-./build/docker-build-linux.sh    # build the image, run the build in it
+./build/container-build-linux.sh    # build the image, run the build in it
 ```
 
 Output in `dist/`:
@@ -39,6 +42,16 @@ yourself.
 
 Binaries are **not code-signed** (cost). Users verify the published SHA256 before
 running.
+
+## Container engine: podman over docker
+
+`container-build-linux.sh` prefers **podman**: it's rootless by default (no
+background daemon, nothing to pre-authorize), whereas a plain `docker`
+install normally means either a root daemon or membership in the `docker`
+group — which owns the daemon socket and is therefore equivalent to
+passwordless root. `docker` still works
+(`CONTAINER_ENGINE=docker ./build/container-build-linux.sh`) if that's what
+you have installed.
 
 ## Notes / open optimisations
 
