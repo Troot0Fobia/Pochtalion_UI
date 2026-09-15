@@ -4,13 +4,13 @@
 # installs the hash-locked dependencies, then runs the app.
 #
 # The dev environment is deliberately identical to the build environment:
-# same Python (build/PYTHON_VERSION), same locked deps (requirements-linux.txt).
+# same Python (build/PYTHON_VERSION), same locked deps (requirements/linux.txt).
 
 set -e
 cd "$(dirname "$(readlink -f "$0")")"
 
 PYTHON_VERSION="$(cat build/PYTHON_VERSION)"
-LOCK="requirements-linux.txt"
+LOCK="requirements/linux.txt"
 # Never silently substitute a Python already on this machine for the
 # python-build-standalone build uv itself manages.
 export UV_PYTHON_PREFERENCE=only-managed

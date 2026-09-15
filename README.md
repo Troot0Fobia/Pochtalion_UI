@@ -13,7 +13,7 @@ run.bat           # Windows
 ```
 
 The launcher creates `.venv` on the pinned Python (`build/PYTHON_VERSION`) and
-installs the hash-verified lock (`requirements-<os>.txt`). The dev environment is
+installs the hash-verified lock (`requirements/<os>.txt`). The dev environment is
 identical to the build environment on purpose.
 
 ## Dependencies
@@ -21,7 +21,7 @@ identical to the build environment on purpose.
 - Edit **`requirements.in`** (runtime) or **`requirements-build.in`** (build tools) —
   top-level packages only.
 - Regenerate the locks: `./build/lock.sh`
-- Commit the `.in` change together with every regenerated `requirements*-*.txt`.
+- Commit the `.in` change together with every regenerated file under `requirements/`.
 
 Installs use `pip install --require-hashes`, so a compromised index cannot
 substitute a package.

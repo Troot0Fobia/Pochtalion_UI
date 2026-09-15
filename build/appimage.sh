@@ -18,7 +18,7 @@ VERSION="$(sed -nE 's/^__version__ = "([^"]+)"/\1/p' config.py)"
 DIST="$REPO_ROOT/dist"
 APPDIR="$DIST/Pochtalion.AppDir"
 # Needs Pillow for the icon conversion below; build-linux.sh passes its own
-# venv's interpreter (which already has it, from requirements-linux.txt).
+# venv's interpreter (which already has it, from requirements/linux.txt).
 PYTHON="${POCHTALION_BUILD_PYTHON:-python3}"
 
 if [ ! -x "$DIST/Pochtalion/Pochtalion" ]; then

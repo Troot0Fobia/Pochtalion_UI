@@ -81,7 +81,7 @@ Every third-party thing a build downloads is verified before use, so a
 compromised mirror or CDN can't substitute something else in:
 
 - **Python + every dependency**: `uv` fetches the exact pinned interpreter
-  and installs from `requirements-*.txt` with `--require-hashes` — a wheel
+  and installs from `requirements/*.txt` with `--require-hashes` — a wheel
   whose hash doesn't match the lock file is rejected outright. Regenerate
   locks with `build/lock.sh` after editing `requirements.in` /
   `requirements-build.in`.

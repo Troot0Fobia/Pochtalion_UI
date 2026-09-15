@@ -37,7 +37,7 @@ foreach ($p in @($Venv, $Work, $Dist)) {
 # --- provision the exact, hash-verified toolchain ---------------------------
 uv venv --python $PythonVersion $Venv
 uv pip install --python $Venv --require-hashes `
-    -r requirements-windows.txt -r requirements-build-windows.txt
+    -r requirements\windows.txt -r requirements\build-windows.txt
 
 # --- build --------------------------------------------------------------
 & "$Venv\Scripts\pyinstaller.exe" build\pochtalion.spec `

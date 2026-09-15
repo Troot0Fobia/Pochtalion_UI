@@ -36,8 +36,8 @@ rm -rf "$VENV" "$WORK" "$DIST"
 # --- provision the exact, hash-verified toolchain --------------------------
 uv venv --python "$PYTHON_VERSION" "$VENV"
 uv pip install --python "$VENV" --require-hashes \
-    -r requirements-linux.txt \
-    -r requirements-build-linux.txt
+    -r requirements/linux.txt \
+    -r requirements/build-linux.txt
 
 # --- build ---------------------------------------------------------------
 "$VENV/bin/pyinstaller" build/pochtalion.spec \

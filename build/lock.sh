@@ -3,7 +3,8 @@
 # Regenerate every dependency lock file from the *.in sources.
 #
 # Run this after editing requirements.in or requirements-build.in, then
-# commit the *.in change together with all six regenerated *.txt files.
+# commit the *.in change together with all four regenerated lock files
+# under requirements/.
 #
 # The locks are pinned to one exact Python version (build/PYTHON_VERSION)
 # and one platform each. `uv` resolves the same inputs to the same output
@@ -20,6 +21,8 @@ if ! command -v uv >/dev/null 2>&1; then
     exit 1
 fi
 
+mkdir -p requirements
+
 compile() {
     local in_file="$1" platform="$2" out_file="$3"
     echo ">> $out_file"
@@ -31,9 +34,9 @@ compile() {
         -o "$out_file"
 }
 
-compile requirements.in       linux   requirements-linux.txt
-compile requirements.in       windows requirements-windows.txt
-compile requirements-build.in linux   requirements-build-linux.txt
-compile requirements-build.in windows requirements-build-windows.txt
+compile requirements.in       linux   requirements/linux.txt
+compile requirements.in       windows requirements/windows.txt
+compile requirements-build.in linux   requirements/build-linux.txt
+compile requirements-build.in windows requirements/build-windows.txt
 
 echo "done — review the diff and commit the *.in and *.txt together."
