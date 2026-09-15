@@ -18,25 +18,24 @@
 # at runtime (database, settings.json, Telethon sessions, photos, logs) is
 # resolved by core.paths to a per-user data directory and must never be here.
 
-import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(SPECPATH).parent
 
-# --- version (config.py is the single source of truth) ------------------------
-_config_text = (PROJECT_ROOT / "config.py").read_text(encoding="utf-8")
-VERSION = re.search(r'__version__\s*=\s*"([^"]+)"', _config_text).group(1)
+# --- version (VERSION file is the single source of truth) ---------------------
+VERSION = (PROJECT_ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 # --- read-only resources shipped with the app --------------------------------
 # (src, dest-dir-inside-_internal); dest matches core.paths.RESOURCE_ROOT layout
 #
 # pochtalion.ico is bundled unconditionally - core.paths.ICON points at it and
 # ui/pochtalion_ui.py loads it via QIcon() at runtime for the window/taskbar
-# icon.
+# icon. VERSION is bundled the same way - core.paths.VERSION reads it back.
 datas = [
     (str(PROJECT_ROOT / "web"), "web"),
     (str(PROJECT_ROOT / "settings" / "defaults.json"), "settings"),
     (str(PROJECT_ROOT / "pochtalion.ico"), "."),
+    (str(PROJECT_ROOT / "VERSION"), "."),
 ]
 
 # PyInstaller's icon= (EXE-resource icon embedding, Windows/macOS only) is a

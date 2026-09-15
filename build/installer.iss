@@ -6,8 +6,8 @@
 ;   iscc build\installer.iss
 ;
 ; build\build-windows.ps1 runs this automatically as its last step if
-; iscc.exe is on PATH, after setting POCHTALION_VERSION from config.py and
-; producing dist\Pochtalion\ (the onedir tree this packages).
+; iscc.exe is on PATH, after setting POCHTALION_VERSION from the VERSION
+; file and producing dist\Pochtalion\ (the onedir tree this packages).
 ;
 ; Not code-signed (see build/README.md - cost). Windows SmartScreen will
 ; warn on first run until that changes.

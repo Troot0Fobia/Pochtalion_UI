@@ -141,6 +141,19 @@ class Database:
             )
         """
         )
+        # user_status is a 3-bit field (0-7):
+        #   0: 000 - user written by himself
+        #   1: 001 - answer to above user
+        #   2: 010 - old dialog from session
+        #   3: 011 - answer above user
+        #   4: 100 - user from parsing
+        #   5: 101 - user from parsing and mailed
+        #   6: 110 - user added from search
+        #   7: 111 - dialog with above user
+        #      |||
+        #      ||+------ user wait for mail - 0 or we answered for user - 1
+        #      |+------- work with existing dialog - 1, event adding - 0
+        #      +-------- user wrote himself - 0 we add user - 1
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS users (

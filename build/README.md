@@ -116,5 +116,5 @@ you have installed.
   (`puremagic`, `tzdata`) cover the dep graph. Revisit only if a build reports a
   missing module.
 - On Linux the icon is ignored (comes from the `.desktop` / AppImage). The
-  Windows `.exe` gets `pochtalion.ico`; a PE version resource from
-  `config.__version__` is a future nice-to-have.
+  Windows `.exe` gets `pochtalion.ico`; a PE version resource from the
+  `VERSION` file is a future nice-to-have.

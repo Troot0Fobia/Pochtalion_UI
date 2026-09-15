@@ -16,8 +16,8 @@ REPO_ROOT="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 cd "$REPO_ROOT"
 
 PYTHON_VERSION="$(cat build/PYTHON_VERSION)"
-VERSION="$(sed -nE 's/^__version__ = "([^"]+)"/\1/p' config.py)"
-[ -n "$VERSION" ] || { echo "could not read __version__ from config.py" >&2; exit 1; }
+VERSION="$(cat VERSION)"
+[ -n "$VERSION" ] || { echo "VERSION file is empty" >&2; exit 1; }
 
 export UV_LINK_MODE=copy
 # Never fall back to a discovered system Python for uv's own pinned,

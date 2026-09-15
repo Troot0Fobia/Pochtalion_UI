@@ -17,9 +17,8 @@ $RepoRoot = (Resolve-Path "$PSScriptRoot\..").Path
 Set-Location $RepoRoot
 
 $PythonVersion = (Get-Content "build\PYTHON_VERSION").Trim()
-$VersionMatch = Select-String -Path "config.py" -Pattern '^__version__\s*=\s*"([^"]+)"'
-if (-not $VersionMatch) { throw "could not read __version__ from config.py" }
-$Version = $VersionMatch.Matches[0].Groups[1].Value
+$Version = (Get-Content "VERSION").Trim()
+if (-not $Version) { throw "VERSION file is empty" }
 
 $env:UV_LINK_MODE = "copy"
 

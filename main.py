@@ -39,8 +39,6 @@ def _selfcheck() -> int:
     """
     import importlib
 
-    import config
-
     for mod in (
         "PyQt6.QtWidgets",
         "PyQt6.QtWebEngineWidgets",
@@ -59,7 +57,7 @@ def _selfcheck() -> int:
 
     _QApp(["pochtalion", "-platform", "offscreen"])
 
-    print(f"Pochtalion {config.__version__}")
+    print(f"Pochtalion {core.paths.VERSION}")
     print(f"mode={core.paths.MODE} resources={core.paths.RESOURCE_ROOT} data={core.paths.DATA_DIR}")
     return 0
 

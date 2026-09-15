@@ -59,6 +59,10 @@ RESOURCE_ROOT = _resource_root()
 WEB = RESOURCE_ROOT / "web"
 DEFAULTS = RESOURCE_ROOT / "settings" / "defaults.json"
 ICON = RESOURCE_ROOT / "pochtalion.ico"
+# Plain-text VERSION file, not a Python module, so build tooling can read it
+# with a one-line `cat`/`Get-Content` regardless of how the rest of the
+# source tree is organized.
+VERSION = (RESOURCE_ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 
 def resource_path(relative_path) -> str:
