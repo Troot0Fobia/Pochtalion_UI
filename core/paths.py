@@ -3,8 +3,8 @@
 There are two kinds of paths:
 
 * **Resources** — read-only files shipped with the app (``web/``, ``settings/defaults.json``,
-  ``icon.ico``). They live next to the source tree in development and inside the PyInstaller
-  bundle (``sys._MEIPASS``) when frozen.
+  ``pochtalion.ico``). They live next to the source tree in development and inside the
+  PyInstaller bundle (``sys._MEIPASS``) when frozen.
 * **User data** — everything the app writes at runtime (database, settings, Telethon
   sessions, downloaded photos, SMM media, logs, temp files). The location is decided once,
   at import time, by :func:`_resolve_mode`:
@@ -58,7 +58,7 @@ def _resource_root() -> Path:
 RESOURCE_ROOT = _resource_root()
 WEB = RESOURCE_ROOT / "web"
 DEFAULTS = RESOURCE_ROOT / "settings" / "defaults.json"
-ICON = RESOURCE_ROOT / "icon.ico"
+ICON = RESOURCE_ROOT / "pochtalion.ico"
 
 
 def resource_path(relative_path) -> str:

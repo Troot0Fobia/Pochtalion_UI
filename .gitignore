@@ -9,6 +9,11 @@ tmp
 /settings/*
 !/settings/defaults.json
 CLAUDE.md
+miscs/
 
 # stray screenshots from the run skill
 /app.png
+
+# PyInstaller build output
+/dist/
+/build/pochtalion/

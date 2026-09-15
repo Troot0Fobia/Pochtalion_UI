@@ -12,7 +12,7 @@ mkdir -p "$DESKTOP_DIR"
 
 sed \
     -e "s|/ABSOLUTE/PATH/TO/run.sh|$SCRIPT_DIR/run.sh|g" \
-    -e "s|/ABSOLUTE/PATH/TO/icon.ico|$SCRIPT_DIR/icon.ico|g" \
+    -e "s|/ABSOLUTE/PATH/TO/pochtalion.ico|$SCRIPT_DIR/pochtalion.ico|g" \
     "$SCRIPT_DIR/Pochtalion.desktop" > "$DESKTOP_DIR/Pochtalion.desktop"
 
 chmod +x "$DESKTOP_DIR/Pochtalion.desktop"

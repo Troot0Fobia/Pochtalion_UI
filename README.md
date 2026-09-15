@@ -1,7 +1,32 @@
-## Install requirements
+# Pochtalion
 
-`pip install -r requirements.txt`
+PyQt6 desktop app for Telegram bulk messaging and parsing.
 
-## Creating exe
+## Running from source
 
- `python -m PyInstaller --onefile --noconsole --icon=icon.ico --hidden-import=aiosqlite --hidden-import=core.paths --hidden-import=core.logger --hidden-import=core.database --hidden-import=appdirs --hidden-import=PyQt6 --hidden-import=PyQt6.QtWebEngineWidgets --hidden-import=PyQt6.QtWebChannel --hidden-import=qasync --hidden-import=bridges.chat_bridge --hidden-import=bridges.settings_bridge --hidden-import=bridges.sidebar_bridge --hidden-import=modules.sessions_manager --hidden-import=modules.parser --hidden-import=modules.mailer --hidden-import=core.settings_manager --hidden-import=core.notification_manager --hidden-import=requests --hidden-import=cachetools --add-data "settings/*;settings/" --add-data "database/database.db;database/" --add-data "web/*;web/" --add-data "assets/*;assets" --add-data "logs;logs/" --add-data "tmp;tmp/" --add-data "icon.ico;." main.py`
+Requires [`uv`](https://docs.astral.sh/uv/). Everything else (the exact Python
+version, all dependencies) is provisioned automatically.
+
+```bash
+./run.sh          # Linux / macOS
+run.bat           # Windows
+```
+
+The launcher creates `.venv` on the pinned Python (`build/PYTHON_VERSION`) and
+installs the hash-verified lock (`requirements-<os>.txt`). The dev environment is
+identical to the build environment on purpose.
+
+## Dependencies
+
+- Edit **`requirements.in`** (runtime) or **`requirements-build.in`** (build tools) —
+  top-level packages only.
+- Regenerate the locks: `./build/lock.sh`
+- Commit the `.in` change together with every regenerated `requirements*-*.txt`.
+
+Installs use `pip install --require-hashes`, so a compromised index cannot
+substitute a package.
+
+## Building binaries
+
+See [`build/README.md`](build/README.md). Builds are reproducible and produced
+locally.
