@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Package dist/Pochtalion/ (built by build-linux.sh) as a single-file
-# AppImage: dist/Pochtalion-<version>-x86_64.AppImage
+# AppImage: dist/Pochtalion-<version>-linux-x86_64.AppImage
 #
 # The PyInstaller onedir tree is already fully self-contained (Python, Qt,
 # QtWebEngine and all), so this just wraps it in the AppDir layout - no
@@ -97,7 +97,7 @@ EOF
 chmod +x "$APPDIR/AppRun"
 
 echo ">> running appimagetool"
-OUT="$DIST/Pochtalion-${VERSION}-x86_64.AppImage"
+OUT="$DIST/Pochtalion-${VERSION}-linux-x86_64.AppImage"
 rm -f "$OUT"
 # --appimage-extract-and-run: works without /dev/fuse (rootless containers
 # don't have it). ARCH is required when appimagetool
@@ -107,5 +107,5 @@ ARCH=x86_64 "$APPIMAGETOOL" --appimage-extract-and-run --no-appstream \
     --runtime-file "$RUNTIME" "$APPDIR" "$OUT"
 chmod +x "$OUT"
 
-( cd "$DIST" && sha256sum "$(basename "$OUT")" >> SHA256SUMS )
+( cd "$DIST" && sha256sum "$(basename "$OUT")" >> SHA256SUMS-linux.txt )
 echo ">> done: dist/$(basename "$OUT")"

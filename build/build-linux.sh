@@ -6,7 +6,7 @@
 # Produces, under dist/:
 #   Pochtalion/                                 the onedir tree
 #   Pochtalion-<version>-linux-x86_64.tar.gz    the release archive
-#   SHA256SUMS                                  sha256 of the archive
+#   SHA256SUMS-linux.txt                        sha256 of the archive
 #
 # Also builds the AppImage (build/appimage.sh).
 
@@ -52,7 +52,7 @@ echo ">> selfcheck"
 echo ">> packaging"
 tar -C "$DIST" -czf "$DIST/$ARCHIVE" Pochtalion
 
-( cd "$DIST" && sha256sum "$ARCHIVE" > SHA256SUMS )
+( cd "$DIST" && sha256sum "$ARCHIVE" > SHA256SUMS-linux.txt )
 echo ">> done: dist/$ARCHIVE"
 
 # --- AppImage ----------------------------------------------------------
