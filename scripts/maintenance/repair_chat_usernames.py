@@ -35,7 +35,7 @@ same .session files the app uses, and Telethon's sqlite-backed session
 storage does not tolerate two processes touching the same file at once.
 
 Usage:
-    python scripts/repair_chat_usernames.py [--db PATH] [--dry-run]
+    python scripts/maintenance/repair_chat_usernames.py [--db PATH] [--dry-run]
 """
 
 import argparse
@@ -45,7 +45,7 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from telethon import TelegramClient
 

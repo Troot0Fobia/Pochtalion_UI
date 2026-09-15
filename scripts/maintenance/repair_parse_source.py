@@ -23,7 +23,7 @@ same .session files the app uses, and Telethon's sqlite-backed session
 storage does not tolerate two processes touching the same file at once.
 
 Usage:
-    python scripts/repair_parse_source.py
+    python scripts/maintenance/repair_parse_source.py
 """
 
 import asyncio
@@ -32,7 +32,7 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from telethon import TelegramClient
 
