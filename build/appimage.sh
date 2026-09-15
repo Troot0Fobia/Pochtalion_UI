@@ -107,5 +107,5 @@ ARCH=x86_64 "$APPIMAGETOOL" --appimage-extract-and-run --no-appstream \
     --runtime-file "$RUNTIME" "$APPDIR" "$OUT"
 chmod +x "$OUT"
 
-( cd "$DIST" && sha256sum "$(basename "$OUT")" >> SHA256SUMS-linux.txt )
+( cd "$DIST" && sha256sum "$(basename "$OUT")" > "$(basename "$OUT").sha256" )
 echo ">> done: dist/$(basename "$OUT")"

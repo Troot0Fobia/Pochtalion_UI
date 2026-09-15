@@ -5,11 +5,12 @@
 
 .DESCRIPTION
     Produces, under dist\:
-        Pochtalion\                                 the onedir tree
-        Pochtalion-<version>-windows-x86_64.zip      release archive
-        SHA256SUMS-windows.txt
+        Pochtalion\                                        the onedir tree
+        Pochtalion-<version>-windows-x86_64.zip             release archive
+        Pochtalion-<version>-windows-x86_64.zip.sha256       its sha256
     and, if Inno Setup's iscc.exe is on PATH:
-        Pochtalion-<version>-windows-setup.exe       installer
+        Pochtalion-<version>-windows-setup.exe               installer
+        Pochtalion-<version>-windows-setup.exe.sha256        its sha256
 #>
 
 $ErrorActionPreference = "Stop"
@@ -53,8 +54,9 @@ Write-Host ">> packaging"
 Compress-Archive -Path "$Dist\Pochtalion" -DestinationPath "$Dist\$Archive" -CompressionLevel Optimal
 
 Push-Location $Dist
-(Get-FileHash $Archive -Algorithm SHA256).Hash.ToLower() + "  " + $Archive | Out-File -Encoding ascii -FilePath "SHA256SUMS-windows.txt"
-Get-Content "SHA256SUMS-windows.txt" | Write-Host
+$ArchiveSha = "$Archive.sha256"
+(Get-FileHash $Archive -Algorithm SHA256).Hash.ToLower() + "  " + $Archive | Out-File -Encoding ascii -FilePath $ArchiveSha
+Get-Content $ArchiveSha | Write-Host
 Pop-Location
 
 Write-Host ">> done: dist\$Archive"
@@ -68,7 +70,7 @@ if ($Iscc) {
     if ($LASTEXITCODE -ne 0) { throw "iscc failed (exit $LASTEXITCODE)" }
     Push-Location $Dist
     $installer = "Pochtalion-$Version-windows-setup.exe"
-    "{0}  {1}" -f (Get-FileHash $installer -Algorithm SHA256).Hash.ToLower(), $installer | Add-Content -Encoding ascii "SHA256SUMS-windows.txt"
+    "{0}  {1}" -f (Get-FileHash $installer -Algorithm SHA256).Hash.ToLower(), $installer | Out-File -Encoding ascii -FilePath "$installer.sha256"
     Pop-Location
     Write-Host ">> done: dist\$installer"
 } else {

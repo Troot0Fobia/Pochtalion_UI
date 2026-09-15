@@ -32,9 +32,8 @@ see "Container engine" below for why this matters over plain Docker).
 Output in `dist/`:
 
 - `Pochtalion/` — the onedir tree
-- `Pochtalion-<version>-linux-x86_64.tar.gz`
-- `Pochtalion-<version>-linux-x86_64.AppImage`
-- `SHA256SUMS-linux.txt`
+- `Pochtalion-<version>-linux-x86_64.tar.gz` (+ `.sha256` sidecar)
+- `Pochtalion-<version>-linux-x86_64.AppImage` (+ `.sha256` sidecar)
 
 `build-linux.sh` also runs `Pochtalion --selfcheck` — a display-free import +
 offscreen-Qt smoke test that fails the build if the bundle is missing a
@@ -54,9 +53,8 @@ Prerequisites on the Windows machine:
 
 Output in `dist\`:
 - `Pochtalion\` — the onedir tree
-- `Pochtalion-<version>-windows-x86_64.zip`
-- `Pochtalion-<version>-windows-setup.exe` — installer, if Inno Setup is present
-- `SHA256SUMS-windows.txt`
+- `Pochtalion-<version>-windows-x86_64.zip` (+ `.sha256` sidecar)
+- `Pochtalion-<version>-windows-setup.exe` — installer, if Inno Setup is present (+ `.sha256` sidecar)
 
 ### Installing Inno Setup
 
@@ -93,7 +91,8 @@ compromised mirror or CDN can't substitute something else in:
   downloads its runtime stub unpinned.
 - **Inno Setup**: pinned by sha256 (see above).
 
-Binaries are **not code-signed** (cost) — verify the published `SHA256SUMS-<OS>.txt`
+Binaries are **not code-signed** (cost) — verify the published per-file
+`<asset>.sha256` sidecar (e.g. `sha256sum -c Pochtalion-<version>-linux-x86_64.tar.gz.sha256`)
 after downloading, or just build it yourself from source.
 
 ## Container engine: podman over docker
