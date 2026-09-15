@@ -52,10 +52,25 @@ Prerequisites on the Windows machine:
 ```
 
 If the `selfcheck` step fails with `PermissionError` on `Pochtalion.exe`
-itself, that's Windows Defender's real-time scan racing the freshly written
-(unsigned) binary, not a real build problem — the script retries a few times
-automatically, but you can avoid the race entirely by excluding the repo (or
-just `dist\`) from real-time scanning:
+itself, not a real build problem — two Defender features cause this, and
+they need different fixes:
+
+- **Persistent** (fails every retry, doesn't clear on its own): **Controlled
+  folder access** (ransomware protection) is blocking the unsigned,
+  unrecognized `Pochtalion.exe` from even reading itself — and it protects
+  `Desktop`/`Documents`/`Pictures`/`Videos`/`Favorites` by default, so
+  building inside e.g. `Desktop\...` triggers it. Confirm via Windows
+  Security → Virus & threat protection → Manage ransomware protection, or
+  Event Viewer → Applications and Services Logs →
+  Microsoft-Windows-Windows Defender/Operational, event ID 1123. Fix: clone
+  the repo somewhere *not* under a protected folder (e.g. `C:\build\...`),
+  or disable Controlled folder access / add `Pochtalion.exe` to its allowed
+  apps.
+- **Transient** (clears after a couple of seconds): real-time on-access
+  scanning racing the freshly written binary. The script retries the
+  selfcheck a few times automatically for this case, but you can avoid the
+  race entirely by excluding the repo (or just `dist\`) from real-time
+  scanning:
 
 ```powershell
 Add-MpPreference -ExclusionPath "C:\path\to\Pochtalion_UI"
