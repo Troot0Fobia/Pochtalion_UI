@@ -11,6 +11,9 @@ cd "$(dirname "$(readlink -f "$0")")"
 
 PYTHON_VERSION="$(cat build/PYTHON_VERSION)"
 LOCK="requirements-linux.txt"
+# Never silently substitute a Python already on this machine for the
+# python-build-standalone build uv itself manages.
+export UV_PYTHON_PREFERENCE=only-managed
 
 if ! command -v uv >/dev/null 2>&1; then
     echo "[Pochtalion] 'uv' is required. Install it with:"

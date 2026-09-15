@@ -2,9 +2,9 @@
 #
 # Linux build environment for Pochtalion.
 #
-# This image contains NO Python and NO application dependencies. Those are
-# installed at build time from the hash-locked requirement files, so the
-# build inputs are exactly what is committed to the repo.
+# Contains NO Python and NO application dependencies - those are installed
+# at build time from the hash-locked requirement files, so the build inputs
+# are exactly what is committed to the repo.
 
 FROM debian:bookworm-slim
 
@@ -13,21 +13,16 @@ FROM debian:bookworm-slim
 ARG UV_VERSION=0.12.10
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    TZ=UTC \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     PYTHONDONTWRITEBYTECODE=1 \
     UV_NO_MODIFY_PATH=1
-# Python installs go to uv's own default (under $HOME, created by `useradd -m`
-# below) rather than a system path — the build runs as a non-root user.
 
 # Qt 6 / QtWebEngine shared-library dependencies. PyInstaller's binary analysis
 # needs to resolve these at build time; the target host is expected to provide
 # them (the AppImage bundles the redistributable subset). `file` is required
 # by appimagetool (build/appimage.sh), not by PyInstaller itself.
-RUN set -eux; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl \
         binutils file \
         libglib2.0-0 libgl1 libegl1 libopengl0 libdrm2 libgbm1 \
@@ -40,8 +35,8 @@ RUN set -eux; \
         libxcomposite1 libxdamage1 libxrandr2 libxi6 libxtst6 libxfixes3 \
         libnss3 libnspr4 libcups2 libasound2 libpci3 libxss1 \
         libatomic1 libpulse0 \
-        xvfb; \
-    rm -rf /var/lib/apt/lists/*
+        xvfb \
+    && rm -rf /var/lib/apt/lists/*
 
 # Pinned uv, verified against its published checksum.
 RUN set -eux; \
@@ -62,8 +57,17 @@ RUN set -eux; \
     rm -f "${asset}" "${asset}.sha256"; \
     uv --version
 
-# Unprivileged build user (uid 1000 matches a typical host user, so a
-# bind-mounted repo has no ownership surprises).
-RUN useradd -m -u 1000 builder
+# Unprivileged build user. container-build-linux.sh overrides the effective
+# UID at run time with --user "$(id -u):$(id -g)", so output under the
+# bind-mounted /work always ends up owned by you, not root, on any host.
+# That overridden UID has no /etc/passwd entry, so $HOME (set at run time to
+# this directory) has to be writable by anyone, not just uid 1000 - hence
+# chmod a+rwX rather than a chown. Same story for the uv cache: a fresh named
+# volume mounted at /home/builder/.cache/uv is initialized by Docker from
+# whatever is already here in the image, permissions included, on first use.
+RUN useradd -m -u 1000 builder && \
+    mkdir -p /home/builder/.cache/uv && \
+    chmod -R a+rwX /home/builder
+
 USER builder
 WORKDIR /work

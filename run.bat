@@ -10,6 +10,10 @@ cd /d "%~dp0"
 
 set /p PYTHON_VERSION=<build\PYTHON_VERSION
 set LOCK=requirements-windows.txt
+REM Never silently substitute a Python already on this machine for the
+REM pinned python-build-standalone build uv itself manages (see
+REM build/build-windows.ps1 for why this matters).
+set UV_PYTHON_PREFERENCE=only-managed
 
 where uv >nul 2>nul
 if errorlevel 1 (

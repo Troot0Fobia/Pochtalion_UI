@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
 # Linux build. Runs inside build/Dockerfile.build (via
-# build/docker-build-linux.sh) or directly on a host that matches it.
+# build/container-build-linux.sh) or directly on a host that matches it.
 #
 # Produces, under dist/:
 #   Pochtalion/                                 the onedir tree
 #   Pochtalion-<version>-linux-x86_64.tar.gz    the release archive
 #   SHA256SUMS                                  sha256 of the archive
 #
-# UPX and strip are off (see build/pochtalion.spec).
+# Also builds the AppImage (build/appimage.sh).
 
 set -euo pipefail
 
@@ -20,6 +20,9 @@ VERSION="$(sed -nE 's/^__version__ = "([^"]+)"/\1/p' config.py)"
 [ -n "$VERSION" ] || { echo "could not read __version__ from config.py" >&2; exit 1; }
 
 export UV_LINK_MODE=copy
+# Never fall back to a discovered system Python for uv's own pinned,
+# checksum-verified download.
+export UV_PYTHON_PREFERENCE=only-managed
 
 VENV="${POCHTALION_BUILD_VENV:-/tmp/pochtalion-build-venv}"
 WORK="${POCHTALION_BUILD_WORK:-/tmp/pochtalion-pyi-work}"
@@ -46,11 +49,11 @@ echo ">> selfcheck"
 "$DIST/Pochtalion/Pochtalion" --selfcheck
 
 # --- package ---------------------------------------------------------
+echo ">> packaging"
 tar -C "$DIST" -czf "$DIST/$ARCHIVE" Pochtalion
 
-( cd "$DIST" && sha256sum "$ARCHIVE" | tee SHA256SUMS )
+( cd "$DIST" && sha256sum "$ARCHIVE" > SHA256SUMS )
 echo ">> done: dist/$ARCHIVE"
 
 # --- AppImage ----------------------------------------------------------
-# Appends its own line to dist/SHA256SUMS.
-POCHTALION_BUILD_PYTHON="$VENV/bin/python3" bash build/appimage.sh
+POCHTALION_BUILD_PYTHON="$VENV/bin/python3" "$REPO_ROOT/build/appimage.sh"

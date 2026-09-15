@@ -1,5 +1,11 @@
 # Build system
 
+Builds a standalone binary from source, for both maintainers cutting a
+release and anyone who'd rather build from source than trust a prebuilt
+download. Everything runs on your own machine; the only network access is
+downloading Python/dependencies/build tools, all hash- or checksum-verified
+so a compromised mirror can't substitute anything.
+
 ## Files
 
 | File | Purpose |
@@ -7,12 +13,12 @@
 | `PYTHON_VERSION` | the one exact Python version, read by everything |
 | `lock.sh` | regenerate all dependency locks from the `.in` files |
 | `pochtalion.spec` | PyInstaller recipe (onedir) |
-| `Dockerfile.build` | Linux build image (OS + uv only) |
-| `build-linux.sh` | Linux build (in the image or on a matching host) |
+| `Dockerfile.build` | Linux build image (Debian + system libs + uv) |
+| `build-linux.sh` | the Linux build itself (in the container, or on a matching host) |
 | `container-build-linux.sh` | host entry point: build the image, run the build in it |
 | `build-windows.ps1` | Windows build (run on a Windows machine/VM) |
 | `appimage.sh` | package the Linux onedir as an AppImage; called by build-linux.sh |
-| `installer.iss` | Inno Setup script (Windows installer) |
+| `installer.iss` | Inno Setup script (Windows installer, per-user install) |
 
 ## Building on Linux
 
@@ -20,22 +26,23 @@ Install [podman](https://podman.io/docs/installation) (rootless by default —
 see "Container engine" below for why this matters over plain Docker).
 
 ```bash
-./build/container-build-linux.sh    # build the image, run the build in it
+./build/container-build-linux.sh
 ```
 
 Output in `dist/`:
 
 - `Pochtalion/` — the onedir tree
-- `Pochtalion-<version>-linux-x86_64.tar.gz` — release archive (deterministic:
-  fixed member order, owner 0, mtime = last commit)
+- `Pochtalion-<version>-linux-x86_64.tar.gz`
+- `Pochtalion-<version>-x86_64.AppImage`
 - `SHA256SUMS`
 
 `build-linux.sh` also runs `Pochtalion --selfcheck` — a display-free import +
-offscreen-Qt smoke test that fails the build if the bundle is missing a module.
+offscreen-Qt smoke test that fails the build if the bundle is missing a
+module.
 
 ## Building on Windows
 
-Prerequisites on the Windows build VM:
+Prerequisites on the Windows machine:
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/) on PATH.
 - Optionally, [Inno Setup](https://jrsoftware.org/isinfo.php) for the
   installer — see "Installing Inno Setup" below. Without it the script still
@@ -47,15 +54,11 @@ Prerequisites on the Windows build VM:
 
 Output in `dist\`:
 - `Pochtalion\` — the onedir tree
-- `Pochtalion-<version>-windows-x86_64.zip` — release archive
+- `Pochtalion-<version>-windows-x86_64.zip`
 - `Pochtalion-<version>-windows-setup.exe` — installer, if Inno Setup is present
 - `SHA256SUMS`
 
 ### Installing Inno Setup
-
-Releases moved to GitHub (`jrsoftware/issrc`) a while back, so — like uv and
-appimagetool — we can pin a specific asset by a real sha256 rather than just
-trusting whatever `jrsoftware.org` currently links to. Verified by hand:
 
 ```powershell
 $url  = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
@@ -66,27 +69,32 @@ if ($actual -ne $sha) { throw "checksum mismatch: got $actual" }
 .\innosetup.exe /VERYSILENT   # unattended install; adds iscc.exe to PATH
 ```
 
-The installer is also Authenticode-signed by the author, Jordan Russell, as
-a second check: `(Get-AuthenticodeSignature .\innosetup.exe).Status` should
-read `Valid`.
+(Pinned to a specific version + checksum rather than whatever
+`jrsoftware.org` currently links to — check
+https://jrsoftware.org/isdl.php for newer releases and re-pin
+deliberately if you want one.) One-time setup, not something
+`build-windows.ps1` does on every run.
 
-This is a one-time setup step on the build VM, not something
-`build-windows.ps1` does on every run. Check https://jrsoftware.org/isdl.php
-for newer releases and re-pin (new version → new sha256) deliberately, the
-same way `build/appimage.sh`'s pins get updated.
+## Where builds get their inputs from
 
-The exact interpreter (`PYTHON_VERSION`) and every wheel (`requirements-*.txt`,
-`--require-hashes`) are fetched over the network but hash-verified, so the build
-cannot pick up a substituted artifact.
+Every third-party thing a build downloads is verified before use, so a
+compromised mirror or CDN can't substitute something else in:
 
-## Trust model
+- **Python + every dependency**: `uv` fetches the exact pinned interpreter
+  and installs from `requirements-*.txt` with `--require-hashes` — a wheel
+  whose hash doesn't match the lock file is rejected outright. Regenerate
+  locks with `build/lock.sh` after editing `requirements.in` /
+  `requirements-build.in`.
+- **uv itself** (`Dockerfile.build`): downloaded from its GitHub release and
+  checked against the checksum file it publishes alongside it.
+- **appimagetool + its runtime stub** (`appimage.sh`): pinned to a specific
+  release and a sha256 captured from that exact asset — appimagetool's own
+  "continuous" build is a moving target and, left to its defaults, silently
+  downloads its runtime stub unpinned.
+- **Inno Setup**: pinned by sha256 (see above).
 
-The release artifact is the one **you build locally** (Docker for Linux, a VM for
-Windows) - nothing downloads or executes anything you didn't choose to run
-yourself.
-
-Binaries are **not code-signed** (cost). Users verify the published SHA256 before
-running.
+Binaries are **not code-signed** (cost) — verify the published `SHA256SUMS`
+after downloading, or just build it yourself from source.
 
 ## Container engine: podman over docker
 

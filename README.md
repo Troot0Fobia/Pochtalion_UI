@@ -26,7 +26,7 @@ identical to the build environment on purpose.
 Installs use `pip install --require-hashes`, so a compromised index cannot
 substitute a package.
 
-## Building binaries
+## Building a standalone binary
 
-See [`build/README.md`](build/README.md). Builds are reproducible and produced
-locally.
+See [`build/README.md`](build/README.md) — build it yourself from source,
+locally, on Linux (Docker) or Windows.

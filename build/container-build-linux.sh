@@ -6,7 +6,7 @@
 #
 # Builds the image from build/Dockerfile.build, then runs build/build-linux.sh
 # inside it against the current checkout. Output lands in ./dist/, owned by
-# you (see --userns=keep-id below for why, with podman).
+# you (not root) - see the comment below for why.
 #
 # Uses podman by default (rootless, no daemon, nothing to pre-authorize) -
 # a plain `docker` install normally means either a root daemon or membership
@@ -48,8 +48,16 @@ fi
 # those is hash-verified (uv checks python-build-standalone; pip --require-hashes
 # checks the wheels), so a MITM cannot substitute anything. A persistent uv
 # cache volume makes repeat builds fast.
+#
+# --user "$(id -u):$(id -g)" overrides the image's baked-in uid rather than
+# trusting it to match - the effective UID always matches whoever is
+# actually running the build, on any host, podman or docker. That UID won't
+# have an /etc/passwd entry, so HOME is pointed at the (world-writable)
+# builder home explicitly.
 "$ENGINE" run --rm \
     "${ENGINE_RUN_EXTRA[@]}" \
+    --user "$(id -u):$(id -g)" \
+    -e HOME=/home/builder \
     -v "$REPO_ROOT:/work:rw" \
     -v "pochtalion-uv-cache:/home/builder/.cache/uv" \
     "$IMAGE_TAG" \
