@@ -51,6 +51,16 @@ Prerequisites on the Windows machine:
 .\build\build-windows.ps1
 ```
 
+If the `selfcheck` step fails with `PermissionError` on `Pochtalion.exe`
+itself, that's Windows Defender's real-time scan racing the freshly written
+(unsigned) binary, not a real build problem — the script retries a few times
+automatically, but you can avoid the race entirely by excluding the repo (or
+just `dist\`) from real-time scanning:
+
+```powershell
+Add-MpPreference -ExclusionPath "C:\path\to\Pochtalion_UI"
+```
+
 Output in `dist\`:
 - `Pochtalion\` — the onedir tree
 - `Pochtalion-<version>-windows-x86_64.zip` (+ `.sha256` sidecar)

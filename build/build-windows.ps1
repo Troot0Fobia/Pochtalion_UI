@@ -45,9 +45,22 @@ uv pip install --python $Venv --require-hashes `
 if ($LASTEXITCODE -ne 0) { throw "pyinstaller failed (exit $LASTEXITCODE)" }
 
 # --- smoke test -----------------------------------------------------
+# Running the exe this soon after PyInstaller writes it can race Windows
+# Defender's on-access scan of the freshly created (unsigned) binary, which
+# briefly locks the file and surfaces as a PermissionError deep in the
+# bootloader's own self-read - not a real build problem. Retry a few times
+# before giving up; excluding the build dir from real-time scanning (see
+# build/README.md) avoids the race entirely.
 Write-Host ">> selfcheck"
-& "$Dist\Pochtalion\Pochtalion.exe" --selfcheck
-if ($LASTEXITCODE -ne 0) { throw "selfcheck failed (exit $LASTEXITCODE)" }
+$Exe = "$Dist\Pochtalion\Pochtalion.exe"
+$MaxAttempts = 5
+for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+    & $Exe --selfcheck
+    if ($LASTEXITCODE -eq 0) { break }
+    if ($Attempt -eq $MaxAttempts) { throw "selfcheck failed (exit $LASTEXITCODE) after $MaxAttempts attempts" }
+    Write-Host ">> selfcheck failed (exit $LASTEXITCODE), retrying in 2s (likely antivirus scanning the freshly built exe)..."
+    Start-Sleep -Seconds 2
+}
 
 # --- package ---------------------------------------------------------
 Write-Host ">> packaging"
