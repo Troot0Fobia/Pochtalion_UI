@@ -11,6 +11,12 @@
     and, if Inno Setup's iscc.exe is on PATH:
         Pochtalion-<version>-windows-setup.exe               installer
         Pochtalion-<version>-windows-setup.exe.sha256        its sha256
+
+    Set $env:POCHTALION_UPDATE_REPO = "owner/repo" before running this to
+    enable the built binary's self-update checks (see build/README.md,
+    "Enabling self-update checks") - unset means it's compiled out. No
+    container is involved on Windows, so the child pyinstaller.exe process
+    inherits it automatically; nothing else to configure here.
 #>
 
 $ErrorActionPreference = "Stop"

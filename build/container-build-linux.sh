@@ -13,6 +13,11 @@
 # in the `docker` group, which owns the daemon socket and is therefore
 # equivalent to passwordless root. Override with CONTAINER_ENGINE=docker if
 # that's what you have installed.
+#
+# POCHTALION_UPDATE_REPO, if set in your shell, is forwarded into the
+# container (see build/README.md) - it is never defaulted anywhere in this
+# repo, so the built binary's self-updater is disabled unless you set it
+# explicitly on every build.
 
 set -euo pipefail
 
@@ -58,6 +63,7 @@ fi
     "${ENGINE_RUN_EXTRA[@]}" \
     --user "$(id -u):$(id -g)" \
     -e HOME=/home/builder \
+    -e POCHTALION_UPDATE_REPO \
     -v "$REPO_ROOT:/work:rw" \
     -v "pochtalion-uv-cache:/home/builder/.cache/uv" \
     "$IMAGE_TAG" \

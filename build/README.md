@@ -98,6 +98,31 @@ https://jrsoftware.org/isdl.php for newer releases and re-pin
 deliberately if you want one.) One-time setup, not something
 `build-windows.ps1` does on every run.
 
+## Enabling self-update checks
+
+The built binary's self-updater (`modules/updater.py`) checks GitHub releases
+of one `owner/repo` for a newer version. That repo is **never hardcoded
+anywhere in this repository** — it only exists as the `POCHTALION_UPDATE_REPO`
+env var you set yourself at build time, which `build/pochtalion.spec` writes
+into a gitignored `REPO` file bundled into the app. No env var set -> empty
+`REPO` -> `modules.updater` disables itself entirely, silently and by design
+(this is also always true for a `dev`-mode run from source, since nothing
+ever generates that file there).
+
+```bash
+# Linux (forwarded into the container automatically - see container-build-linux.sh)
+POCHTALION_UPDATE_REPO=owner/repo ./build/container-build-linux.sh
+```
+
+```powershell
+# Windows
+$env:POCHTALION_UPDATE_REPO = "owner/repo"
+.\build\build-windows.ps1
+```
+
+There is deliberately no default anywhere in the scripts — set it explicitly
+on every build where you want update checks enabled.
+
 ## Where builds get their inputs from
 
 Every third-party thing a build downloads is verified before use, so a

@@ -63,6 +63,14 @@ ICON = RESOURCE_ROOT / "pochtalion.ico"
 # with a one-line `cat`/`Get-Content` regardless of how the rest of the
 # source tree is organized.
 VERSION = (RESOURCE_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+# "owner/repo" the self-updater checks GitHub releases against - baked in at
+# build time from the POCHTALION_UPDATE_REPO env var (see build/pochtalion.spec
+# and build/README.md), never hardcoded in source. This file is gitignored and
+# not part of the dev-mode source tree, so REPO is empty unless a real build
+# generated it - modules.updater treats that as "update checking disabled",
+# which is the correct default for a dev run.
+_repo_file = RESOURCE_ROOT / "REPO"
+REPO = _repo_file.read_text(encoding="utf-8").strip() if _repo_file.exists() else ""
 
 
 def resource_path(relative_path) -> str:
@@ -126,6 +134,10 @@ SMM_VOICES = SMM / "smm_voices"
 PROFILE_PHOTOS = DATA_DIR / "profile_photos"
 GROUP_PHOTOS = DATA_DIR / "group_photos"
 SESSION_PHOTOS = DATA_DIR / "session_photos"
+# Downloaded-but-not-yet-applied self-update files. Deliberately under DATA_DIR,
+# not TMP: TMP is wiped on every close (see Pochtalion_UI.closeEvent), but an
+# update must survive the very close/relaunch cycle that applies it.
+UPDATES = DATA_DIR / "updates"
 
 # --- cache ---
 # In dev mode _CACHE_DIR already *is* the tmp directory (repo/tmp).
@@ -143,6 +155,7 @@ RUNTIME_DIRS = (
     PROFILE_PHOTOS,
     GROUP_PHOTOS,
     SESSION_PHOTOS,
+    UPDATES,
     LOGS,
     TMP,
 )

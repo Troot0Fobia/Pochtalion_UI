@@ -15,3 +15,7 @@ miscs/
 /dist/
 /build/pochtalion/
 docs/
+
+# generated at build time from POCHTALION_UPDATE_REPO - never committed, see
+# build/pochtalion.spec and core/paths.py
+/REPO

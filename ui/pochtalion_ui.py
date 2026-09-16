@@ -3,7 +3,7 @@ import json
 import re
 import shutil
 
-from PyQt6.QtCore import QMargins, QSize, Qt, QUrl
+from PyQt6.QtCore import QMargins, QSize, Qt, QTimer, QUrl
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -28,6 +28,7 @@ from modules.pudge_manager import PudgeManager
 from modules.mailer import Mailer
 from modules.parser import Parser
 from modules.sessions_manager import SessionsManager
+from modules.updater import Updater
 
 web_base = WEB
 
@@ -52,6 +53,7 @@ class Pochtalion_UI(QMainWindow):
         self.mailer = Mailer(self)
         self.group_mailer = GroupMailer(self)
         self.pudge_manager = PudgeManager(self)
+        self.updater = Updater(self)
         self.logger = setup_logger("Pochtalion.UI", "UI.log")
         self.logger.info("Main UI initialized")
 
@@ -128,6 +130,14 @@ class Pochtalion_UI(QMainWindow):
                 continue
 
             self.group_mailer.add_session(str(session_id), session_file)
+
+        # Not asyncio.create_task() here: this runs before main.py's
+        # `loop.run_until_complete(app_close_event.wait())` actually starts the
+        # qasync loop (qasync only calls asyncio.events._set_running_loop() once
+        # that begins), so a task created now would be scheduled on the wrong
+        # loop and silently never run. QTimer.singleShot(0, ...) defers creating
+        # the task until the Qt event loop is actually pumping.
+        QTimer.singleShot(0, lambda: asyncio.create_task(self.updater.start()))
 
         return self
 

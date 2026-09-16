@@ -18,6 +18,7 @@
 # at runtime (database, settings.json, Telethon sessions, photos, logs) is
 # resolved by core.paths to a per-user data directory and must never be here.
 
+import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(SPECPATH).parent
@@ -25,17 +26,27 @@ PROJECT_ROOT = Path(SPECPATH).parent
 # --- version (VERSION file is the single source of truth) ---------------------
 VERSION = (PROJECT_ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
+# --- self-update target repo, baked in from an env var, never hardcoded -------
+# POCHTALION_UPDATE_REPO (set by build-linux.sh / build-windows.ps1, defaulting
+# to the real repo there - see build/README.md) is written into a gitignored
+# REPO file that core.paths.REPO reads back at runtime. Left unset -> empty
+# file -> modules.updater treats update checking as disabled. This is the only
+# place the value gets written; it is never a literal in any .py source file.
+(PROJECT_ROOT / "REPO").write_text(os.environ.get("POCHTALION_UPDATE_REPO", ""), encoding="utf-8")
+
 # --- read-only resources shipped with the app --------------------------------
 # (src, dest-dir-inside-_internal); dest matches core.paths.RESOURCE_ROOT layout
 #
 # pochtalion.ico is bundled unconditionally - core.paths.ICON points at it and
 # ui/pochtalion_ui.py loads it via QIcon() at runtime for the window/taskbar
-# icon. VERSION is bundled the same way - core.paths.VERSION reads it back.
+# icon. VERSION and REPO are bundled the same way - core.paths.VERSION /
+# core.paths.REPO read them back.
 datas = [
     (str(PROJECT_ROOT / "web"), "web"),
     (str(PROJECT_ROOT / "settings" / "defaults.json"), "settings"),
     (str(PROJECT_ROOT / "pochtalion.ico"), "."),
     (str(PROJECT_ROOT / "VERSION"), "."),
+    (str(PROJECT_ROOT / "REPO"), "."),
 ]
 
 # PyInstaller's icon= (EXE-resource icon embedding, Windows/macOS only) is a
