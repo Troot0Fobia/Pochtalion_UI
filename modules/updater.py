@@ -1,7 +1,6 @@
 import asyncio
 import hashlib
 import json
-import os
 import shutil
 import sys
 
@@ -10,10 +9,20 @@ from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkReques
 from PyQt6.QtWidgets import QMessageBox, QProgressDialog
 
 from core.logger import setup_logger
-from core.paths import REPO, UPDATES, VERSION
+from core.paths import DATA_DIR, INSTALL_FORM, REPO, UPDATES, VERSION
+from modules import update_apply
 
 LATEST_RELEASE_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 USER_AGENT = b"Pochtalion-Updater"
+
+# One asset per install form, matching exactly what build-linux.sh /
+# build-windows.ps1 produce. "dev" has no asset - Updater.start() never gets
+# this far in dev mode (REPO is always empty there).
+_ASSET_SUFFIX_BY_FORM = {
+    "appimage": "linux-x86_64.AppImage",
+    "directory": None,  # platform-dependent, see _asset_name()
+    "windows-installer": "windows-setup.exe",
+}
 
 
 def _parse_version(raw: str) -> tuple[int, ...]:
@@ -21,11 +30,11 @@ def _parse_version(raw: str) -> tuple[int, ...]:
 
 
 def _asset_name(version: str) -> str:
-    if sys.platform.startswith("win"):
-        return f"Pochtalion-{version}-windows-setup.exe"
-    if os.environ.get("APPIMAGE"):
-        return f"Pochtalion-{version}-linux-x86_64.AppImage"
-    return f"Pochtalion-{version}-linux-x86_64.tar.gz"
+    if INSTALL_FORM == "directory":
+        suffix = "windows-x86_64.zip" if sys.platform.startswith("win") else "linux-x86_64.tar.gz"
+    else:
+        suffix = _ASSET_SUFFIX_BY_FORM[INSTALL_FORM]
+    return f"Pochtalion-{version}-{suffix}"
 
 
 def _await_reply(reply: QNetworkReply) -> asyncio.Future:
@@ -172,15 +181,53 @@ class Updater:
                 return
 
             self.logger.info("Update %s downloaded and verified: %s", version, dest)
-            self.main_window.show_notification(
-                "Обновление", f"Версия {version} скачана и проверена: {dest.name}"
-            )
+
+            try:
+                apply_args = update_apply.prepare(dest, DATA_DIR)
+            except Exception:
+                self.logger.exception("Update apply preparation failed")
+                self._fail_download(dest, "Обновление скачано, но не может быть применено на этой установке")
+                return
+
+            self._show_restart_prompt(version, apply_args)
         finally:
             progress.close()
 
     def _fail_download(self, dest, message: str) -> None:
         dest.unlink(missing_ok=True)
         self.main_window.show_notification("Обновление", message)
+
+    def _show_restart_prompt(self, version: str, apply_args: dict) -> None:
+        box = QMessageBox(self.main_window)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle("Обновление готово")
+        box.setText(
+            f"Версия {version} скачана и проверена. Перезапустить сейчас, чтобы применить обновление?"
+        )
+        restart_btn = box.addButton("Перезапустить", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Позже", QMessageBox.ButtonRole.RejectRole)
+        box.setModal(False)
+
+        def _on_clicked(button):
+            if button is restart_btn:
+                # Anything raised here escapes straight into Qt's C++ signal
+                # dispatch with no Python frame above to catch it - PyQt6 has
+                # already been seen to hard-abort the whole process for that
+                # (not just print and continue), leaving nothing in our own
+                # logs. Catch and log explicitly instead of relying on that.
+                try:
+                    update_apply.launch_and_exit(apply_args)
+                except Exception:
+                    self.logger.exception("Failed to launch update apply helper")
+                    self.main_window.show_notification(
+                        "Обновление", "Не удалось запустить применение обновления"
+                    )
+                else:
+                    self.main_window.close()
+            box.deleteLater()
+
+        box.buttonClicked.connect(_on_clicked)
+        box.show()
 
     async def _download_file(self, url: str, dest, progress: QProgressDialog) -> bool:
         reply = self._manager.get(self._request(url))
@@ -203,7 +250,15 @@ class Updater:
             reply.readyRead.connect(_on_ready_read)
             reply.downloadProgress.connect(_on_progress)
             progress.canceled.connect(_on_canceled)
-            await _await_reply(reply)
+            try:
+                await _await_reply(reply)
+            finally:
+                # progress outlives this function (the caller reuses it for the
+                # checksum step, then closes it) - QProgressDialog.close() always
+                # re-emits canceled() even on a normal, non-cancel close, so this
+                # stale connection must not still be live for that later close()
+                # to call reply.abort() on a reply we're about to delete.
+                progress.canceled.disconnect(_on_canceled)
 
         try:
             if cancelled:

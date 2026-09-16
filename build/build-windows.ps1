@@ -51,21 +51,33 @@ uv pip install --python $Venv --require-hashes `
 if ($LASTEXITCODE -ne 0) { throw "pyinstaller failed (exit $LASTEXITCODE)" }
 
 # --- smoke test -----------------------------------------------------
-# Running the exe this soon after PyInstaller writes it can race Windows
-# Defender's on-access scan of the freshly created (unsigned) binary, which
-# briefly locks the file and surfaces as a PermissionError deep in the
-# bootloader's own self-read - not a real build problem. Retry a few times
-# before giving up; excluding the build dir from real-time scanning (see
-# build/README.md) avoids the race entirely.
+# Running the exe this soon after PyInstaller writes it can race something
+# on the machine briefly locking the freshly created (unsigned) binary -
+# confirmed even with Windows Defender fully disabled, so it's not
+# necessarily Defender specifically (another AV/EDR, or a background
+# Windows scan, can do the same thing). Symptom: PermissionError deep in
+# the bootloader's own self-read of Pochtalion.exe. It has cleared within
+# well under a minute every time seen so far - a plain double-click of the
+# exe a bit later always worked - so retry patiently, but only for this
+# exact known symptom; anything else fails fast instead of wasting the
+# whole retry budget on a real bug.
 Write-Host ">> selfcheck"
 $Exe = "$Dist\Pochtalion\Pochtalion.exe"
-$MaxAttempts = 5
+$MaxAttempts = 10
+$RetryDelaySeconds = 3
 for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
-    & $Exe --selfcheck
-    if ($LASTEXITCODE -eq 0) { break }
-    if ($Attempt -eq $MaxAttempts) { throw "selfcheck failed (exit $LASTEXITCODE) after $MaxAttempts attempts" }
-    Write-Host ">> selfcheck failed (exit $LASTEXITCODE), retrying in 2s (likely antivirus scanning the freshly built exe)..."
-    Start-Sleep -Seconds 2
+    $Output = & $Exe --selfcheck 2>&1
+    $ExitCode = $LASTEXITCODE
+    if ($ExitCode -eq 0) { break }
+
+    $OutputText = $Output -join "`n"
+    $IsKnownFileLockFlake = $OutputText -match "PermissionError" -and $OutputText -match [regex]::Escape($Exe)
+    if (-not $IsKnownFileLockFlake -or $Attempt -eq $MaxAttempts) {
+        Write-Host $OutputText
+        throw "selfcheck failed (exit $ExitCode) after $Attempt attempt(s)"
+    }
+    Write-Host ">> selfcheck hit the known file-lock flake (exit $ExitCode), retrying in ${RetryDelaySeconds}s (attempt $Attempt/$MaxAttempts)..."
+    Start-Sleep -Seconds $RetryDelaySeconds
 }
 
 # --- package ---------------------------------------------------------

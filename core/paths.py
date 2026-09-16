@@ -78,6 +78,15 @@ VERSION = (RESOURCE_ROOT / "VERSION").read_text(encoding="utf-8").strip()
 # which is the correct default for a dev run.
 _repo_file = RESOURCE_ROOT / "REPO"
 REPO = _repo_file.read_text(encoding="utf-8").strip() if _repo_file.exists() else ""
+# The detached self-update helper script for this platform - a real,
+# reviewable file bundled via pochtalion.spec (build/scripts/), not a string
+# generated at update time. None in dev mode (nothing bundles it there, and
+# apply never runs in dev mode anyway).
+UPDATE_HELPER = (
+    RESOURCE_ROOT / "scripts" / ("apply_update.ps1" if sys.platform.startswith("win") else "apply_update.sh")
+    if getattr(sys, "frozen", False)
+    else None
+)
 
 
 def resource_path(relative_path) -> str:

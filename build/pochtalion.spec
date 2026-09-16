@@ -27,11 +27,12 @@ PROJECT_ROOT = Path(SPECPATH).parent
 VERSION = (PROJECT_ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 # --- self-update target repo, baked in from an env var, never hardcoded -------
-# POCHTALION_UPDATE_REPO (set by build-linux.sh / build-windows.ps1, defaulting
-# to the real repo there - see build/README.md) is written into a gitignored
-# REPO file that core.paths.REPO reads back at runtime. Left unset -> empty
-# file -> modules.updater treats update checking as disabled. This is the only
-# place the value gets written; it is never a literal in any .py source file.
+# POCHTALION_UPDATE_REPO, set explicitly by whoever invokes the build (there is
+# no default anywhere in this repo - see build/README.md "Enabling self-update
+# checks"), is written into a gitignored REPO file that core.paths.REPO reads
+# back at runtime. Left unset -> empty file -> modules.updater treats update
+# checking as disabled. This is the only place the value gets written; it is
+# never a literal in any .py source file.
 (PROJECT_ROOT / "REPO").write_text(os.environ.get("POCHTALION_UPDATE_REPO", ""), encoding="utf-8")
 
 # --- read-only resources shipped with the app --------------------------------
@@ -40,13 +41,19 @@ VERSION = (PROJECT_ROOT / "VERSION").read_text(encoding="utf-8").strip()
 # pochtalion.ico is bundled unconditionally - core.paths.ICON points at it and
 # ui/pochtalion_ui.py loads it via QIcon() at runtime for the window/taskbar
 # icon. VERSION and REPO are bundled the same way - core.paths.VERSION /
-# core.paths.REPO read them back.
+# core.paths.REPO read them back. build/scripts/ holds the detached
+# self-update helper (apply_update.sh / .ps1) as real, reviewable files
+# rather than a string generated at update time - core.paths.UPDATE_HELPER
+# resolves the one for the current platform. (Not the top-level scripts/ -
+# that one holds unrelated desktop-integration/maintenance tools.)
 datas = [
     (str(PROJECT_ROOT / "web"), "web"),
     (str(PROJECT_ROOT / "settings" / "defaults.json"), "settings"),
     (str(PROJECT_ROOT / "pochtalion.ico"), "."),
     (str(PROJECT_ROOT / "VERSION"), "."),
     (str(PROJECT_ROOT / "REPO"), "."),
+    (str(PROJECT_ROOT / "build" / "scripts" / "apply_update.sh"), "scripts"),
+    (str(PROJECT_ROOT / "build" / "scripts" / "apply_update.ps1"), "scripts"),
 ]
 
 # PyInstaller's icon= (EXE-resource icon embedding, Windows/macOS only) is a
