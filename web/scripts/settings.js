@@ -83,6 +83,9 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.renderReplyVoicePool.connect(renderReplyVoicePool);
     bridge.triggerAutoReplyToggled.connect(setTriggerAutoReplyState);
     bridge.loadSettings();
+    bridge.getVersion(function(version) {
+        document.getElementById("app-version").textContent = `Версия: ${version}`;
+    });
 });
 
 document.addEventListener("keyup", (event) => {

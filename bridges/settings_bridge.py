@@ -10,7 +10,7 @@ import puremagic
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from qasync import asyncSlot
 
-from core.paths import (PROFILE_PHOTOS, SESSION_PHOTOS, SESSIONS, SMM_IMAGES, SMM_VOICES, USERS_DATA)
+from core.paths import (PROFILE_PHOTOS, SESSION_PHOTOS, SESSIONS, SMM_IMAGES, SMM_VOICES, USERS_DATA, VERSION)
 from ui.confirm_delete_session import ConfirmDelete
 
 from .base_bridge import BaseBridge
@@ -707,6 +707,10 @@ class SettingsBridge(BaseBridge):
     @pyqtSlot(str)
     def show_notification(self, message):
         self.main_window.show_notification("Внимание", message)
+
+    @pyqtSlot(result=str)
+    def getVersion(self) -> str:
+        return VERSION
 
     @pyqtSlot(result='bool')
     def isProcessActive(self) -> bool:
