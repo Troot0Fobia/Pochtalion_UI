@@ -59,6 +59,7 @@ def _selfcheck() -> int:
 
     print(f"Pochtalion {core.paths.VERSION}")
     print(f"mode={core.paths.MODE} resources={core.paths.RESOURCE_ROOT} data={core.paths.DATA_DIR}")
+    print(f"install_form={core.paths.INSTALL_FORM} exe_dir={core.paths.EXE_DIR}")
     return 0
 
 

@@ -22,6 +22,13 @@ There are two kinds of paths:
 
 In ``env`` and ``portable`` mode the XDG split does not apply: config / data / logs / cache
 are just sub-directories of one root.
+
+A second, orthogonal axis is :func:`_detect_install_form` / ``INSTALL_FORM``: MODE is only
+about where *data* lives, but a self-update apply step also needs to know how the app's own
+*files* are physically distributed (a single AppImage, an Inno Setup install, or a plain
+directory), since each needs a different replacement strategy. The two can vary independently
+- e.g. an AppImage run with ``POCHTALION_DATA_DIR`` set is MODE ``env`` / INSTALL_FORM
+``appimage`` at the same time.
 """
 
 import os
@@ -93,6 +100,39 @@ def _resolve_mode() -> str:
 
 MODE = _resolve_mode()
 IS_PORTABLE = MODE in ("env", "portable")
+
+
+def _detect_install_form() -> str:
+    """How the running app's own files are physically distributed.
+
+    ``dev``
+        Running from source - never applicable to a self-update.
+    ``appimage``
+        A single AppImage file (Linux) - apply replaces just that one file.
+    ``windows-installer``
+        Installed via build/installer.iss (Inno Setup), which always drops an
+        ``unins*.exe`` next to the executable - apply re-runs the downloaded
+        installer silently over the same directory.
+    ``directory``
+        Anything else frozen: a raw tar.gz/zip extraction on Linux or Windows
+        with no uninstaller present - apply needs a full directory-swap.
+    """
+    if not getattr(sys, "frozen", False):
+        return "dev"
+    if os.environ.get("APPIMAGE"):
+        return "appimage"
+    if sys.platform.startswith("win") and any(_exe_dir().glob("unins*.exe")):
+        return "windows-installer"
+    return "directory"
+
+
+INSTALL_FORM = _detect_install_form()
+# Where the running executable actually lives - what a self-update apply step
+# replaces/swaps and what it relaunches. None in dev mode: sys.executable is
+# the Python interpreter there, not a Pochtalion binary, and apply never runs
+# in dev mode anyway (REPO is always empty -> update checking is disabled).
+EXE_DIR = _exe_dir()
+EXE_PATH = Path(sys.executable).resolve() if getattr(sys, "frozen", False) else None
 
 
 def _category_roots() -> tuple[Path, Path, Path, Path]:
