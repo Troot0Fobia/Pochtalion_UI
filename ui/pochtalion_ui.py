@@ -232,11 +232,11 @@ class Pochtalion_UI(QMainWindow):
         QApplication.quit()
         event.accept()
 
-    def show_notification(self, title, message):
+    def show_notification(self, title, message, icon=None):
         from PyQt6.QtWidgets import QMessageBox
 
         msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setIcon(icon or QMessageBox.Icon.Warning)
         msg.setWindowTitle(title)
         msg.setText(message)
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)

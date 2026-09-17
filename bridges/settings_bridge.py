@@ -2,15 +2,19 @@ import asyncio
 import base64
 import datetime
 import json
+import platform
 import shutil
+import sys
 import uuid
+import zipfile
 from pathlib import Path
 
 import puremagic
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from qasync import asyncSlot
 
-from core.paths import (PROFILE_PHOTOS, SESSION_PHOTOS, SESSIONS, SMM_IMAGES, SMM_VOICES, USERS_DATA, VERSION)
+from core.paths import (INSTALL_FORM, LOGS, MODE, PROFILE_PHOTOS, SESSION_PHOTOS, SESSIONS,
+                         SMM_IMAGES, SMM_VOICES, USERS_DATA, VERSION)
 from ui.confirm_delete_session import ConfirmDelete
 
 from .base_bridge import BaseBridge
@@ -52,6 +56,7 @@ class SettingsBridge(BaseBridge):
     renderReplyMessages = pyqtSignal(str)
     renderReplyVoicePool = pyqtSignal(str)
     triggerAutoReplyToggled = pyqtSignal(bool)
+    logsCollected = pyqtSignal(bool, str)
 
     def __init__(self, main_window, database):
         super().__init__(main_window, database)
@@ -708,6 +713,14 @@ class SettingsBridge(BaseBridge):
     def show_notification(self, message):
         self.main_window.show_notification("Внимание", message)
 
+    @pyqtSlot(str)
+    def showSuccessNotification(self, message):
+        from PyQt6.QtWidgets import QMessageBox
+
+        self.main_window.show_notification(
+            "Готово", message, icon=QMessageBox.Icon.Information
+        )
+
     @pyqtSlot(result=str)
     def getVersion(self) -> str:
         return VERSION
@@ -788,6 +801,50 @@ class SettingsBridge(BaseBridge):
     def resetSettings(self):
         self.main_window.settings_manager.reset_defaults()
         self.loadSettings()
+
+    @asyncSlot()
+    async def collectLogs(self) -> None:
+        from PyQt6.QtCore import QStandardPaths
+        from PyQt6.QtWidgets import QFileDialog
+
+        documents_dir = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation
+        )
+        target_dir = QFileDialog.getExistingDirectory(
+            self.main_window, "Куда сохранить архив с логами", documents_dir or str(Path.home())
+        )
+        if not target_dir:
+            return
+
+        try:
+            archive_path = await asyncio.to_thread(self._build_logs_archive, Path(target_dir))
+            self.logger.info("Logs archive saved to %s", archive_path)
+            self.logsCollected.emit(True, str(archive_path))
+        except Exception as e:
+            self.logger.error("Failed to collect logs: %s", e, exc_info=True)
+            self.logsCollected.emit(False, str(e))
+
+    def _build_logs_archive(self, target_dir: Path) -> Path:
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        archive_path = target_dir / f"pochtalion_logs_{timestamp}.zip"
+
+        info_lines = [
+            f"Pochtalion version: {VERSION}",
+            f"Install form: {INSTALL_FORM}",
+            f"Data mode: {MODE}",
+            f"Platform: {platform.platform()}",
+            f"Python: {sys.version}",
+            f"Collected at: {datetime.datetime.now().isoformat(timespec='seconds')}",
+        ]
+
+        with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("app_info.txt", "\n".join(info_lines) + "\n")
+            if LOGS.exists():
+                for file in LOGS.rglob("*"):
+                    if file.is_file():
+                        zf.write(file, arcname=(Path("logs") / file.relative_to(LOGS)).as_posix())
+
+        return archive_path
 
     @asyncSlot()
     async def refreshSessionManager(self):

@@ -82,6 +82,7 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.renderReplyMessages.connect(renderReplyMessages);
     bridge.renderReplyVoicePool.connect(renderReplyVoicePool);
     bridge.triggerAutoReplyToggled.connect(setTriggerAutoReplyState);
+    bridge.logsCollected.connect(handleLogsCollected);
     bridge.loadSettings();
     bridge.getVersion(function(version) {
         document.getElementById("app-version").textContent = `Версия: ${version}`;
@@ -1948,6 +1949,27 @@ async function checkForUpdates() {
 
 function resetSettings() {
     bridge.resetSettings();
+}
+
+async function collectLogs() {
+    const btn = document.getElementById("collect-logs-button");
+    btn.textContent = "Сбор логов...";
+    btn.classList.add("disabled");
+    try {
+        await bridge.collectLogs();
+    } finally {
+        btn.textContent = "Собрать логи";
+        btn.classList.remove("disabled");
+    }
+}
+
+function handleLogsCollected(success, pathOrError) {
+    if (success) {
+        const escapedPath = pathOrError.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        bridge.showSuccessNotification(`Логи сохранены:<br><span style="white-space:nowrap">${escapedPath}</span>`);
+    } else {
+        bridge.show_notification(`Не удалось собрать логи: ${pathOrError}`);
+    }
 }
 
 const _actionButtonIds = { reset: "parsed-reset-btn", delete: "parsed-delete-btn" };
