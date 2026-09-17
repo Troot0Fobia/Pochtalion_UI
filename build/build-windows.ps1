@@ -65,6 +65,15 @@ Write-Host ">> selfcheck"
 $Exe = "$Dist\Pochtalion\Pochtalion.exe"
 $MaxAttempts = 10
 $RetryDelaySeconds = 3
+
+# Running from inside dist\Pochtalion\ with no override, core.paths sees a
+# "directory"-form frozen install rooted right there and creates data\ next
+# to the exe (portable mode's default), which would then ship inside the
+# packaged zip/installer. Point it at a throwaway dir instead.
+$SelfcheckDataDir = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString())
+New-Item -ItemType Directory -Path $SelfcheckDataDir | Out-Null
+$env:POCHTALION_DATA_DIR = $SelfcheckDataDir
+
 for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
     $Output = & $Exe --selfcheck 2>&1
     $ExitCode = $LASTEXITCODE
@@ -74,11 +83,15 @@ for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
     $IsKnownFileLockFlake = $OutputText -match "PermissionError" -and $OutputText -match [regex]::Escape($Exe)
     if (-not $IsKnownFileLockFlake -or $Attempt -eq $MaxAttempts) {
         Write-Host $OutputText
+        Remove-Item -Recurse -Force $SelfcheckDataDir -ErrorAction SilentlyContinue
         throw "selfcheck failed (exit $ExitCode) after $Attempt attempt(s)"
     }
     Write-Host ">> selfcheck hit the known file-lock flake (exit $ExitCode), retrying in ${RetryDelaySeconds}s (attempt $Attempt/$MaxAttempts)..."
     Start-Sleep -Seconds $RetryDelaySeconds
 }
+
+Remove-Item Env:\POCHTALION_DATA_DIR
+Remove-Item -Recurse -Force $SelfcheckDataDir -ErrorAction SilentlyContinue
 
 # --- package ---------------------------------------------------------
 Write-Host ">> packaging"

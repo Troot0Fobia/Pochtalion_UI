@@ -45,8 +45,14 @@ uv pip install --python "$VENV" --require-hashes \
     --noconfirm --clean --log-level WARN
 
 # --- smoke test (no display needed) -----------------------------------
+# Runs the freshly built exe from inside dist/Pochtalion/ - with no override,
+# core.paths sees a "directory"-form frozen install rooted right there and
+# creates data/ next to the exe (portable mode's default), which would then
+# ship inside the packaged tar.gz/AppImage. Point it at a throwaway dir instead.
 echo ">> selfcheck"
-"$DIST/Pochtalion/Pochtalion" --selfcheck
+SELFCHECK_DATA_DIR="$(mktemp -d)"
+POCHTALION_DATA_DIR="$SELFCHECK_DATA_DIR" "$DIST/Pochtalion/Pochtalion" --selfcheck
+rm -rf "$SELFCHECK_DATA_DIR"
 
 # --- package ---------------------------------------------------------
 echo ">> packaging"
