@@ -6,11 +6,20 @@ from qasync import QApplication, QEventLoop
 # Importing core.paths creates the writable directory layout for the current mode
 # (dev / portable / standalone). Keep this before other project imports.
 import core.paths  # noqa: F401
+from core.single_instance import try_acquire
 from ui.pochtalion_ui import Pochtalion_UI
 
 
 async def main():
     app = QApplication(sys.argv)
+
+    lock_server = try_acquire()
+    if lock_server is None:
+        from PyQt6.QtWidgets import QMessageBox
+
+        QMessageBox.warning(None, "Pochtalion", "Pochtalion уже запущен.")
+        return
+
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
 
