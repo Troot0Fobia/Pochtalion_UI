@@ -16,7 +16,7 @@ There are two kinds of paths:
       Frozen, no env override, and :func:`_detect_install_form` says
       ``INSTALL_FORM`` is ``directory`` or ``appimage`` — i.e. the user just extracted
       an archive or placed an AppImage somewhere themselves, with no real installer
-      involved. Data goes in ``<exe_dir>/data/``, right next to the executable, no
+      involved. Data goes in ``<exe_dir>/pdata/``, right next to the executable, no
       marker file needed - this used to require a ``portable.txt`` file, which was easy
       to forget and, when forgotten, meant two unrelated copies of the app could end up
       silently sharing (and corrupting) the same OS-standard data directory instead.
@@ -184,7 +184,7 @@ def _category_roots() -> tuple[Path, Path, Path, Path]:
         root = Path(os.environ[ENV_DATA_DIR]).expanduser()
         return root / "config", root, root / "logs", root / "cache"
     if MODE == "portable":
-        root = _exe_dir() / "data"
+        root = _exe_dir() / "pdata"
         return root / "config", root, root / "logs", root / "cache"
     if MODE == "standalone":
         d = PlatformDirs(APP_NAME, appauthor=False)
