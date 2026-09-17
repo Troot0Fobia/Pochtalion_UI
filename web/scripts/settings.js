@@ -1934,6 +1934,18 @@ async function refreshSessionManager() {
     await bridge.refreshSessionManager();
 }
 
+async function checkForUpdates() {
+    const btn = document.getElementById("check-for-updates");
+    btn.textContent = "Проверка...";
+    btn.classList.add("disabled");
+    try {
+        await bridge.checkForUpdates();
+    } finally {
+        btn.textContent = "Проверить обновления";
+        btn.classList.remove("disabled");
+    }
+}
+
 function resetSettings() {
     bridge.resetSettings();
 }

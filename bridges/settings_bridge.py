@@ -712,6 +712,10 @@ class SettingsBridge(BaseBridge):
     def getVersion(self) -> str:
         return VERSION
 
+    @asyncSlot()
+    async def checkForUpdates(self):
+        await self.main_window.updater.start(manual=True)
+
     @pyqtSlot(result='bool')
     def isProcessActive(self) -> bool:
         parsing_active = (

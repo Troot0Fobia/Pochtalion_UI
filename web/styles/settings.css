@@ -122,7 +122,14 @@ html, body {
 
 h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: 0.3px; }
 
-.app-version { margin: -4px 0 4px; font-size: 12px; color: var(--text-secondary); }
+.app-version-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -4px 0 4px;
+}
+.app-version { font-size: 12px; color: var(--text-secondary); }
+.app-version-row .button { padding: 4px 12px; font-size: 12px; }
 
 /* ── SETTINGS LIST (Common tab) ──────────────────────── */
 
@@ -319,7 +326,7 @@ input[type="button"][disabled],
 .choose-button, #auth-button, .add-session-button,
 .edit-btn, #add-smm-message, #add-hook-message, #refresh-session-manager,
 .open-groups, .parse-groups-btn, .pudge-check-btn, .pudge-scan-loader,
-#add-trigger-phrase, #add-reply-message {
+#add-trigger-phrase, #add-reply-message, #check-for-updates {
   background-color: var(--accent-dim);
   color: #a5b4fc;
 }
@@ -328,7 +335,7 @@ input[type="button"][disabled],
 .choose-button:hover, #auth-button:hover, .add-session-button:hover,
 .edit-btn:hover, #add-smm-message:hover, #add-hook-message:hover, #refresh-session-manager:hover,
 .open-groups:hover, .parse-groups-btn:hover, .pudge-check-btn:hover,
-#add-trigger-phrase:hover, #add-reply-message:hover {
+#add-trigger-phrase:hover, #add-reply-message:hover, #check-for-updates:hover {
   background-color: var(--accent); color: #fff;
 }
 

@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import re
 import shutil
 import sys
 
@@ -16,8 +17,11 @@ LATEST_RELEASE_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 USER_AGENT = b"Pochtalion-Updater"
 
 # One asset per install form, matching exactly what build-linux.sh /
-# build-windows.ps1 produce. "dev" has no asset - Updater.start() never gets
-# this far in dev mode (REPO is always empty there).
+# build-windows.ps1 produce. REPO is empty (update checking disabled) in
+# dev mode by default, but a developer can still populate the gitignored
+# REPO file locally to test the check/download flow from source - "dev"
+# is treated like "directory" below so that doesn't crash; update_apply
+# still correctly refuses to actually apply anything in dev mode.
 _ASSET_SUFFIX_BY_FORM = {
     "appimage": "linux-x86_64.AppImage",
     "directory": None,  # platform-dependent, see _asset_name()
@@ -29,8 +33,54 @@ def _parse_version(raw: str) -> tuple[int, ...]:
     return tuple(int(p) for p in raw.strip().lstrip("vV").split("."))
 
 
+def _verified_marker(dest):
+    # Sidecar recording the hash `dest` was last confirmed to match, so a
+    # cached download doesn't need re-hashing (multi-second, unindicated) on
+    # every subsequent startup it sits around unapplied.
+    return dest.with_name(dest.name + ".verified")
+
+
+_VERSIONED_NAME_RE = re.compile(r"^Pochtalion-(\d+\.\d+\.\d+)-")
+
+
+def _cleanup_stale_updates() -> None:
+    """Drop anything in UPDATES that isn't for a version still ahead of the
+    one currently running: the downloaded asset + its .verified marker for
+    an update that's already been applied (we're now running it or newer),
+    and non-versioned debris (helper_output.log, a leftover staging/
+    extraction, a helper copy from a previous failed apply attempt) that
+    has no reason to survive once nothing pending references it."""
+    if not UPDATES.is_dir():
+        return
+    try:
+        current = _parse_version(VERSION)
+    except ValueError:
+        return
+    for entry in UPDATES.iterdir():
+        match = _VERSIONED_NAME_RE.match(entry.name)
+        if match:
+            try:
+                if _parse_version(match.group(1)) > current:
+                    continue  # still a pending, not-yet-applied update
+            except ValueError:
+                pass
+        try:
+            if entry.is_dir():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink(missing_ok=True)
+        except OSError:
+            # E.g. helper_output.log can still be held open for a moment by
+            # the just-exited helper process (it relaunches the app and only
+            # *then* closes/deletes itself, so there's a real race with the
+            # new instance's own startup) - skip it for now, next launch's
+            # cleanup will get it once it's no longer locked. Must not abort
+            # the rest of this loop over one stuck entry.
+            pass
+
+
 def _asset_name(version: str) -> str:
-    if INSTALL_FORM == "directory":
+    if INSTALL_FORM in ("directory", "dev"):
         suffix = "windows-x86_64.zip" if sys.platform.startswith("win") else "linux-x86_64.tar.gz"
     else:
         suffix = _ASSET_SUFFIX_BY_FORM[INSTALL_FORM]
@@ -50,17 +100,35 @@ class Updater:
         self.logger = setup_logger("Pochtalion.Updater", "updater.log")
         self._manager = QNetworkAccessManager()
 
-    async def start(self) -> None:
+    async def start(self, manual: bool = False) -> None:
+        """manual=True is a user-triggered "check for updates" click: unlike
+        the silent startup check, it always reports back (disabled / up to
+        date / checked and failed), not just when there's something to do."""
+        try:
+            _cleanup_stale_updates()
+        except Exception:
+            self.logger.warning("Stale update cleanup failed", exc_info=True)
         if not REPO:
-            self.logger.info("Update checking disabled: no repo configured at build time")
+            if manual:
+                self.main_window.show_notification(
+                    "Обновление", "Проверка обновлений отключена в этой сборке"
+                )
+            else:
+                self.logger.info("Update checking disabled: no repo configured at build time")
             return
         try:
             release = await self.check_for_update()
+            if release is None:
+                if manual:
+                    self.main_window.show_notification(
+                        "Обновление", f"Установлена последняя версия ({VERSION})"
+                    )
+                return
+            await self._offer_update(release)
         except Exception:
-            self.logger.warning("Update check failed", exc_info=True)
-            return
-        if release is not None:
-            self._show_update_prompt(release)
+            self.logger.exception("Update check/offer failed")
+            if manual:
+                self.main_window.show_notification("Обновление", "Не удалось проверить обновления")
 
     def _request(self, url: str) -> QNetworkRequest:
         request = QNetworkRequest(QUrl(url))
@@ -111,6 +179,60 @@ class Updater:
         self.logger.info("Update available: %s -> %s", VERSION, tag)
         return release
 
+    def _resolve_assets(self, release: dict) -> tuple[str, dict, dict] | None:
+        """Look up the asset (+ its .sha256 sidecar) this install form/platform
+        needs from a release's asset list. None (with the user already
+        notified) if the release doesn't have one."""
+        version = release.get("tag_name", "").lstrip("vV")
+        asset_name = _asset_name(version)
+        assets = {a.get("name"): a for a in release.get("assets", [])}
+        asset = assets.get(asset_name)
+        sha_asset = assets.get(f"{asset_name}.sha256")
+        if asset is None or sha_asset is None:
+            self.main_window.show_notification(
+                "Обновление", f"В релизе {release.get('tag_name')} не найден файл {asset_name}"
+            )
+            self.logger.error("Update asset %s missing from release %s", asset_name, release.get("tag_name"))
+            return None
+        return asset_name, asset, sha_asset
+
+    async def _offer_update(self, release: dict) -> None:
+        """A newer version exists. If it's already downloaded and verified
+        from a previous session (UPDATES persists across restarts, unlike
+        TMP), skip straight to "ready to apply" instead of re-downloading -
+        otherwise fall back to the normal "update now?" prompt."""
+        resolved = self._resolve_assets(release)
+        if resolved is None:
+            return
+        asset_name, _asset, sha_asset = resolved
+        version = release.get("tag_name", "").lstrip("vV")
+        dest = UPDATES / asset_name
+
+        if dest.exists():
+            sha_bytes = await self._fetch_bytes(sha_asset["browser_download_url"])
+            expected = sha_bytes.decode("utf-8", "ignore").split()[0].lower() if sha_bytes else None
+            if expected:
+                marker = _verified_marker(dest)
+                # Re-hashing a few-hundred-MB file on every single startup this
+                # sits around unapplied is a multi-second, entirely invisible
+                # stall (no progress dialog, unlike the download itself) - once
+                # it's been hashed and matched once, trust that instead of
+                # doing it again every launch. Falls back to a real hash if the
+                # marker is missing/stale (first time seeing this file, or an
+                # older build that never wrote one).
+                if marker.exists() and marker.read_text().strip() == expected:
+                    self.logger.info("Reusing already-verified update %s (cached checksum): %s", version, dest)
+                    await self._finish_apply(version, dest)
+                    return
+                if await self._sha256_file(dest) == expected:
+                    marker.write_text(expected)
+                    self.logger.info("Reusing already-downloaded update %s: %s", version, dest)
+                    await self._finish_apply(version, dest)
+                    return
+            self.logger.info("Cached download %s is stale/unverifiable, will re-download", dest)
+
+        self._show_update_prompt(release)
+
     def _show_update_prompt(self, release: dict) -> None:
         tag = release.get("tag_name", "")
         notes = (release.get("body") or "").strip()
@@ -134,21 +256,16 @@ class Updater:
         box.show()
 
     async def _download_update(self, release: dict) -> None:
-        version = release.get("tag_name", "").lstrip("vV")
-        asset_name = _asset_name(version)
-        assets = {a.get("name"): a for a in release.get("assets", [])}
-
-        asset = assets.get(asset_name)
-        sha_asset = assets.get(f"{asset_name}.sha256")
-        if asset is None or sha_asset is None:
-            self.main_window.show_notification(
-                "Обновление", f"В релизе {release.get('tag_name')} не найден файл {asset_name}"
-            )
-            self.logger.error("Update asset %s missing from release %s", asset_name, release.get("tag_name"))
+        resolved = self._resolve_assets(release)
+        if resolved is None:
             return
+        asset_name, asset, sha_asset = resolved
+        version = release.get("tag_name", "").lstrip("vV")
 
-        # Drop anything left over from a previous, never-applied download so
-        # UPDATES doesn't accumulate multiple large binaries over time.
+        # Drop anything left over from a previous download so UPDATES doesn't
+        # accumulate multiple large binaries over time. _offer_update() has
+        # already ruled out this exact asset being a reusable cached copy by
+        # the time we get here.
         shutil.rmtree(UPDATES, ignore_errors=True)
         UPDATES.mkdir(parents=True, exist_ok=True)
         dest = UPDATES / asset_name
@@ -180,18 +297,21 @@ class Updater:
                 self._fail_download(dest, "Контрольная сумма скачанного файла не совпадает")
                 return
 
+            _verified_marker(dest).write_text(expected)
             self.logger.info("Update %s downloaded and verified: %s", version, dest)
-
-            try:
-                apply_args = update_apply.prepare(dest, DATA_DIR)
-            except Exception:
-                self.logger.exception("Update apply preparation failed")
-                self._fail_download(dest, "Обновление скачано, но не может быть применено на этой установке")
-                return
-
-            self._show_restart_prompt(version, apply_args)
         finally:
             progress.close()
+
+        await self._finish_apply(version, dest)
+
+    async def _finish_apply(self, version: str, dest) -> None:
+        try:
+            apply_args = update_apply.prepare(dest, DATA_DIR)
+        except Exception:
+            self.logger.exception("Update apply preparation failed")
+            self._fail_download(dest, "Обновление скачано, но не может быть применено на этой установке")
+            return
+        self._show_restart_prompt(version, apply_args)
 
     def _fail_download(self, dest, message: str) -> None:
         dest.unlink(missing_ok=True)
