@@ -11,11 +11,20 @@ There are two kinds of paths:
 
   ``env``
       ``POCHTALION_DATA_DIR`` is set — every category becomes a sub-directory of it.
+      Wins regardless of install form.
   ``portable``
-      A ``portable.txt`` file sits next to the executable — data goes in ``<exe_dir>/data/``.
+      Frozen, no env override, and :func:`_detect_install_form` says
+      ``INSTALL_FORM`` is ``directory`` or ``appimage`` — i.e. the user just extracted
+      an archive or placed an AppImage somewhere themselves, with no real installer
+      involved. Data goes in ``<exe_dir>/data/``, right next to the executable, no
+      marker file needed - this used to require a ``portable.txt`` file, which was easy
+      to forget and, when forgotten, meant two unrelated copies of the app could end up
+      silently sharing (and corrupting) the same OS-standard data directory instead.
   ``standalone``
-      Frozen build without a marker — the OS-standard per-user locations (XDG on Linux)
-      resolved through ``platformdirs``.
+      Frozen, no env override, and ``INSTALL_FORM`` is ``windows-installer`` - a real
+      Inno Setup install. Data goes in the OS-standard per-user location (via
+      ``platformdirs``), separate from the install directory, matching normal Windows
+      app conventions for something that has a proper installer/uninstaller.
   ``dev``
       Running from source — the legacy in-repo layout (``database/``, ``assets/``,
       ``logs/``, ``tmp/``, ``settings/``) so a developer's working data stays put.
@@ -23,12 +32,10 @@ There are two kinds of paths:
 In ``env`` and ``portable`` mode the XDG split does not apply: config / data / logs / cache
 are just sub-directories of one root.
 
-A second, orthogonal axis is :func:`_detect_install_form` / ``INSTALL_FORM``: MODE is only
-about where *data* lives, but a self-update apply step also needs to know how the app's own
-*files* are physically distributed (a single AppImage, an Inno Setup install, or a plain
-directory), since each needs a different replacement strategy. The two can vary independently
-- e.g. an AppImage run with ``POCHTALION_DATA_DIR`` set is MODE ``env`` / INSTALL_FORM
-``appimage`` at the same time.
+MODE is derived from :func:`_detect_install_form` / ``INSTALL_FORM`` (computed first, see
+below) rather than being independent of it - which install form is the right signal for
+where data should live too, since only ``windows-installer`` implies a "real",
+OS-registered install with its own uninstaller.
 """
 
 import os
@@ -39,7 +46,6 @@ from platformdirs import PlatformDirs
 
 APP_NAME = "Pochtalion"
 ENV_DATA_DIR = "POCHTALION_DATA_DIR"
-PORTABLE_MARKER = "portable.txt"
 
 
 def _repo_root() -> Path:
@@ -95,21 +101,7 @@ def resource_path(relative_path) -> str:
     return str(p if p.is_absolute() else RESOURCE_ROOT / p)
 
 
-# --- user data location --------------------------------------------------------
-
-def _resolve_mode() -> str:
-    if os.environ.get(ENV_DATA_DIR):
-        return "env"
-    if (_exe_dir() / PORTABLE_MARKER).exists():
-        return "portable"
-    if getattr(sys, "frozen", False):
-        return "standalone"
-    return "dev"
-
-
-MODE = _resolve_mode()
-IS_PORTABLE = MODE in ("env", "portable")
-
+# --- install form (computed first: MODE below depends on it) -----------------
 
 def _detect_install_form() -> str:
     """How the running app's own files are physically distributed.
@@ -142,6 +134,23 @@ INSTALL_FORM = _detect_install_form()
 # in dev mode anyway (REPO is always empty -> update checking is disabled).
 EXE_DIR = _exe_dir()
 EXE_PATH = Path(sys.executable).resolve() if getattr(sys, "frozen", False) else None
+
+
+# --- user data location --------------------------------------------------------
+
+def _resolve_mode() -> str:
+    if os.environ.get(ENV_DATA_DIR):
+        return "env"
+    if INSTALL_FORM == "dev":
+        return "dev"
+    if INSTALL_FORM == "windows-installer":
+        return "standalone"
+    # appimage / directory: the user placed this themselves, no real installer
+    return "portable"
+
+
+MODE = _resolve_mode()
+IS_PORTABLE = MODE in ("env", "portable")
 
 
 def _category_roots() -> tuple[Path, Path, Path, Path]:
