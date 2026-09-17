@@ -52,11 +52,30 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+def _real_exe_path() -> Path | None:
+    """The actual, on-disk file this install *is* - what a self-update apply
+    step swaps/relaunches, and what portable data should sit next to. None
+    outside a frozen build.
+
+    Deliberately not just sys.executable: inside a running AppImage, that
+    points at the ephemeral FUSE mountpoint the AppImage runtime extracts
+    itself to (/tmp/.mount_XXXXXX/usr/bin/Pochtalion) - read-only, and a
+    different random path every single launch. $APPIMAGE is the AppImage
+    runtime's own pointer to the real .AppImage file the user actually has
+    on disk, and is what must be used instead for both of those purposes.
+    """
+    appimage = os.environ.get("APPIMAGE")
+    if appimage:
+        return Path(appimage).resolve()
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve()
+    return None
+
+
 def _exe_dir() -> Path:
     """Directory that holds the running executable (frozen) or the repo root (source)."""
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
-    return _repo_root()
+    real = _real_exe_path()
+    return real.parent if real is not None else _repo_root()
 
 
 # --- resources (read-only, shipped with the app) --------------------------------
@@ -132,8 +151,9 @@ INSTALL_FORM = _detect_install_form()
 # replaces/swaps and what it relaunches. None in dev mode: sys.executable is
 # the Python interpreter there, not a Pochtalion binary, and apply never runs
 # in dev mode anyway (REPO is always empty -> update checking is disabled).
+# See _real_exe_path() for why this isn't just sys.executable for AppImage.
 EXE_DIR = _exe_dir()
-EXE_PATH = Path(sys.executable).resolve() if getattr(sys, "frozen", False) else None
+EXE_PATH = _real_exe_path()
 
 
 # --- user data location --------------------------------------------------------
