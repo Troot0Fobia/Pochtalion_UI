@@ -98,6 +98,20 @@ a = Analysis(
     optimize=0,
 )
 
+# libgbm.so.1 gets auto-collected as a transitive dependency of Qt's Wayland
+# platform plugin, pulled from whatever Mesa happens to be in the *build*
+# container (Debian bookworm-slim) - but GBM is tightly coupled to the
+# actual GPU driver stack of whichever machine runs the binary (Mesa/AMD,
+# Mesa/Intel, proprietary NVIDIA, ...), never something safe to freeze at
+# build time. Confirmed via a real crash: NVIDIA's own EGL/Wayland
+# integration on a real machine called into this bundled, mismatched copy
+# and segfaulted inside it (SIGSEGV in libgbm.so.1's gbm_create_device).
+# Excluding it here means the dynamic linker falls through to the running
+# machine's own /usr/lib/libgbm.so.1 at runtime instead - every other
+# GL/EGL/DRM/Wayland library already resolves from the system this same way
+# and was never bundled in the first place.
+a.binaries = [b for b in a.binaries if not b[0].startswith("libgbm.so")]
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
