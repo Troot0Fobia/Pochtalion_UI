@@ -1,3 +1,4 @@
+import asyncio
 import os
 import shutil
 import subprocess
@@ -46,19 +47,30 @@ def check_swap_is_safe(install_dir: Path, data_dir: Path) -> None:
         )
 
 
-def extract_archive(archive_path: Path, dest_dir: Path) -> Path:
+async def extract_archive(archive_path: Path, dest_dir: Path) -> Path:
     """Extract a downloaded tar.gz/zip release asset; return the Pochtalion/
-    onedir folder inside it."""
+    onedir folder inside it.
+
+    Extracts one member at a time with a yield in between, rather than a
+    single extractall() call - _internal/ has thousands of entries (the full
+    Qt/WebEngine bundle), and extractall() run synchronously froze the whole
+    Qt/asyncio event loop (no repaints, no clicks) for the several seconds it
+    took, right as prepare() ran on an already-cached update at startup.
+    """
     if dest_dir.exists():
         shutil.rmtree(dest_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     if archive_path.suffix == ".zip":
         with zipfile.ZipFile(archive_path) as zf:
-            zf.extractall(dest_dir)
+            for member in zf.namelist():
+                zf.extract(member, dest_dir)
+                await asyncio.sleep(0)
     else:
         with tarfile.open(archive_path) as tf:
-            tf.extractall(dest_dir, filter="data")
+            for member in tf.getmembers():
+                tf.extract(member, dest_dir, filter="data")
+                await asyncio.sleep(0)
 
     extracted = dest_dir / "Pochtalion"
     if not extracted.is_dir():
@@ -71,7 +83,7 @@ def extract_archive(archive_path: Path, dest_dir: Path) -> Path:
     return extracted
 
 
-def prepare(downloaded_path: Path, data_dir: Path) -> dict:
+async def prepare(downloaded_path: Path, data_dir: Path) -> dict:
     """Validate everything apply will need, while the app is still fully
     running - so a problem here surfaces as an error message instead of a
     half-applied update. Returns plain data for launch_and_exit(); nothing
@@ -81,7 +93,7 @@ def prepare(downloaded_path: Path, data_dir: Path) -> dict:
 
     if INSTALL_FORM == "directory":
         check_swap_is_safe(EXE_DIR, data_dir)
-        new_build_dir = extract_archive(downloaded_path, UPDATES / "staging")
+        new_build_dir = await extract_archive(downloaded_path, UPDATES / "staging")
         return {"form": "directory", "install_dir": str(EXE_DIR), "new_build_dir": str(new_build_dir)}
 
     if INSTALL_FORM == "appimage":

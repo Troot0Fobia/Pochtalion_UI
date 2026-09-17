@@ -306,7 +306,7 @@ class Updater:
 
     async def _finish_apply(self, version: str, dest) -> None:
         try:
-            apply_args = update_apply.prepare(dest, DATA_DIR)
+            apply_args = await update_apply.prepare(dest, DATA_DIR)
         except Exception:
             self.logger.exception("Update apply preparation failed")
             self._fail_download(dest, "Обновление скачано, но не может быть применено на этой установке")
