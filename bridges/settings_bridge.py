@@ -57,6 +57,8 @@ class SettingsBridge(BaseBridge):
     renderReplyVoicePool = pyqtSignal(str)
     triggerAutoReplyToggled = pyqtSignal(bool)
     logsCollected = pyqtSignal(bool, str)
+    settingsExported = pyqtSignal(bool, str)
+    settingsImported = pyqtSignal(bool, str)
 
     def __init__(self, main_window, database):
         super().__init__(main_window, database)
@@ -801,6 +803,48 @@ class SettingsBridge(BaseBridge):
     def resetSettings(self):
         self.main_window.settings_manager.reset_defaults()
         self.loadSettings()
+
+    @asyncSlot()
+    async def exportSettings(self) -> None:
+        from PyQt6.QtCore import QStandardPaths
+        from PyQt6.QtWidgets import QFileDialog
+
+        documents_dir = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation
+        )
+        default_path = str(Path(documents_dir or str(Path.home())) / "pochtalion_settings.json")
+        filepath, _ = QFileDialog.getSaveFileName(
+            self.main_window, "Экспорт настроек", default_path, "JSON Files (*.json);;All Files (*)"
+        )
+        if not filepath:
+            return
+
+        try:
+            self.main_window.settings_manager.export_settings(Path(filepath))
+            self.logger.info("Settings exported to %s", filepath)
+            self.settingsExported.emit(True, filepath)
+        except Exception as e:
+            self.logger.error("Failed to export settings: %s", e, exc_info=True)
+            self.settingsExported.emit(False, str(e))
+
+    @asyncSlot()
+    async def importSettings(self) -> None:
+        from PyQt6.QtWidgets import QFileDialog
+
+        filepath, _ = QFileDialog.getOpenFileName(
+            self.main_window, "Импорт настроек", "", "JSON Files (*.json);;All Files (*)"
+        )
+        if not filepath:
+            return
+
+        try:
+            self.main_window.settings_manager.import_settings(Path(filepath))
+            self.loadSettings()
+            self.logger.info("Settings imported from %s", filepath)
+            self.settingsImported.emit(True, "")
+        except Exception as e:
+            self.logger.error("Failed to import settings: %s", e, exc_info=True)
+            self.settingsImported.emit(False, str(e))
 
     @asyncSlot()
     async def collectLogs(self) -> None:

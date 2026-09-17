@@ -83,6 +83,8 @@ new QWebChannel(qt.webChannelTransport, function(channel) {
     bridge.renderReplyVoicePool.connect(renderReplyVoicePool);
     bridge.triggerAutoReplyToggled.connect(setTriggerAutoReplyState);
     bridge.logsCollected.connect(handleLogsCollected);
+    bridge.settingsExported.connect(handleSettingsExported);
+    bridge.settingsImported.connect(handleSettingsImported);
     bridge.loadSettings();
     bridge.getVersion(function(version) {
         document.getElementById("app-version").textContent = `Версия: ${version}`;
@@ -1969,6 +1971,47 @@ function handleLogsCollected(success, pathOrError) {
         bridge.showSuccessNotification(`Логи сохранены:<br><span style="white-space:nowrap">${escapedPath}</span>`);
     } else {
         bridge.show_notification(`Не удалось собрать логи: ${pathOrError}`);
+    }
+}
+
+async function exportSettings() {
+    const btn = document.getElementById("export-settings-button");
+    btn.textContent = "Экспорт...";
+    btn.classList.add("disabled");
+    try {
+        await bridge.exportSettings();
+    } finally {
+        btn.textContent = "Экспорт настроек";
+        btn.classList.remove("disabled");
+    }
+}
+
+async function importSettings() {
+    const btn = document.getElementById("import-settings-button");
+    btn.textContent = "Импорт...";
+    btn.classList.add("disabled");
+    try {
+        await bridge.importSettings();
+    } finally {
+        btn.textContent = "Импорт настроек";
+        btn.classList.remove("disabled");
+    }
+}
+
+function handleSettingsExported(success, pathOrError) {
+    if (success) {
+        const escapedPath = pathOrError.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        bridge.showSuccessNotification(`Настройки экспортированы:<br><span style="white-space:nowrap">${escapedPath}</span>`);
+    } else {
+        bridge.show_notification(`Не удалось экспортировать настройки: ${pathOrError}`);
+    }
+}
+
+function handleSettingsImported(success, error) {
+    if (success) {
+        bridge.showSuccessNotification("Настройки импортированы");
+    } else {
+        bridge.show_notification(`Не удалось импортировать настройки: ${error}`);
     }
 }
 

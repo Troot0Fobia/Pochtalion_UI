@@ -332,7 +332,8 @@ input[type="button"][disabled],
 .choose-button, #auth-button, .add-session-button,
 .edit-btn, #add-smm-message, #add-hook-message, #refresh-session-manager,
 .open-groups, .parse-groups-btn, .pudge-check-btn, .pudge-scan-loader,
-#add-trigger-phrase, #add-reply-message, #check-for-updates, #collect-logs-button {
+#add-trigger-phrase, #add-reply-message, #check-for-updates, #collect-logs-button,
+#export-settings-button, #import-settings-button {
   background-color: var(--accent-dim);
   color: #a5b4fc;
 }
@@ -342,7 +343,7 @@ input[type="button"][disabled],
 .edit-btn:hover, #add-smm-message:hover, #add-hook-message:hover, #refresh-session-manager:hover,
 .open-groups:hover, .parse-groups-btn:hover, .pudge-check-btn:hover,
 #add-trigger-phrase:hover, #add-reply-message:hover, #check-for-updates:hover,
-#collect-logs-button:hover {
+#collect-logs-button:hover, #export-settings-button:hover, #import-settings-button:hover {
   background-color: var(--accent); color: #fff;
 }
 

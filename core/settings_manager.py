@@ -98,6 +98,25 @@ class SettingsManager:
         with self.settings_file_path.open("w", encoding="utf-8") as f:
             json.dump(self.settings, f, indent=4, ensure_ascii=False)
 
+    def export_settings(self, target_path):
+        data = dict(self.settings or {})
+        data.pop("api_keys", None)
+        with open(target_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+
+    def import_settings(self, source_path):
+        with open(source_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            raise ValueError("Invalid settings file")
+
+        if self.settings is None:
+            self.settings = {}
+        for key in self.default_settings:
+            if key != "api_keys" and key in data:
+                self.settings[key] = data[key]
+        self.save_settings()
+
     def reset_defaults(self):
         try:
             copyfile(self.default_settings_path, self.settings_file_path)
