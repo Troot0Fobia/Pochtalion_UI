@@ -8,7 +8,7 @@ import zipfile
 from pathlib import Path
 
 from core.logger import setup_logger
-from core.paths import EXE_DIR, EXE_PATH, INSTALL_FORM, UPDATE_HELPER, UPDATES
+from core.paths import EXE_DIR, EXE_PATH, INSTALL_FORM, LOGS, UPDATE_HELPER, UPDATES
 
 logger = setup_logger("Pochtalion.UpdateApply", "update_apply.log")
 
@@ -138,9 +138,17 @@ def launch_and_exit(args: dict) -> None:
     # - before the helper ever launches. DEVNULL would dodge that too, but it
     # also throws away the only chance to ever see why the helper failed once
     # the app that spawned it is gone - route stdout/stderr to a log file
-    # under UPDATES (survives the close, unlike TMP) instead. stdin still
-    # has nothing useful to read from, so that one stays DEVNULL.
-    helper_log = (UPDATES / "helper_output.log").open("wb")
+    # instead. Under LOGS, not UPDATES: this has been the single most useful
+    # thing for diagnosing a failed apply so far (found the WinError 6, the
+    # Job Object, and the QtWebEngineProcess races through it) - it shouldn't
+    # live somewhere _cleanup_stale_updates() treats as disposable debris and
+    # deletes on the very next launch. Appended, not overwritten, so a
+    # history of past attempts survives too. stdin still has nothing useful
+    # to read from, so that one stays DEVNULL.
+    helper_log_path = LOGS / "apply_update_helper.log"
+    with helper_log_path.open("a", encoding="utf-8") as f:
+        f.write(f"\n=== apply attempt: form={form}, target_pid={pid} ===\n")
+    helper_log = helper_log_path.open("ab")
 
     if sys.platform.startswith("win"):
         # Bare "powershell" is resolved via PATH search at CreateProcess time -

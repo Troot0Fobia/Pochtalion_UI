@@ -61,8 +61,8 @@ function Wait-ForNoProcessUnder {
 }
 
 # modules.update_apply redirects this process's own stdout/stderr to
-# helper_output.log under UPDATES, which is where these Write-Host lines end
-# up - kept short and few, just enough to tell what stage a failed apply got
+# apply_update_helper.log under LOGS, which is where these Write-Host lines
+# end up - kept short and few, just enough to tell what stage a failed apply got
 # stuck at.
 try {
     Write-Host "apply_update.ps1 starting: Form=$Form TargetPid=$TargetPid"

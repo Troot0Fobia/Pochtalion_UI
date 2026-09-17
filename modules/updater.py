@@ -47,9 +47,10 @@ def _cleanup_stale_updates() -> None:
     """Drop anything in UPDATES that isn't for a version still ahead of the
     one currently running: the downloaded asset + its .verified marker for
     an update that's already been applied (we're now running it or newer),
-    and non-versioned debris (helper_output.log, a leftover staging/
-    extraction, a helper copy from a previous failed apply attempt) that
-    has no reason to survive once nothing pending references it."""
+    and non-versioned debris (a leftover staging/ extraction, a helper
+    script copy from a previous failed apply attempt - the helper's own
+    log lives under LOGS now, not here) that has no reason to survive once
+    nothing pending references it."""
     if not UPDATES.is_dir():
         return
     try:
@@ -70,8 +71,8 @@ def _cleanup_stale_updates() -> None:
             else:
                 entry.unlink(missing_ok=True)
         except OSError:
-            # E.g. helper_output.log can still be held open for a moment by
-            # the just-exited helper process (it relaunches the app and only
+            # E.g. the copied helper script itself can still be held open for
+            # a moment on a failed attempt (it relaunches the app and only
             # *then* closes/deletes itself, so there's a real race with the
             # new instance's own startup) - skip it for now, next launch's
             # cleanup will get it once it's no longer locked. Must not abort
