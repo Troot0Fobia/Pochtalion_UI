@@ -99,11 +99,30 @@ class Updater:
         self.main_window = main_window
         self.logger = setup_logger("Pochtalion.Updater", "updater.log")
         self._manager = QNetworkAccessManager()
+        # True from the moment a check starts until the whole flow reaches a
+        # dead end the user can see (no update / disabled / error / a prompt
+        # dismissed with "Позже") or hands off to the next async step (a
+        # download starting, an apply being prepared). Without this, mashing
+        # "Проверить обновления" - or clicking it while the silent startup
+        # check is still running - can fire off several concurrent downloads
+        # racing on the same UPDATES/<asset> path, or stack up duplicate
+        # prompts.
+        self._busy = False
+
+    def _finish(self) -> None:
+        self._busy = False
 
     async def start(self, manual: bool = False) -> None:
         """manual=True is a user-triggered "check for updates" click: unlike
         the silent startup check, it always reports back (disabled / up to
         date / checked and failed), not just when there's something to do."""
+        if self._busy:
+            if manual:
+                self.main_window.show_notification(
+                    "Обновление", "Проверка или скачивание обновления уже выполняется"
+                )
+            return
+        self._busy = True
         try:
             _cleanup_stale_updates()
         except Exception:
@@ -115,6 +134,7 @@ class Updater:
                 )
             else:
                 self.logger.info("Update checking disabled: no repo configured at build time")
+            self._finish()
             return
         try:
             release = await self.check_for_update()
@@ -123,12 +143,14 @@ class Updater:
                     self.main_window.show_notification(
                         "Обновление", f"Установлена последняя версия ({VERSION})"
                     )
+                self._finish()
                 return
             await self._offer_update(release)
         except Exception:
             self.logger.exception("Update check/offer failed")
             if manual:
                 self.main_window.show_notification("Обновление", "Не удалось проверить обновления")
+            self._finish()
 
     def _request(self, url: str) -> QNetworkRequest:
         request = QNetworkRequest(QUrl(url))
@@ -203,6 +225,7 @@ class Updater:
         otherwise fall back to the normal "update now?" prompt."""
         resolved = self._resolve_assets(release)
         if resolved is None:
+            self._finish()
             return
         asset_name, _asset, sha_asset = resolved
         version = release.get("tag_name", "").lstrip("vV")
@@ -250,6 +273,8 @@ class Updater:
         def _on_clicked(button):
             if button is update_btn:
                 asyncio.create_task(self._download_update(release))
+            else:
+                self._finish()
             box.deleteLater()
 
         box.buttonClicked.connect(_on_clicked)
@@ -258,6 +283,7 @@ class Updater:
     async def _download_update(self, release: dict) -> None:
         resolved = self._resolve_assets(release)
         if resolved is None:
+            self._finish()
             return
         asset_name, asset, sha_asset = resolved
         version = release.get("tag_name", "").lstrip("vV")
@@ -280,12 +306,14 @@ class Updater:
 
         try:
             if not await self._download_file(asset["browser_download_url"], dest, progress):
+                self._finish()
                 return
 
             progress.setLabelText("Проверка контрольной суммы...")
             sha_bytes = await self._fetch_bytes(sha_asset["browser_download_url"])
             if sha_bytes is None:
                 self._fail_download(dest, "Не удалось скачать контрольную сумму")
+                self._finish()
                 return
 
             expected = sha_bytes.decode("utf-8", "ignore").split()[0].lower()
@@ -295,6 +323,7 @@ class Updater:
                     "Update checksum mismatch for %s: expected %s, got %s", asset_name, expected, actual
                 )
                 self._fail_download(dest, "Контрольная сумма скачанного файла не совпадает")
+                self._finish()
                 return
 
             _verified_marker(dest).write_text(expected)
@@ -321,6 +350,7 @@ class Updater:
         except Exception:
             self.logger.exception("Update apply preparation failed")
             self._fail_download(dest, "Обновление скачано, но не может быть применено на этой установке")
+            self._finish()
             return
         finally:
             progress.close()
@@ -355,8 +385,11 @@ class Updater:
                     self.main_window.show_notification(
                         "Обновление", "Не удалось запустить применение обновления"
                     )
+                    self._finish()
                 else:
                     self.main_window.close()
+            else:
+                self._finish()
             box.deleteLater()
 
         box.buttonClicked.connect(_on_clicked)
