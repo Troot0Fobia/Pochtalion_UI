@@ -94,7 +94,12 @@ async def prepare(downloaded_path: Path, data_dir: Path) -> dict:
     if INSTALL_FORM == "directory":
         check_swap_is_safe(EXE_DIR, data_dir)
         new_build_dir = await extract_archive(downloaded_path, UPDATES / "staging")
-        return {"form": "directory", "install_dir": str(EXE_DIR), "new_build_dir": str(new_build_dir)}
+        return {
+            "form": "directory",
+            "install_dir": str(EXE_DIR),
+            "new_build_dir": str(new_build_dir),
+            "archive_path": str(downloaded_path),
+        }
 
     if INSTALL_FORM == "appimage":
         return {"form": "appimage", "current": str(EXE_PATH), "new": str(downloaded_path)}
@@ -150,7 +155,11 @@ def launch_and_exit(args: dict) -> None:
             "-Form", form, "-TargetPid", str(pid), "-ExePath", str(EXE_PATH),
         ]
         if form == "directory":
-            cmd += ["-InstallDir", args["install_dir"], "-NewBuildDir", args["new_build_dir"]]
+            cmd += [
+                "-InstallDir", args["install_dir"],
+                "-NewBuildDir", args["new_build_dir"],
+                "-ArchivePath", args["archive_path"],
+            ]
         elif form == "windows-installer":
             cmd += ["-InstallerPath", args["installer_path"]]
         proc = subprocess.Popen(
@@ -178,7 +187,10 @@ def launch_and_exit(args: dict) -> None:
         )
     else:
         if form == "directory":
-            cmd = [str(helper), "directory", str(pid), args["install_dir"], args["new_build_dir"]]
+            cmd = [
+                str(helper), "directory", str(pid),
+                args["install_dir"], args["new_build_dir"], args["archive_path"],
+            ]
         else:  # appimage
             cmd = [str(helper), "appimage", str(pid), args["current"], args["new"]]
         proc = subprocess.Popen(

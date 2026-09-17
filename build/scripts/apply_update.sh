@@ -6,7 +6,7 @@
 # it detached, right before the app process exits.
 #
 # Usage:
-#   apply_update.sh directory <pid> <install_dir> <new_build_dir>
+#   apply_update.sh directory <pid> <install_dir> <new_build_dir> <archive_path>
 #   apply_update.sh appimage  <pid> <current_appimage_path> <new_appimage_path>
 #
 # "directory" replaces only the app's own files (the exe + _internal/)
@@ -30,13 +30,20 @@ echo "apply_update.sh starting: form=$FORM"
 
 case "$FORM" in
     directory)
-        PID="$2"; INSTALL_DIR="$3"; NEW_BUILD_DIR="$4"
+        PID="$2"; INSTALL_DIR="$3"; NEW_BUILD_DIR="$4"; ARCHIVE_PATH="${5:-}"
         wait_for_exit "$PID"
         rm -rf "$INSTALL_DIR/_internal"
         rm -f "$INSTALL_DIR/Pochtalion"
         mv "$NEW_BUILD_DIR/_internal" "$INSTALL_DIR/_internal"
         mv "$NEW_BUILD_DIR/Pochtalion" "$INSTALL_DIR/Pochtalion"
         rm -rf "$(dirname "$NEW_BUILD_DIR")"
+        # The downloaded tar.gz/zip itself (+ its .verified sidecar) - staging/
+        # above is just what it was extracted into. Left these behind before;
+        # _cleanup_stale_updates() would eventually catch them on the next
+        # startup, but no reason to wait.
+        if [ -n "$ARCHIVE_PATH" ]; then
+            rm -f "$ARCHIVE_PATH" "$ARCHIVE_PATH.verified"
+        fi
         EXE="$INSTALL_DIR/Pochtalion"
         ;;
     appimage)
