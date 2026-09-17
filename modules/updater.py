@@ -305,12 +305,25 @@ class Updater:
         await self._finish_apply(version, dest)
 
     async def _finish_apply(self, version: str, dest) -> None:
+        # prepare() extracts the archive for the directory form - not
+        # instant (thousands of files), and even though it yields regularly
+        # so the app doesn't hard-freeze, a few seconds of "the window is
+        # sluggish and nothing tells you why" reads the same as broken. A
+        # visible indicator, same idea as the download's own progress bar.
+        progress = QProgressDialog("Подготовка обновления...", "", 0, 0, self.main_window)
+        progress.setWindowTitle("Обновление Pochtalion")
+        progress.setCancelButton(None)
+        progress.setMinimumDuration(0)
+        progress.setModal(False)
+        progress.show()
         try:
             apply_args = await update_apply.prepare(dest, DATA_DIR)
         except Exception:
             self.logger.exception("Update apply preparation failed")
             self._fail_download(dest, "Обновление скачано, но не может быть применено на этой установке")
             return
+        finally:
+            progress.close()
         self._show_restart_prompt(version, apply_args)
 
     def _fail_download(self, dest, message: str) -> None:
@@ -350,7 +363,15 @@ class Updater:
         box.show()
 
     async def _download_file(self, url: str, dest, progress: QProgressDialog) -> bool:
-        reply = self._manager.get(self._request(url))
+        # A fresh QNetworkAccessManager per download attempt, not self._manager
+        # (shared for the lightweight version-check/sha256 fetches) - a
+        # cancelled (reply.abort()'d) request has been seen to leave a
+        # following request to the same host on the *same* manager stuck
+        # indefinitely with no downloadProgress at all (Windows-only so far).
+        # A new manager can't carry over whatever connection-pool state that
+        # is.
+        manager = QNetworkAccessManager()
+        reply = manager.get(self._request(url))
         cancelled = False
 
         def _on_ready_read():
